@@ -1,0 +1,37 @@
+<resources>
+    <string name="app_name">الطريق إلى صحتي</string>
+    <string name="tagline">صحتك .. أولويتي</string>
+    <string name="loading">جاري التحميل ...</string>
+    <string name="welcome_back">مرحباً بك</string>
+    <string name="login_sub">سجل دخولك للمتابعة</string>
+    <string name="email">البريد الإلكتروني</string>
+    <string name="password">كلمة المرور (6 أحرف على الأقل)</string>
+    <string name="remember">تذكرني</string>
+    <string name="forgot">نسيت كلمة المرور؟</string>
+    <string name="login">تسجيل الدخول</string>
+    <string name="or">أو</string>
+    <string name="create_account">إنشاء حساب جديد</string>
+    <string name="signup_btn">إنشاء الحساب</string>
+    <string name="have_account">لدي حساب بالفعل</string>
+    <string name="name">الاسم</string>
+    <string name="phone">رقم الجوال</string>
+    <string name="account_type">نوع الحساب</string>
+    <string name="patient">مريض</string>
+    <string name="doctor">طبيب</string>
+    <string name="clinic">عيادة</string>
+    <string name="reset_sent">تم إرسال رابط استعادة كلمة المرور إلى بريدك</string>
+    <string name="error_generic">حدث خطأ، تحقق من الاتصال بالإنترنت</string>
+    <string name="enter_email_pass">أدخل البريد الإلكتروني وكلمة المرور</string>
+    <string name="enter_name">أدخل الاسم</string>
+    <string name="hello">مرحباً</string>
+    <string name="home_sub">معاً نحو حياة أكثر صحة</string>
+    <string name="find_doctor">ابحث عن طبيب أو عيادة</string>
+    <string name="book_appt">احجز موعد</string>
+    <string name="my_turn">دوري الآن</string>
+    <string name="way_to_clinic">الطريق إلى العيادة</string>
+    <string name="nav_home">الرئيسية</string>
+    <string name="nav_appts">المواعيد</string>
+    <string name="nav_profile">الملف</string>
+    <string name="logout">تسجيل الخروج</string>
+    <string name="soon">هذه الميزة تُضاف في المرحلة القادمة</string>
+</resources>
