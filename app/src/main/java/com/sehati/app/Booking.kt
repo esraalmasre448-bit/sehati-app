@@ -1,13 +1,8 @@
 package com.sehati.app
 
-import android.Manifest
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
-import android.location.LocationManager
 import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
@@ -23,33 +18,30 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.ContextCompat
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.SetOptions
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
-private val BBg = Color(0xFF0A0C11)
-private val BCard = Color(0xFF14171D)
-private val BLine = Color(0xFF2A2F3A)
-private val BRed = Color(0xFFE5171F)
-private val BMuted = Color(0xFF9AA0AB)
-private val BGreen = Color(0xFF3DDC84)
+val BBg = Color(0xFF0A0C11)
+val BCard = Color(0xFF14171D)
+val BLine = Color(0xFF2A2F3A)
+val BRed = Color(0xFFE5171F)
+val BMuted = Color(0xFF9AA0AB)
+val BGreen = Color(0xFF3DDC84)
 
-private val bAuth get() = FirebaseAuth.getInstance()
-private val bDb get() = FirebaseFirestore.getInstance()
+val bAuth get() = FirebaseAuth.getInstance()
+val bDb get() = FirebaseFirestore.getInstance()
 
 private fun num(v: Any?): Int? = (v as? Number)?.toInt()
 private fun dbl(v: Any?): Double? = (v as? Number)?.toDouble()
-private fun dateKey(c: Calendar): String = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(c.time)
-private fun todayKey(): String = dateKey(Calendar.getInstance())
+fun dateKey(c: Calendar): String = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(c.time)
+fun todayKey(): String = dateKey(Calendar.getInstance())
 private fun slotLabel(minutes: Int): String = "%02d:%02d".format(minutes / 60, minutes % 60)
 
 private fun slotsOf(d: Map<String, Any?>): List<Int> {
@@ -85,20 +77,20 @@ fun openRoute(ctx: Context, d: Map<String, Any?>): String? {
     }
 }
 
-private fun routeToDoctor(ctx: Context, doctorId: String, onMsg: (String) -> Unit) {
+fun routeToDoctor(ctx: Context, doctorId: String, onMsg: (String) -> Unit) {
     bDb.collection("doctors").document(doctorId).get()
         .addOnSuccessListener { s -> onMsg(openRoute(ctx, s.data.orEmpty()) ?: "") }
         .addOnFailureListener { onMsg("تعذر تحميل موقع العيادة، تحقق من الإنترنت") }
 }
 
-private fun parseLatLng(s: String): Pair<Double, Double>? {
+fun parseLatLng(s: String): Pair<Double, Double>? {
     val m = Regex("""(-?\d{1,3}\.\d+)\s*[, ]\s*(-?\d{1,3}\.\d+)""").find(s) ?: return null
     val a = m.groupValues[1].toDoubleOrNull() ?: return null
     val b = m.groupValues[2].toDoubleOrNull() ?: return null
     return a to b
 }
 
-private fun statusLabel(s: Any?): Pair<String, Color> = when (s) {
+fun statusLabel(s: Any?): Pair<String, Color> = when (s) {
     "CONFIRMED" -> "مؤكد" to BGreen
     "DONE" -> "منتهي" to BMuted
     "CANCELLED" -> "ملغى" to BRed
@@ -162,7 +154,7 @@ private fun book(
     }.addOnFailureListener { onResult(false, "تعذر تحميل بياناتك، تحقق من الإنترنت") }
 }
 
-private fun setStatus(id: String, status: String, freeSlot: Boolean, onDone: (Boolean) -> Unit) {
+fun setStatus(id: String, status: String, freeSlot: Boolean, onDone: (Boolean) -> Unit) {
     val batch = bDb.batch()
     batch.update(bDb.collection("appointments").document(id), "status", status)
     if (freeSlot) batch.delete(bDb.collection("slots").document(id))
@@ -170,7 +162,7 @@ private fun setStatus(id: String, status: String, freeSlot: Boolean, onDone: (Bo
 }
 
 @Composable
-private fun subState(uid: String): String {
+fun subState(uid: String): String {
     var st by remember { mutableStateOf("loading") }
     DisposableEffect(uid) {
         val reg = bDb.collection("subscriptions").document(uid).addSnapshotListener { s, e ->
@@ -189,7 +181,7 @@ private fun subState(uid: String): String {
 }
 
 @Composable
-private fun LockNote(st: String) {
+fun LockNote(st: String) {
     val text = when (st) {
         "none" -> "لا يوجد اشتراك فعّال لحسابك. تواصل مع إدارة التطبيق لتفعيل اشتراكك."
         "expired", "cancelled" -> "انتهى اشتراكك.\nقم بتجديد الاشتراك لاستعادة جميع مزايا حسابك."
@@ -206,7 +198,7 @@ private fun LockNote(st: String) {
 }
 
 @Composable
-private fun DayChips(days: List<Calendar>, idx: Int, onSelect: (Int) -> Unit) {
+fun DayChips(days: List<Calendar>, idx: Int, onSelect: (Int) -> Unit) {
     val fmt = remember { SimpleDateFormat("EEE d/M", Locale("ar")) }
     Row(
         Modifier.horizontalScroll(rememberScrollState()),
@@ -442,26 +434,3 @@ fun MyAppointmentsContent(onFind: () -> Unit, onBack: (() -> Unit)? = null) {
         )
     }
 }
-
-@Composable
-fun QueueScreen(onBack: () -> Unit, onFind: () -> Unit) {
-    val uid = bAuth.currentUser?.uid ?: ""
-    val today = remember { todayKey() }
-    var items by remember { mutableStateOf(listOf<Map<String, Any?>>()) }
-    var loaded by remember { mutableStateOf(false) }
-
-    DisposableEffect(uid) {
-        val reg = bDb.collection("appointments").whereEqualTo("patientId", uid).limit(100)
-            .addSnapshotListener { s, e ->
-                if (e == null) {
-                    items = s?.documents?.map { it.data.orEmpty() + ("id" to it.id) }.orEmpty()
-                        .filter { it["date"] == today && it["status"] == "CONFIRMED" }
-                        .sortedBy { (it["slot"] as? Number)?.toInt() ?: 0 }
-                    loaded = true
-                }
-            }
-        onDispose { reg.remove() }
-    }
-
-    LazyColumn(
-        Modifier.
