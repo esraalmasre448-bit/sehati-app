@@ -8,6 +8,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -35,7 +36,6 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 private val Bg = Color(0xFF0A0C11)
 private val CardC = Color(0xFF14171D)
@@ -69,7 +69,11 @@ fun App() {
     var selected by remember { mutableStateOf<Map<String, Any?>?>(null) }
     LaunchedEffect(Unit) { delay(1500); splash = false }
     BackHandler(enabled = screen != "main") {
-        screen = if (screen == "detail") "search" else "main"
+        screen = when (screen) {
+            "detail" -> "search"
+            "book" -> "detail"
+            else -> "main"
+        }
     }
     val sel = selected
     when {
@@ -79,11 +83,23 @@ fun App() {
             onBack = { screen = "main" },
             onOpen = { selected = it; screen = "detail" }
         )
-        screen == "detail" && sel != null -> DoctorDetailScreen(sel) { screen = "search" }
+        screen == "detail" && sel != null -> DoctorDetailFull(
+            sel, onBack = { screen = "search" }, onBook = { screen = "book" }
+        )
+        screen == "book" && sel != null -> BookingScreen(
+            sel, onBack = { screen = "detail" }, onDone = { screen = "myappts" }
+        )
+        screen == "myappts" -> MyAppointmentsContent(
+            onFind = { screen = "search" }, onBack = { screen = "main" }
+        )
+        screen == "queue" -> QueueScreen(onBack = { screen = "main" }, onFind = { screen = "search" })
+        screen == "route" -> RouteScreen(onBack = { screen = "main" }, onFind = { screen = "search" })
         screen == "profile" -> DoctorProfileScreen { screen = "main" }
+        screen == "settings" -> ClinicSettingsScreen { screen = "main" }
+        screen == "dash" -> DoctorDashboardContent(onBack = { screen = "main" })
+        screen == "admin" -> AdminScreen { screen = "main" }
         else -> MainShell(
-            onSearch = { screen = "search" },
-            onProfile = { screen = "profile" },
+            onGo = { screen = it },
             onLogout = { auth.signOut(); loggedIn = false; screen = "main" }
         )
     }
@@ -246,14 +262,11 @@ fun AuthFlow(onDone: () -> Unit) {
 }
 
 @Composable
-fun MainShell(onSearch: () -> Unit, onProfile: () -> Unit, onLogout: () -> Unit) {
+fun MainShell(onGo: (String) -> Unit, onLogout: () -> Unit) {
     var tab by remember { mutableIntStateOf(0) }
     var name by remember { mutableStateOf("") }
     var type by remember { mutableStateOf("") }
     val email = auth.currentUser?.email ?: ""
-    val host = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
-    val soon = stringResource(R.string.soon)
     LaunchedEffect(Unit) {
         auth.currentUser?.uid?.let { uid ->
             db.collection("users").document(uid).get().addOnSuccessListener { d ->
@@ -274,7 +287,6 @@ fun MainShell(onSearch: () -> Unit, onProfile: () -> Unit, onLogout: () -> Unit)
     )
     Scaffold(
         containerColor = Bg,
-        snackbarHost = { SnackbarHost(host) },
         bottomBar = {
             NavigationBar(containerColor = CardC) {
                 NavigationBarItem(tab == 0, { tab = 0 }, { Icon(Icons.Filled.Home, null) },
@@ -288,10 +300,9 @@ fun MainShell(onSearch: () -> Unit, onProfile: () -> Unit, onLogout: () -> Unit)
     ) { pad ->
         Box(Modifier.padding(pad).fillMaxSize()) {
             when (tab) {
-                0 -> HomeTab(name, type, onSearch, onProfile) { scope.launch { host.showSnackbar(soon) } }
-                1 -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(soon, color = Muted, textAlign = TextAlign.Center, modifier = Modifier.padding(32.dp))
-                }
+                0 -> HomeTab(name, type, onGo)
+                1 -> if (type == "doctor" || type == "clinic") DoctorDashboardContent()
+                else MyAppointmentsContent(onFind = { onGo("search") })
                 else -> ProfileTab(name, email, typeLabel, onLogout)
             }
         }
@@ -299,27 +310,39 @@ fun MainShell(onSearch: () -> Unit, onProfile: () -> Unit, onLogout: () -> Unit)
 }
 
 @Composable
-fun HomeTab(
-    name: String, type: String,
-    onSearch: () -> Unit, onProfile: () -> Unit, onSoon: () -> Unit
-) {
+fun HomeTab(name: String, type: String, onGo: (String) -> Unit) {
+    var taps by remember { mutableIntStateOf(0) }
+    var last by remember { mutableLongStateOf(0L) }
     Column(
         Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Image(painterResource(R.drawable.ic_launcher), null, Modifier.size(90.dp).align(Alignment.CenterHorizontally))
+        Image(
+            painterResource(R.drawable.ic_launcher), null,
+            Modifier.size(90.dp).align(Alignment.CenterHorizontally).clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) {
+                val now = System.currentTimeMillis()
+                taps = if (now - last < 1500) taps + 1 else 1
+                last = now
+                if (taps >= 4) { taps = 0; onGo("admin") }
+            }
+        )
         Text("${stringResource(R.string.hello)} $name", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
         Text(stringResource(R.string.home_sub), color = Muted)
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Tile(Icons.Filled.Search, stringResource(R.string.find_doctor), true, Modifier.weight(1f), onSearch)
-            Tile(Icons.Filled.CalendarMonth, stringResource(R.string.book_appt), false, Modifier.weight(1f), onSoon)
+            Tile(Icons.Filled.Search, stringResource(R.string.find_doctor), true, Modifier.weight(1f)) { onGo("search") }
+            Tile(Icons.Filled.CalendarMonth, stringResource(R.string.book_appt), false, Modifier.weight(1f)) { onGo("search") }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Tile(Icons.Filled.Person, stringResource(R.string.my_turn), false, Modifier.weight(1f), onSoon)
-            Tile(Icons.Filled.LocationOn, stringResource(R.string.way_to_clinic), false, Modifier.weight(1f), onSoon)
+            Tile(Icons.Filled.Person, stringResource(R.string.my_turn), false, Modifier.weight(1f)) { onGo("queue") }
+            Tile(Icons.Filled.LocationOn, stringResource(R.string.way_to_clinic), false, Modifier.weight(1f)) { onGo("route") }
         }
         if (type == "doctor" || type == "clinic") {
-            Tile(Icons.Filled.Person, "ملفي المهني", true, Modifier.fillMaxWidth(), onProfile)
+            Tile(Icons.Filled.Person, "ملفي المهني", true, Modifier.fillMaxWidth()) { onGo("profile") }
+            Tile(Icons.Filled.LocationOn, "إعدادات العيادة (الدوام والموقع)", false, Modifier.fillMaxWidth()) { onGo("settings") }
+            Tile(Icons.Filled.CalendarMonth, "لوحتي — الحجوزات والدور", false, Modifier.fillMaxWidth()) { onGo("dash") }
         }
     }
 }
