@@ -32,7 +32,12 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
+import com.google.firebase.auth.FirebaseAuthInvalidUserException
+import com.google.firebase.auth.FirebaseAuthUserCollisionException
+import com.google.firebase.auth.FirebaseAuthWeakPasswordException
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.delay
@@ -45,6 +50,18 @@ private val Muted = Color(0xFF9AA0AB)
 
 private val auth get() = FirebaseAuth.getInstance()
 private val db get() = FirebaseFirestore.getInstance()
+
+private fun authError(e: Exception): String = when (e) {
+    is FirebaseAuthWeakPasswordException -> "كلمة السر ضعيفة، استخدم 6 أحرف على الأقل"
+    is FirebaseAuthInvalidUserException -> "لا يوجد حساب بهذا البريد"
+    is FirebaseAuthInvalidCredentialsException -> "البريد أو كلمة السر غير صحيحة"
+    is FirebaseAuthUserCollisionException -> "هذا البريد مسجّل مسبقًا، سجّل دخولك"
+    is FirebaseNetworkException -> "تحقق من اتصال الإنترنت وحاول مرة أخرى"
+    else ->
+        if (e.message?.contains("API key", true) == true)
+            "تعذر الاتصال بالخدمة (رمز: API_KEY). ثبّت آخر نسخة من التطبيق"
+        else "تعذر إتمام العملية، حاول مرة أخرى"
+}
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -86,7 +103,7 @@ fun App() {
         screen == "detail" && sel != null -> DoctorDetailFull(
             sel, onBack = { screen = "search" }, onBook = { screen = "book" }
         )
-        screen == "book" && sel != null -> BookingScreen(
+        screen == "book" && sel != null -> QueueBookingScreen(
             sel, onBack = { screen = "detail" }, onDone = { screen = "myappts" }
         )
         screen == "myappts" -> MyAppointmentsContent(
@@ -129,12 +146,23 @@ fun Field(
     value: String, onChange: (String) -> Unit, label: String,
     password: Boolean = false, keyboard: KeyboardType = KeyboardType.Text
 ) {
+    var show by remember { mutableStateOf(false) }
     OutlinedTextField(
         value = value, onValueChange = onChange,
         label = { Text(label, color = Muted) },
         singleLine = true,
-        visualTransformation = if (password) PasswordVisualTransformation() else VisualTransformation.None,
+        visualTransformation = if (password && !show) PasswordVisualTransformation() else VisualTransformation.None,
         keyboardOptions = KeyboardOptions(keyboardType = if (password) KeyboardType.Password else keyboard),
+        trailingIcon = if (password) {
+            {
+                IconButton(onClick = { show = !show }) {
+                    Icon(
+                        if (show) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                        contentDescription = null, tint = Muted
+                    )
+                }
+            }
+        } else null,
         shape = RoundedCornerShape(12.dp),
         colors = OutlinedTextFieldDefaults.colors(
             focusedBorderColor = Red, unfocusedBorderColor = Line,
@@ -209,7 +237,7 @@ fun AuthFlow(onDone: () -> Unit) {
                 if (email.isBlank()) msg = enterBoth
                 else auth.sendPasswordResetEmail(email.trim())
                     .addOnSuccessListener { msg = resetSent }
-                    .addOnFailureListener { msg = errGeneric }
+                    .addOnFailureListener { msg = authError(it) }
             }) { Text(stringResource(R.string.forgot), color = Red) }
         }
         if (msg.isNotEmpty()) Text(msg, color = Red)
@@ -234,11 +262,11 @@ fun AuthFlow(onDone: () -> Unit) {
                             )
                         ).addOnSuccessListener { busy = false; onDone() }
                             .addOnFailureListener { busy = false; msg = errGeneric }
-                    }.addOnFailureListener { busy = false; msg = it.localizedMessage ?: errGeneric }
+                    }.addOnFailureListener { busy = false; msg = authError(it) }
                 } else {
                     auth.signInWithEmailAndPassword(e, pass)
                         .addOnSuccessListener { busy = false; onDone() }
-                        .addOnFailureListener { busy = false; msg = it.localizedMessage ?: errGeneric }
+                        .addOnFailureListener { busy = false; msg = authError(it) }
                 }
             }
         }
@@ -368,7 +396,7 @@ fun Tile(icon: ImageVector, text: String, red: Boolean, modifier: Modifier, onCl
 @Composable
 fun ProfileTab(name: String, email: String, typeLabel: String, onLogout: () -> Unit) {
     Column(
-        Modifier.fillMaxSize().padding(24.dp),
+        Modifier.fillMaxSize().padding(24.dp).verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
@@ -384,5 +412,7 @@ fun ProfileTab(name: String, email: String, typeLabel: String, onLogout: () -> U
         Text(typeLabel, color = Red)
         Spacer(Modifier.height(24.dp))
         RedButton(stringResource(R.string.logout), onClick = onLogout)
+        Spacer(Modifier.height(8.dp))
+        DeleteAccountSection(onDeleted = onLogout)
     }
 }
