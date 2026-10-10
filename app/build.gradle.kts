@@ -13,7 +13,22 @@ android {
         versionCode = 1
         versionName = "0.1"
     }
-    buildTypes { release { isMinifyEnabled = false } }
+    signingConfigs {
+        create("fixed") {
+            storeFile = file("sehati.keystore")
+            storePassword = System.getenv("KS_PASS")
+            keyAlias = "sehati"
+            keyPassword = System.getenv("KS_PASS")
+        }
+    }
+    buildTypes {
+        debug {
+            if (file("sehati.keystore").exists()) {
+                signingConfig = signingConfigs.getByName("fixed")
+            }
+        }
+        release { isMinifyEnabled = false }
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
