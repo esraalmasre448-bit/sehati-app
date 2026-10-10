@@ -46,18 +46,24 @@ private fun bookByQueue(
     val endMin = (qNum(d["endHour"]) ?: 17) * 60
     val step = (qNum(d["slotMinutes"]) ?: 30).coerceAtLeast(10)
     val queueRef = bDb.collection("queues").document("${doctorId}_$date")
+    val apptRef = bDb.collection("appointments").document("${doctorId}_${date}_${me.uid}")
     bDb.collection("users").document(me.uid).get().addOnSuccessListener { u ->
         val pName = u.getString("name") ?: ""
         val pPhone = u.getString("phone") ?: ""
         bDb.runTransaction<String> { tx ->
+            val a = tx.get(apptRef)
             val q = tx.get(queueRef)
+            if (a.exists()) {
+                val st = a.getString("status")
+                if (st == "CONFIRMED") {
+                    return@runTransaction "EXIST|${a.getLong("number") ?: 0L}|${a.getString("time") ?: ""}"
+                }
+                if (st != "CANCELLED") return@runTransaction "BLOCKED"
+            }
             val last = if (q.exists()) (q.getLong("last") ?: 0L) else 0L
             val current = if (q.exists()) (q.getLong("current") ?: 0L) else 0L
             val (number, est) = estimate(last, current, today, startMin, step)
             if (est + step > endMin) return@runTransaction "FULL"
-            val id = "${doctorId}_${date}_$number"
-            val slotRef = bDb.collection("slots").document(id)
-            val apptRef = bDb.collection("appointments").document(id)
             if (q.exists()) {
                 tx.update(queueRef, "last", number)
             } else {
@@ -66,10 +72,6 @@ private fun bookByQueue(
                     mapOf("doctorId" to doctorId, "date" to date, "last" to 1L, "current" to 0L)
                 )
             }
-            tx.set(
-                slotRef,
-                mapOf("doctorId" to doctorId, "date" to date, "slot" to est, "patientId" to me.uid)
-            )
             tx.set(
                 apptRef,
                 mapOf(
@@ -85,16 +87,23 @@ private fun bookByQueue(
                     "createdAt" to FieldValue.serverTimestamp()
                 )
             )
-            "$number|${qTime(est)}"
+            "OK|$number|${qTime(est)}"
         }.addOnSuccessListener { r ->
-            if (r == "FULL") {
-                onResult(false, "الأدوار ممتلئة لهذا اليوم، اختر يومًا آخر")
-            } else {
-                val p = r.split("|")
-                onResult(true, "تم حجز دورك. رقمك: ${p[0]} — الوقت التقريبي: ${p[1]} بتاريخ $date")
+            val p = r.split("|")
+            when (p[0]) {
+                "FULL" -> onResult(false, "الأدوار ممتلئة لهذا اليوم، اختر يومًا آخر")
+                "BLOCKED" -> onResult(false, "لديك موعد منتهٍ عند هذا الطبيب بهذا اليوم، اختر يومًا آخر")
+                "EXIST" -> onResult(
+                    true,
+                    "لديك حجز مسبق عند هذا الطبيب بهذا اليوم. رقمك: ${p.getOrElse(1) { "" }} — الوقت التقريبي: ${p.getOrElse(2) { "" }}"
+                )
+                else -> onResult(
+                    true,
+                    "تم حجز دورك. رقمك: ${p.getOrElse(1) { "" }} — الوقت التقريبي: ${p.getOrElse(2) { "" }} بتاريخ $date"
+                )
             }
-        }.addOnFailureListener {
-            onResult(false, "تعذر الحجز. تحقق من الإنترنت، أو أن الطبيب غير متاح للحجز حاليًا")
+        }.addOnFailureListener { e ->
+            onResult(false, "تعذر الحجز: " + (e.message ?: ""))
         }
     }.addOnFailureListener { onResult(false, "تعذر تحميل بياناتك، تحقق من الإنترنت") }
 }
