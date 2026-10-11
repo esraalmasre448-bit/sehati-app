@@ -84,10 +84,10 @@ private fun QueueCard(a: Map<String, Any?>) {
         Text("الرقم الحالي: $current", color = Color.White, fontSize = 16.sp)
         if (current < number) Text("عدد الأشخاص قبلك: $ahead", color = Color.White, fontSize = 16.sp)
         Text(statusText, color = color, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-        if (msg.isNotEmpty()) Text(msg, color = BRed)
+        if (msg.isNotEmpty()) Text(msg, color = BDanger)
         Button(
             onClick = { routeToDoctor(ctx, doctorId) { msg = it } },
-            colors = ButtonDefaults.buttonColors(containerColor = BRed, contentColor = Color.White)
+            colors = ButtonDefaults.buttonColors(containerColor = BRed, contentColor = BOnAccent)
         ) { Text("الطريق إلى العيادة") }
     }
 }
@@ -121,7 +121,7 @@ fun RouteScreen(onBack: () -> Unit, onFind: () -> Unit) {
     ) {
         item { TextButton(onClick = onBack) { Text("رجوع", color = BRed) } }
         item { Text("الطريق إلى العيادة", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White) }
-        if (msg.isNotEmpty()) item { Text(msg, color = BRed) }
+        if (msg.isNotEmpty()) item { Text(msg, color = BDanger) }
         if (loaded && items.isEmpty()) {
             item { Text("ما عندك مواعيد قادمة. احجز موعدًا لتظهر عيادتك هنا.", color = BMuted) }
             item { RedButton("ابحث عن طبيب", onClick = onFind) }
@@ -137,7 +137,7 @@ fun RouteScreen(onBack: () -> Unit, onFind: () -> Unit) {
                 Text("${a["date"]}  •  ${a["time"]}", color = Color.White)
                 Button(
                     onClick = { routeToDoctor(ctx, a["doctorId"].toString()) { msg = it } },
-                    colors = ButtonDefaults.buttonColors(containerColor = BRed, contentColor = Color.White)
+                    colors = ButtonDefaults.buttonColors(containerColor = BRed, contentColor = BOnAccent)
                 ) { Text("افتح الطريق في خرائط جوجل") }
             }
         }
@@ -197,12 +197,12 @@ fun DoctorDashboardContent(onBack: (() -> Unit)? = null) {
                             .update("current", current + 1)
                             .addOnFailureListener { msg = "تعذر تحديث الدور، تحقق من الإنترنت واشتراكك" }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = BRed, contentColor = Color.White),
+                    colors = ButtonDefaults.buttonColors(containerColor = BRed, contentColor = BOnAccent),
                     modifier = Modifier.fillMaxWidth()
                 ) { Text("نادِ التالي") }
             }
         }
-        if (msg.isNotEmpty()) item { Text(msg, color = BRed) }
+        if (msg.isNotEmpty()) item { Text(msg, color = BDanger) }
         if (items.isEmpty()) item { Text("لا توجد حجوزات لهذا اليوم", color = BMuted) }
         items(items, key = { it["id"] as String }) { a ->
             val (label, color) = statusLabel(a["status"])
@@ -226,7 +226,7 @@ fun DoctorDashboardContent(onBack: (() -> Unit)? = null) {
                                     msg = if (ok) "" else "تعذر التحديث، تحقق من الإنترنت واشتراكك"
                                 }
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = BRed, contentColor = Color.White)
+                            colors = ButtonDefaults.buttonColors(containerColor = BRed, contentColor = BOnAccent)
                         ) { Text("تم") }
                         OutlinedButton(
                             enabled = active,
