@@ -97,7 +97,7 @@ fun ClinicSettingsScreen(onBack: () -> Unit) {
             },
             modifier = Modifier.fillMaxWidth().height(52.dp)
         ) { Text("استخدم موقعي الحالي (وأنا بالعيادة)", color = Color.White) }
-        if (msg.isNotEmpty()) Text(msg, color = if (ok) BGreen else BRed)
+        if (msg.isNotEmpty()) Text(msg, color = if (ok) BGreen else BDanger)
         RedButton("حفظ الإعدادات", enabled = !busy) {
             val sh = startH.trim().toIntOrNull()
             val eh = endH.trim().toIntOrNull()
