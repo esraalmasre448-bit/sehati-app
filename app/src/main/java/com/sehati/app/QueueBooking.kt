@@ -155,7 +155,7 @@ fun QueueBookingScreen(d: Map<String, Any?>, onBack: () -> Unit, onDone: () -> U
                     .background(BCard, RoundedCornerShape(12.dp))
                     .border(1.dp, BGreen, RoundedCornerShape(12.dp)).padding(14.dp)
             )
-            if (msg.isNotEmpty()) Text(msg, color = BRed)
+            if (msg.isNotEmpty()) Text(msg, color = BDanger)
             RedButton("عرض موقع العيادة") { msg = openRoute(ctx, d) ?: "" }
             OutlinedButton(
                 onClick = onDone, modifier = Modifier.fillMaxWidth().height(52.dp)
@@ -173,7 +173,7 @@ fun QueueBookingScreen(d: Map<String, Any?>, onBack: () -> Unit, onDone: () -> U
                 if (full) {
                     Text(
                         "الأدوار ممتلئة لهذا اليوم، اختر يومًا آخر",
-                        color = BRed, fontWeight = FontWeight.Bold
+                        color = BDanger, fontWeight = FontWeight.Bold
                     )
                 } else {
                     Text("رقمك: $nextNo", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Color.White)
@@ -185,7 +185,7 @@ fun QueueBookingScreen(d: Map<String, Any?>, onBack: () -> Unit, onDone: () -> U
                 }
             }
             Field(note, { note = it }, "ملاحظة للطبيب (اختياري)")
-            if (msg.isNotEmpty()) Text(msg, color = BRed)
+            if (msg.isNotEmpty()) Text(msg, color = BDanger)
             RedButton("تأكيد الحجز", enabled = !busy && !full) {
                 busy = true
                 msg = ""
