@@ -435,4 +435,17 @@ fun ProfileTab(name: String, email: String, typeLabel: String, onLogout: () -> U
     ) {
         Spacer(Modifier.height(16.dp))
         Box(
-            Modifier.size(84.dp).background(CardC, CircleShape).border
+            Modifier.size(84.dp).background(CardC, CircleShape).border(1.dp, Line, CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(name.take(1).uppercase(), fontSize = 34.sp, color = Color.White, fontWeight = FontWeight.Bold)
+        }
+        Text(name, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
+        Text(email, color = Muted)
+        Text(typeLabel, color = Red)
+        Spacer(Modifier.height(24.dp))
+        RedButton(stringResource(R.string.logout), onClick = onLogout)
+        Spacer(Modifier.height(8.dp))
+        DeleteAccountSection(onDeleted = onLogout)
+    }
+}
