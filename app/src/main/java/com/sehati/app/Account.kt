@@ -17,7 +17,7 @@ fun DeleteAccountSection(onDeleted: () -> Unit) {
     OutlinedButton(
         onClick = { open = true; msg = ""; pass = "" },
         modifier = Modifier.fillMaxWidth().height(52.dp)
-    ) { Text("حذف حسابي", color = BRed) }
+    ) { Text("حذف حسابي", color = BDanger) }
 
     if (open) {
         AlertDialog(
@@ -27,7 +27,7 @@ fun DeleteAccountSection(onDeleted: () -> Unit) {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("سيتم حذف حسابك وملفك الشخصي ولا يمكن التراجع. اكتب كلمة السر للتأكيد.")
                     Field(pass, { pass = it }, "كلمة السر", password = true)
-                    if (msg.isNotEmpty()) Text(msg, color = BRed)
+                    if (msg.isNotEmpty()) Text(msg, color = BDanger)
                 }
             },
             confirmButton = {
@@ -77,7 +77,7 @@ fun DeleteAccountSection(onDeleted: () -> Unit) {
                                 msg = "كلمة السر غير صحيحة"
                             }
                     }
-                }) { Text("حذف نهائي", color = BRed) }
+                }) { Text("حذف نهائي", color = BDanger) }
             },
             dismissButton = {
                 TextButton(enabled = !busy, onClick = { open = false }) { Text("إلغاء") }
