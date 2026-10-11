@@ -28,11 +28,13 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
-val BBg = Color(0xFF0A0C11)
-val BCard = Color(0xFF14171D)
-val BLine = Color(0xFF2A2F3A)
-val BRed = Color(0xFFE5171F)
-val BMuted = Color(0xFF9AA0AB)
+val BBg = Color(0xFF081513)
+val BCard = Color(0xFF10231F)
+val BLine = Color(0xFF1F3B35)
+val BRed = Color(0xFF38D0B4)
+val BDanger = Color(0xFFFF5A5F)
+val BOnAccent = Color(0xFF06201B)
+val BMuted = Color(0xFF8FA9A2)
 val BGreen = Color(0xFF3DDC84)
 
 val bAuth get() = FirebaseAuth.getInstance()
@@ -93,7 +95,7 @@ fun parseLatLng(s: String): Pair<Double, Double>? {
 fun statusLabel(s: Any?): Pair<String, Color> = when (s) {
     "CONFIRMED" -> "مؤكد" to BGreen
     "DONE" -> "منتهي" to BMuted
-    "CANCELLED" -> "ملغى" to BRed
+    "CANCELLED" -> "ملغى" to BDanger
     else -> "-" to BMuted
 }
 
@@ -189,10 +191,10 @@ fun LockNote(st: String) {
     }
     if (text.isNotEmpty()) {
         Text(
-            text, color = BRed,
+            text, color = BDanger,
             modifier = Modifier.fillMaxWidth()
                 .background(Color(0xFF2A1215), RoundedCornerShape(12.dp))
-                .border(1.dp, BRed, RoundedCornerShape(12.dp)).padding(12.dp)
+                .border(1.dp, BDanger, RoundedCornerShape(12.dp)).padding(12.dp)
         )
     }
 }
@@ -248,7 +250,7 @@ fun DoctorDetailFull(d: Map<String, Any?>, onBack: () -> Unit, onBook: () -> Uni
             "${slotLabel((num(d["startHour"]) ?: 9) * 60)} - ${slotLabel((num(d["endHour"]) ?: 17) * 60)}"
         )
         BInfo("سعر الكشفية", d["fee"])
-        if (msg.isNotEmpty()) Text(msg, color = BRed)
+        if (msg.isNotEmpty()) Text(msg, color = BDanger)
         RedButton("احجز موعد", onClick = onBook)
         OutlinedButton(
             onClick = { msg = openRoute(ctx, d) ?: "" },
@@ -312,7 +314,7 @@ fun BookingScreen(d: Map<String, Any?>, onBack: () -> Unit, onDone: () -> Unit) 
                     .background(BCard, RoundedCornerShape(12.dp))
                     .border(1.dp, BGreen, RoundedCornerShape(12.dp)).padding(14.dp)
             )
-            if (msg.isNotEmpty()) Text(msg, color = BRed)
+            if (msg.isNotEmpty()) Text(msg, color = BDanger)
             RedButton("عرض موقع العيادة") { msg = openRoute(ctx, d) ?: "" }
             OutlinedButton(
                 onClick = onDone, modifier = Modifier.fillMaxWidth().height(52.dp)
@@ -335,7 +337,7 @@ fun BookingScreen(d: Map<String, Any?>, onBack: () -> Unit, onDone: () -> Unit) 
                 }
             }
             Field(note, { note = it }, "ملاحظة للطبيب (اختياري)")
-            if (msg.isNotEmpty()) Text(msg, color = BRed)
+            if (msg.isNotEmpty()) Text(msg, color = BDanger)
             RedButton("تأكيد الحجز", enabled = !busy && selected != null) {
                 val s = selected ?: return@RedButton
                 busy = true
@@ -383,7 +385,7 @@ fun MyAppointmentsContent(onFind: () -> Unit, onBack: (() -> Unit)? = null) {
     ) {
         if (onBack != null) item { TextButton(onClick = onBack) { Text("رجوع", color = BRed) } }
         item { Text("مواعيدي", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White) }
-        if (msg.isNotEmpty()) item { Text(msg, color = BRed) }
+        if (msg.isNotEmpty()) item { Text(msg, color = BDanger) }
         if (loaded && items.isEmpty()) {
             item { Text("ما عندك مواعيد بعد.", color = BMuted) }
             item { RedButton("ابحث عن طبيب واحجز موعد", onClick = onFind) }
@@ -405,7 +407,7 @@ fun MyAppointmentsContent(onFind: () -> Unit, onBack: (() -> Unit)? = null) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(
                             onClick = { routeToDoctor(ctx, a["doctorId"].toString()) { msg = it } },
-                            colors = ButtonDefaults.buttonColors(containerColor = BRed, contentColor = Color.White)
+                            colors = ButtonDefaults.buttonColors(containerColor = BRed, contentColor = BOnAccent)
                         ) { Text("الطريق إلى العيادة") }
                         OutlinedButton(onClick = { cancelId = a["id"] as String }) {
                             Text("إلغاء الموعد", color = Color.White)
@@ -428,7 +430,7 @@ fun MyAppointmentsContent(onFind: () -> Unit, onBack: (() -> Unit)? = null) {
                         msg = if (ok) "تم إلغاء الموعد" else "تعذر الإلغاء، حاول مرة أخرى"
                         cancelId = null
                     }
-                }) { Text("تأكيد الإلغاء", color = BRed) }
+                }) { Text("تأكيد الإلغاء", color = BDanger) }
             },
             dismissButton = { TextButton(onClick = { cancelId = null }) { Text("رجوع") } }
         )
