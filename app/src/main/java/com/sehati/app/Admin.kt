@@ -24,11 +24,13 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
-private val ABg = Color(0xFF0A0C11)
-private val ACard = Color(0xFF14171D)
-private val ALine = Color(0xFF2A2F3A)
-private val ARed = Color(0xFFE5171F)
-private val AMuted = Color(0xFF9AA0AB)
+private val ABg = Color(0xFF081513)
+private val ACard = Color(0xFF10231F)
+private val ALine = Color(0xFF1F3B35)
+private val ARed = Color(0xFF38D0B4)
+private val ADanger = Color(0xFFFF5A5F)
+private val AOnAccent = Color(0xFF06201B)
+private val AMuted = Color(0xFF8FA9A2)
 private val AGreen = Color(0xFF3DDC84)
 private val AExpiredBg = Color(0xFF2A1215)
 
@@ -143,7 +145,7 @@ private fun ClaimScreen(uid: String, onBack: () -> Unit, onDone: () -> Unit) {
         TextButton(onClick = onBack) { Text("رجوع", color = ARed) }
         Text("الرمز", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
         Field(code, { code = it }, "الرمز")
-        if (msg.isNotEmpty()) Text(msg, color = ARed)
+        if (msg.isNotEmpty()) Text(msg, color = ADanger)
         RedButton("اجعلني أدمن", enabled = !busy) {
             if (sha256(code.trim()) != CODE_HASH) {
                 msg = "الرمز غير صحيح"
@@ -187,8 +189,8 @@ private fun DoctorRow(
     val expiredLike = st == "EXPIRED" || st == "CANCELLED"
     val (label, color) = when (st) {
         "ACTIVE" -> "فعّال" to AGreen
-        "EXPIRED" -> "منتهي" to ARed
-        "CANCELLED" -> "ملغى" to ARed
+        "EXPIRED" -> "منتهي" to ADanger
+        "CANCELLED" -> "ملغى" to ADanger
         else -> "بدون اشتراك" to AMuted
     }
     val detail = when (st) {
@@ -200,7 +202,7 @@ private fun DoctorRow(
     Row(
         Modifier.fillMaxWidth()
             .background(if (expiredLike) AExpiredBg else ACard, RoundedCornerShape(12.dp))
-            .border(1.dp, if (expiredLike) ARed else ALine, RoundedCornerShape(12.dp))
+            .border(1.dp, if (expiredLike) ADanger else ALine, RoundedCornerShape(12.dp))
             .padding(10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -218,7 +220,7 @@ private fun DoctorRow(
             Button(
                 onClick = onGrant,
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = ARed, contentColor = Color.White),
+                colors = ButtonDefaults.buttonColors(containerColor = ARed, contentColor = AOnAccent),
                 modifier = Modifier.fillMaxWidth()
             ) { Text(if (st == "ACTIVE") "تجديد" else "اشتراك", fontSize = 13.sp) }
             OutlinedButton(
@@ -316,7 +318,7 @@ private fun AdminPanel(onBack: () -> Unit) {
     ) {
         item { TextButton(onClick = onBack) { Text("رجوع", color = ARed) } }
         item { Text("لوحة الاشتراكات", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White) }
-        if (error.isNotEmpty()) item { Text(error, color = ARed) }
+        if (error.isNotEmpty()) item { Text(error, color = ADanger) }
         if (info.isNotEmpty()) item { Text(info, color = AGreen) }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -401,7 +403,7 @@ private fun AdminPanel(onBack: () -> Unit) {
                         if (ok) { info = "تم إلغاء الاشتراك"; error = "" } else error = "تعذر الإلغاء، حاول مرة أخرى"
                         cancelUser = null
                     }
-                }) { Text("تأكيد الإلغاء", color = ARed) }
+                }) { Text("تأكيد الإلغاء", color = ADanger) }
             },
             dismissButton = { TextButton(onClick = { cancelUser = null }) { Text("رجوع") } }
         )
