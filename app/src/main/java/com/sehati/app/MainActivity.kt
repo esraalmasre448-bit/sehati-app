@@ -42,11 +42,13 @@ import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.delay
 
-private val Bg = Color(0xFF0A0C11)
-private val CardC = Color(0xFF14171D)
-private val Line = Color(0xFF2A2F3A)
-private val Red = Color(0xFFE5171F)
-private val Muted = Color(0xFF9AA0AB)
+private val Bg = Color(0xFF081513)
+private val CardC = Color(0xFF10231F)
+private val Line = Color(0xFF1F3B35)
+private val Red = Color(0xFF38D0B4)
+private val Danger = Color(0xFFFF5A5F)
+private val OnAccent = Color(0xFF06201B)
+private val Muted = Color(0xFF8FA9A2)
 
 private val auth get() = FirebaseAuth.getInstance()
 private val db get() = FirebaseFirestore.getInstance()
@@ -68,7 +70,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             val scheme = darkColorScheme(
-                primary = Red, background = Bg, surface = CardC,
+                primary = Red, onPrimary = OnAccent, secondary = Red,
+                secondaryContainer = Color(0xFF1B4A41), onSecondaryContainer = Color.White,
+                background = Bg, surface = CardC,
                 onSurface = Color.White, onBackground = Color.White
             )
             MaterialTheme(colorScheme = scheme) {
@@ -178,7 +182,7 @@ fun Field(
 fun RedButton(text: String, enabled: Boolean = true, onClick: () -> Unit) {
     Button(
         onClick = onClick, enabled = enabled,
-        colors = ButtonDefaults.buttonColors(containerColor = Red, contentColor = Color.White),
+        colors = ButtonDefaults.buttonColors(containerColor = Red, contentColor = OnAccent),
         shape = RoundedCornerShape(12.dp),
         modifier = Modifier.fillMaxWidth().height(52.dp)
     ) { Text(text, fontSize = 16.sp, fontWeight = FontWeight.Bold) }
@@ -224,7 +228,7 @@ fun AuthFlow(onDone: () -> Unit) {
                         label = { Text(stringResource(label)) },
                         colors = FilterChipDefaults.filterChipColors(
                             containerColor = CardC, labelColor = Color.White,
-                            selectedContainerColor = Red, selectedLabelColor = Color.White
+                            selectedContainerColor = Red, selectedLabelColor = OnAccent
                         )
                     )
                 }
@@ -240,7 +244,7 @@ fun AuthFlow(onDone: () -> Unit) {
                     .addOnFailureListener { msg = authError(it) }
             }) { Text(stringResource(R.string.forgot), color = Red) }
         }
-        if (msg.isNotEmpty()) Text(msg, color = Red)
+        if (msg.isNotEmpty()) Text(msg, color = Danger)
         RedButton(
             text = stringResource(if (signup) R.string.signup_btn else R.string.login),
             enabled = !busy
@@ -255,18 +259,47 @@ fun AuthFlow(onDone: () -> Unit) {
                 busy = true
                 if (signup) {
                     auth.createUserWithEmailAndPassword(e, pass).addOnSuccessListener { r ->
-                        db.collection("users").document(r.user!!.uid).set(
+                        val u = r.user!!
+                        db.collection("users").document(u.uid).set(
                             mapOf(
                                 "name" to name.trim(), "phone" to phone.trim(), "email" to e,
                                 "accountType" to type, "createdAt" to FieldValue.serverTimestamp()
                             )
                         ).addOnSuccessListener { busy = false; onDone() }
-                            .addOnFailureListener { busy = false; msg = errGeneric }
+                            .addOnFailureListener {
+                                u.delete().addOnCompleteListener {
+                                    auth.signOut()
+                                    busy = false
+                                    msg = errGeneric
+                                }
+                            }
                     }.addOnFailureListener { busy = false; msg = authError(it) }
                 } else {
-                    auth.signInWithEmailAndPassword(e, pass)
-                        .addOnSuccessListener { busy = false; onDone() }
-                        .addOnFailureListener { busy = false; msg = authError(it) }
+                    auth.signInWithEmailAndPassword(e, pass).addOnSuccessListener { r ->
+                        val u = r.user!!
+                        db.collection("users").document(u.uid).get()
+                            .addOnSuccessListener { d ->
+                                if (d.exists()) {
+                                    busy = false
+                                    onDone()
+                                } else if (d.metadata.isFromCache) {
+                                    auth.signOut()
+                                    busy = false
+                                    msg = errGeneric
+                                } else {
+                                    u.delete().addOnCompleteListener {
+                                        auth.signOut()
+                                        busy = false
+                                        msg = "كان الحساب ناقصًا وتم حذفه. أنشئ حسابًا جديدًا بنفس الإيميل"
+                                    }
+                                }
+                            }
+                            .addOnFailureListener {
+                                auth.signOut()
+                                busy = false
+                                msg = errGeneric
+                            }
+                    }.addOnFailureListener { busy = false; msg = authError(it) }
                 }
             }
         }
@@ -387,9 +420,9 @@ fun Tile(icon: ImageVector, text: String, red: Boolean, modifier: Modifier, onCl
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Icon(icon, null, tint = Color.White, modifier = Modifier.size(36.dp))
+        Icon(icon, null, tint = if (red) OnAccent else Color.White, modifier = Modifier.size(36.dp))
         Spacer(Modifier.height(8.dp))
-        Text(text, color = Color.White, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+        Text(text, color = if (red) OnAccent else Color.White, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
     }
 }
 
@@ -402,17 +435,4 @@ fun ProfileTab(name: String, email: String, typeLabel: String, onLogout: () -> U
     ) {
         Spacer(Modifier.height(16.dp))
         Box(
-            Modifier.size(84.dp).background(CardC, CircleShape).border(1.dp, Line, CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(name.take(1).uppercase(), fontSize = 34.sp, color = Color.White, fontWeight = FontWeight.Bold)
-        }
-        Text(name, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
-        Text(email, color = Muted)
-        Text(typeLabel, color = Red)
-        Spacer(Modifier.height(24.dp))
-        RedButton(stringResource(R.string.logout), onClick = onLogout)
-        Spacer(Modifier.height(8.dp))
-        DeleteAccountSection(onDeleted = onLogout)
-    }
-}
+            Modifier.size(84.dp).background(CardC, CircleShape).border
