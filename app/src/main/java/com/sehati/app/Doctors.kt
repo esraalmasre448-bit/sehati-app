@@ -22,11 +22,13 @@ import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 
-private val DBg = Color(0xFF0A0C11)
-private val DCard = Color(0xFF14171D)
-private val DLine = Color(0xFF2A2F3A)
-private val DRed = Color(0xFFE5171F)
-private val DMuted = Color(0xFF9AA0AB)
+private val DBg = Color(0xFF081513)
+private val DCard = Color(0xFF10231F)
+private val DLine = Color(0xFF1F3B35)
+private val DRed = Color(0xFF38D0B4)
+private val DDanger = Color(0xFFFF5A5F)
+private val DOnAccent = Color(0xFF06201B)
+private val DMuted = Color(0xFF8FA9A2)
 
 private val fAuth get() = FirebaseAuth.getInstance()
 private val fDb get() = FirebaseFirestore.getInstance()
@@ -82,7 +84,7 @@ fun DoctorProfileScreen(onBack: () -> Unit) {
         Field(phone, { phone = it }, "رقم التواصل", keyboard = KeyboardType.Phone)
         Field(hours, { hours = it }, "ساعات الدوام (مثل: 9 صباحًا - 5 مساءً)")
         Field(fee, { fee = it }, "سعر الكشفية", keyboard = KeyboardType.Number)
-        if (msg.isNotEmpty()) Text(msg, color = if (ok) Color(0xFF3DDC84) else DRed)
+        if (msg.isNotEmpty()) Text(msg, color = if (ok) Color(0xFF3DDC84) else DDanger)
         RedButton("حفظ الملف", enabled = !busy) {
             if (name.isBlank() || specialty.isBlank() || city.isBlank()) {
                 ok = false
@@ -137,7 +139,7 @@ fun DoctorSearchScreen(onBack: () -> Unit, onOpen: (Map<String, Any?>) -> Unit) 
         Text("ابحث عن طبيب أو عيادة", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
         Spacer(Modifier.height(8.dp))
         Field(query, { query = it }, "اسم، اختصاص، أو مدينة")
-        if (error.isNotEmpty()) Text(error, color = DRed)
+        if (error.isNotEmpty()) Text(error, color = DDanger)
         if (shown.isEmpty() && error.isEmpty()) {
             Text("لا توجد نتائج", color = DMuted, modifier = Modifier.padding(16.dp))
         }
