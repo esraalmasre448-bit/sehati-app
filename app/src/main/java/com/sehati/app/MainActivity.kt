@@ -327,13 +327,35 @@ fun MainShell(onGo: (String) -> Unit, onLogout: () -> Unit) {
     var tab by remember { mutableIntStateOf(0) }
     var name by remember { mutableStateOf("") }
     var type by remember { mutableStateOf("") }
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val uid = auth.currentUser?.uid ?: ""
     val email = auth.currentUser?.email ?: ""
     LaunchedEffect(Unit) {
-        auth.currentUser?.uid?.let { uid ->
-            db.collection("users").document(uid).get().addOnSuccessListener { d ->
+        auth.currentUser?.uid?.let { id ->
+            db.collection("users").document(id).get().addOnSuccessListener { d ->
                 name = d.getString("name") ?: ""
                 type = d.getString("accountType") ?: ""
             }
+        }
+    }
+    val ns = rememberNotifs(uid, type)
+    var seen by remember(uid) { mutableStateOf(loadSeen(ctx, uid)) }
+    var fresh by remember { mutableStateOf(setOf<String>()) }
+    LaunchedEffect(ns.loaded, ns.items.size) {
+        if (ns.loaded && seen == null) {
+            val all = ns.items.map { it.key }.toSet()
+            seen = all
+            saveSeen(ctx, uid, all)
+        }
+    }
+    val seenNow = seen
+    val unread = if (seenNow == null) 0 else ns.items.count { it.key !in seenNow }
+    LaunchedEffect(tab, ns.items.size) {
+        val sn = seen
+        if (tab == 2 && sn != null) {
+            fresh = ns.items.map { it.key }.filter { it !in sn }.toSet() + fresh
+            val all = sn + ns.items.map { it.key }
+            if (all != sn) { seen = all; saveSeen(ctx, uid, all) }
         }
     }
     val typeLabel = when (type) {
@@ -354,7 +376,14 @@ fun MainShell(onGo: (String) -> Unit, onLogout: () -> Unit) {
                     label = { Text(stringResource(R.string.nav_home)) }, colors = itemColors)
                 NavigationBarItem(tab == 1, { tab = 1 }, { Icon(Icons.Filled.CalendarMonth, null) },
                     label = { Text(stringResource(R.string.nav_appts)) }, colors = itemColors)
-                NavigationBarItem(tab == 2, { tab = 2 }, { Icon(Icons.Filled.Person, null) },
+                NavigationBarItem(tab == 2, { tab = 2 },
+                    {
+                        BadgedBox(badge = { if (unread > 0 && tab != 2) Badge { Text("$unread") } }) {
+                            Icon(Icons.Filled.Notifications, null)
+                        }
+                    },
+                    label = { Text("الإشعارات") }, colors = itemColors)
+                NavigationBarItem(tab == 3, { tab = 3 }, { Icon(Icons.Filled.Person, null) },
                     label = { Text(stringResource(R.string.nav_profile)) }, colors = itemColors)
             }
         }
@@ -364,88 +393,9 @@ fun MainShell(onGo: (String) -> Unit, onLogout: () -> Unit) {
                 0 -> HomeTab(name, type, onGo)
                 1 -> if (type == "doctor" || type == "clinic") DoctorDashboardContent()
                 else MyAppointmentsContent(onFind = { onGo("search") })
+                2 -> NotifTab(ns.items, fresh)
                 else -> ProfileTab(name, email, typeLabel, onLogout)
             }
         }
-    }
-}
-
-@Composable
-fun HomeTab(name: String, type: String, onGo: (String) -> Unit) {
-    var taps by remember { mutableIntStateOf(0) }
-    var last by remember { mutableLongStateOf(0L) }
-    Column(
-        Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Image(
-            painterResource(R.drawable.ic_launcher), null,
-            Modifier.size(90.dp).align(Alignment.CenterHorizontally).clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null
-            ) {
-                val now = System.currentTimeMillis()
-                taps = if (now - last < 1500) taps + 1 else 1
-                last = now
-                if (taps >= 4) { taps = 0; onGo("admin") }
-            }
-        )
-        Text("${stringResource(R.string.hello)} $name", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
-        Text(stringResource(R.string.home_sub), color = Muted)
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Tile(Icons.Filled.Search, stringResource(R.string.find_doctor), true, Modifier.weight(1f)) { onGo("search") }
-            Tile(Icons.Filled.CalendarMonth, stringResource(R.string.book_appt), false, Modifier.weight(1f)) { onGo("search") }
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Tile(Icons.Filled.Person, stringResource(R.string.my_turn), false, Modifier.weight(1f)) { onGo("queue") }
-            Tile(Icons.Filled.LocationOn, stringResource(R.string.way_to_clinic), false, Modifier.weight(1f)) { onGo("route") }
-        }
-        if (type == "doctor" || type == "clinic") {
-            Tile(Icons.Filled.Person, "ملفي المهني", true, Modifier.fillMaxWidth()) { onGo("profile") }
-            Tile(Icons.Filled.LocationOn, "إعدادات العيادة (الدوام والموقع)", false, Modifier.fillMaxWidth()) { onGo("settings") }
-            Tile(Icons.Filled.CalendarMonth, "لوحتي — الحجوزات والدور", false, Modifier.fillMaxWidth()) { onGo("dash") }
-        }
-    }
-}
-
-@Composable
-fun Tile(icon: ImageVector, text: String, red: Boolean, modifier: Modifier, onClick: () -> Unit) {
-    Column(
-        modifier
-            .height(130.dp)
-            .background(if (red) Red else CardC, RoundedCornerShape(16.dp))
-            .border(1.dp, if (red) Red else Line, RoundedCornerShape(16.dp))
-            .clickable { onClick() }
-            .padding(12.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Icon(icon, null, tint = if (red) OnAccent else Color.White, modifier = Modifier.size(36.dp))
-        Spacer(Modifier.height(8.dp))
-        Text(text, color = if (red) OnAccent else Color.White, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
-    }
-}
-
-@Composable
-fun ProfileTab(name: String, email: String, typeLabel: String, onLogout: () -> Unit) {
-    Column(
-        Modifier.fillMaxSize().padding(24.dp).verticalScroll(rememberScrollState()),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        Spacer(Modifier.height(16.dp))
-        Box(
-            Modifier.size(84.dp).background(CardC, CircleShape).border(1.dp, Line, CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(name.take(1).uppercase(), fontSize = 34.sp, color = Color.White, fontWeight = FontWeight.Bold)
-        }
-        Text(name, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
-        Text(email, color = Muted)
-        Text(typeLabel, color = Red)
-        Spacer(Modifier.height(24.dp))
-        RedButton(stringResource(R.string.logout), onClick = onLogout)
-        Spacer(Modifier.height(8.dp))
-        DeleteAccountSection(onDeleted = onLogout)
     }
 }
