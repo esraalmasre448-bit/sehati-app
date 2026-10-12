@@ -238,6 +238,9 @@ fun DoctorDetailFull(d: Map<String, Any?>, onBack: () -> Unit, onBook: () -> Uni
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         TextButton(onClick = onBack) { Text("رجوع", color = BRed) }
+        Box(Modifier.fillMaxWidth(), contentAlignment = androidx.compose.ui.Alignment.Center) {
+            DoctorAvatar(d["photo"]?.toString(), "${d["name"] ?: ""}", 110.dp)
+        }
         Text("${d["name"]}", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color.White)
         Text("${d["specialty"]}", fontSize = 16.sp, color = BRed)
         BInfo("نبذة", d["bio"])
