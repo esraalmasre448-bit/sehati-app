@@ -1,5 +1,10 @@
 package com.sehati.app
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.Alignment
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -45,6 +50,15 @@ fun DoctorProfileScreen(onBack: () -> Unit) {
     var fee by remember { mutableStateOf("") }
     var msg by remember { mutableStateOf("") }
     var ok by remember { mutableStateOf(false) }
+    var photo by remember { mutableStateOf("") }
+    val ctx = LocalContext.current
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        if (uri != null) {
+            val r = compressPhoto(ctx, uri)
+            if (r == null) { ok = false; msg = "تعذر استخدام هذه الصورة، اختر صورة أخرى" }
+            else { photo = r; ok = true; msg = "تم اختيار الصورة. اضغط حفظ الملف" }
+        }
+    }
     var busy by remember { mutableStateOf(false) }
     val uid = fAuth.currentUser?.uid ?: ""
 
@@ -60,6 +74,7 @@ fun DoctorProfileScreen(onBack: () -> Unit) {
                     phone = d.getString("phone") ?: ""
                     hours = d.getString("hours") ?: ""
                     fee = d.getString("fee") ?: ""
+                    photo = d.getString("photo") ?: ""
                 } else {
                     fDb.collection("users").document(uid).get().addOnSuccessListener { u ->
                         name = u.getString("name") ?: ""
@@ -76,6 +91,13 @@ fun DoctorProfileScreen(onBack: () -> Unit) {
     ) {
         TextButton(onClick = onBack) { Text("رجوع", color = DRed) }
         Text("ملف الطبيب / العيادة", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White)
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            DoctorAvatar(photo, name, 110.dp)
+        }
+        OutlinedButton(
+            onClick = { picker.launch("image/*") },
+            modifier = Modifier.fillMaxWidth().height(48.dp)
+        ) { Text(if (photo.isBlank()) "إضافة صورة" else "تغيير الصورة", color = Color.White) }
         Field(name, { name = it }, "الاسم")
         Field(specialty, { specialty = it }, "الاختصاص (مثل: أسنان، أطفال)")
         Field(clinicName, { clinicName = it }, "اسم العيادة")
@@ -98,7 +120,7 @@ fun DoctorProfileScreen(onBack: () -> Unit) {
                     "uid" to uid, "name" to name.trim(), "specialty" to specialty.trim(),
                     "clinicName" to clinicName.trim(), "city" to city.trim(),
                     "address" to address.trim(), "phone" to phone.trim(),
-                    "hours" to hours.trim(), "fee" to fee.trim(),
+                    "hours" to hours.trim(), "fee" to fee.trim(), "photo" to photo,
                     "updatedAt" to FieldValue.serverTimestamp()
                 ),
                 SetOptions.merge()
@@ -156,11 +178,16 @@ fun DoctorSearchScreen(onBack: () -> Unit, onOpen: (Map<String, Any?>) -> Unit) 
                         .padding(14.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Text("${d["name"]}", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                    Text("${d["specialty"]}", color = DRed)
-                    val c = "${d["clinicName"] ?: ""}"
-                    if (c.isNotBlank()) Text(c, color = Color.White)
-                    Text("${d["city"] ?: ""}", color = DMuted)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        DoctorAvatar(d["photo"]?.toString(), "${d["name"] ?: ""}", 56.dp)
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("${d["name"]}", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            Text("${d["specialty"]}", color = DRed)
+                            val c = "${d["clinicName"] ?: ""}"
+                            if (c.isNotBlank()) Text(c, color = Color.White)
+                            Text("${d["city"] ?: ""}", color = DMuted)
+                        }
+                    }
                 }
             }
         }
