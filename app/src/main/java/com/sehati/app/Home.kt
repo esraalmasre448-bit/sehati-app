@@ -4,6 +4,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -63,6 +64,22 @@ fun HomeTab(name: String, type: String, onGo: (String) -> Unit) {
             Icon(Icons.Filled.Warning, null)
             Spacer(Modifier.width(8.dp))
             Text("طوارئ", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+        }
+        Text("اختصاصات شائعة", color = BMuted, fontSize = 14.sp)
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            listOf("أسنان", "أطفال", "نسائية", "عيون", "قلب", "عظام").forEach { spec ->
+                Text(
+                    spec, color = Color.White, fontWeight = FontWeight.Bold,
+                    modifier = Modifier
+                        .background(BCard, RoundedCornerShape(20.dp))
+                        .border(1.dp, BLine, RoundedCornerShape(20.dp))
+                        .clickable { onGo("search:" + spec) }
+                        .padding(horizontal = 16.dp, vertical = 10.dp)
+                )
+            }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Tile(Icons.Filled.Search, stringResource(R.string.find_doctor), true, Modifier.weight(1f)) { onGo("search") }
