@@ -118,7 +118,8 @@ fun App() {
         screen == "profile" -> DoctorProfileScreen { screen = "main" }
         screen == "settings" -> ClinicSettingsScreen { screen = "main" }
         screen == "dash" -> DoctorDashboardContent(onBack = { screen = "main" })
-        screen == "admin" -> AdminScreen { screen = "main" }
+        screen == "admin" -> AdminHub(onBack = { screen = "main" })
+        screen == "renew" -> RenewalScreen(onBack = { screen = "main" })
         screen == "emergency" -> EmergencyScreen(onBack = { screen = "main" })
         else -> MainShell(
             onGo = { screen = it },
