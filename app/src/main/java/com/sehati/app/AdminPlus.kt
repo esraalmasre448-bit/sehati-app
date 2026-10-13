@@ -71,6 +71,7 @@ fun AdminHub(onBack: () -> Unit) {
         ) {
             TextButton(onClick = onBack) { Text("رجوع", color = BRed) }
             Text("لوحة المطوّر", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            Text("لسّا ما وصلت… بس رغم كل شي، ما استسلمت.", color = BMuted)
             RedButton("إدارة الاشتراكات") { page = "subs" }
             RedButton("إحصائيات المستخدمين") { page = "stats" }
             RedButton("معلومات التواصل والدفع") { page = "pay" }
