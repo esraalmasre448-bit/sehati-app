@@ -156,6 +156,7 @@ fun DoctorDashboardContent(onBack: (() -> Unit)? = null) {
     var current by remember { mutableLongStateOf(0L) }
     var last by remember { mutableLongStateOf(0L) }
     var msg by remember { mutableStateOf("") }
+    var renew by remember { mutableStateOf(false) }
 
     DisposableEffect(uid, date) {
         val r1 = bDb.collection("appointments")
@@ -173,6 +174,11 @@ fun DoctorDashboardContent(onBack: (() -> Unit)? = null) {
         onDispose { r1.remove(); r2.remove() }
     }
 
+    if (renew) {
+        RenewalScreen(onBack = { renew = false })
+        return
+    }
+
     LazyColumn(
         Modifier.fillMaxSize().background(BBg).padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -181,6 +187,9 @@ fun DoctorDashboardContent(onBack: (() -> Unit)? = null) {
         if (onBack != null) item { TextButton(onClick = onBack) { Text("رجوع", color = BRed) } }
         item { Text("لوحتي — الحجوزات", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White) }
         item { LockNote(st) }
+        if (st != "active" && st != "loading") {
+            item { RedButton("تجديد الاشتراك والتواصل مع الإدارة") { renew = true } }
+        }
         item { DayChips(days, idx) { idx = it } }
         item {
             Column(
