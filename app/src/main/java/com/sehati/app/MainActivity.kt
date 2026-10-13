@@ -88,6 +88,7 @@ fun App() {
     var loggedIn by remember { mutableStateOf(auth.currentUser != null) }
     var screen by remember { mutableStateOf("main") }
     var selected by remember { mutableStateOf<Map<String, Any?>?>(null) }
+    var initialQuery by remember { mutableStateOf("") }
     LaunchedEffect(Unit) { delay(1500); splash = false }
     BackHandler(enabled = screen != "main") {
         screen = when (screen) {
@@ -101,8 +102,9 @@ fun App() {
         splash -> Splash()
         !loggedIn -> AuthFlow { loggedIn = true }
         screen == "search" -> DoctorSearchScreen(
-            onBack = { screen = "main" },
-            onOpen = { selected = it; screen = "detail" }
+            onBack = { initialQuery = ""; screen = "main" },
+            onOpen = { selected = it; screen = "detail" },
+            initial = initialQuery
         )
         screen == "detail" && sel != null -> DoctorDetailFull(
             sel, onBack = { screen = "search" }, onBook = { screen = "book" }
@@ -122,7 +124,10 @@ fun App() {
         screen == "renew" -> RenewalScreen(onBack = { screen = "main" })
         screen == "emergency" -> EmergencyScreen(onBack = { screen = "main" })
         else -> MainShell(
-            onGo = { screen = it },
+            onGo = {
+                if (it.startsWith("search:")) { initialQuery = it.removePrefix("search:"); screen = "search" }
+                else { if (it == "search") initialQuery = ""; screen = it }
+            },
             onLogout = { auth.signOut(); loggedIn = false; screen = "main" }
         )
     }
