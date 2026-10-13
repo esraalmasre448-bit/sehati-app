@@ -123,6 +123,7 @@ fun App() {
         screen == "admin" -> AdminHub(onBack = { screen = "main" })
         screen == "renew" -> RenewalScreen(onBack = { screen = "main" })
         screen == "emergency" -> EmergencyScreen(onBack = { screen = "main" })
+        screen == "privacy" -> PrivacyScreen(onBack = { screen = "main" })
         else -> MainShell(
             onGo = {
                 if (it.startsWith("search:")) { initialQuery = it.removePrefix("search:"); screen = "search" }
@@ -401,7 +402,7 @@ fun MainShell(onGo: (String) -> Unit, onLogout: () -> Unit) {
                 1 -> if (type == "doctor" || type == "clinic") DoctorDashboardContent()
                 else MyAppointmentsContent(onFind = { onGo("search") })
                 2 -> NotifTab(ns.items, fresh)
-                else -> ProfileTab(name, email, typeLabel, onLogout)
+                else -> ProfileTab(name, email, typeLabel, onLogout, onPrivacy = { onGo("privacy") })
             }
         }
     }
