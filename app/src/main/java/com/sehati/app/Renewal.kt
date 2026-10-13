@@ -41,6 +41,9 @@ fun RenewalScreen(onBack: () -> Unit) {
     var sham by remember { mutableStateOf("") }
     var notes by remember { mutableStateOf("") }
     var qr by remember { mutableStateOf("") }
+    var prices by remember { mutableStateOf(mapOf<Int, String>()) }
+    var myName by remember { mutableStateOf("") }
+    val myUid = bAuth.currentUser?.uid ?: ""
     var loaded by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf("") }
     var msg by remember { mutableStateOf("") }
@@ -54,6 +57,12 @@ fun RenewalScreen(onBack: () -> Unit) {
                     sham = d.getString("sham") ?: ""
                     notes = d.getString("notes") ?: ""
                     qr = d.getString("qr") ?: ""
+                    prices = mapOf(
+                        1 to (d.getString("price1") ?: ""),
+                        3 to (d.getString("price3") ?: ""),
+                        6 to (d.getString("price6") ?: ""),
+                        12 to (d.getString("price12") ?: "")
+                    )
                 }
                 loaded = true
             }
@@ -61,6 +70,13 @@ fun RenewalScreen(onBack: () -> Unit) {
                 error = "تعذر تحميل المعلومات، تحقق من الإنترنت"
                 loaded = true
             }
+    }
+
+    LaunchedEffect(myUid) {
+        if (myUid.isNotEmpty()) {
+            bDb.collection("users").document(myUid).get()
+                .addOnSuccessListener { myName = it.getString("name") ?: "" }
+        }
     }
 
     val bmp = remember(qr) {
@@ -136,6 +152,33 @@ fun RenewalScreen(onBack: () -> Unit) {
                     Image(
                         bitmap = bmp, contentDescription = null, contentScale = ContentScale.Fit,
                         modifier = Modifier.fillMaxWidth().heightIn(max = 320.dp)
+                    )
+                }
+            }
+        }
+        if (phone.isNotBlank()) {
+            Text("اطلب التجديد عبر واتساب", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            listOf(1 to "شهر واحد", 3 to "3 أشهر", 6 to "6 أشهر", 12 to "12 شهرًا").forEach { (m, label) ->
+                val price = prices[m].orEmpty()
+                OutlinedButton(
+                    onClick = {
+                        val text = "مرحبًا، أنا $myName، أرغب بتجديد اشتراكي في تطبيق الطريق إلى صحتي لمدة $label" +
+                            (if (price.isNotBlank()) " (المبلغ: $price)" else "") +
+                            ". رقم حسابي: $myUid"
+                        try {
+                            ctx.startActivity(
+                                Intent(
+                                    Intent.ACTION_VIEW,
+                                    Uri.parse("https://wa.me/" + waNumber(phone) + "?text=" + Uri.encode(text))
+                                ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            )
+                        } catch (e: Exception) { msg = "تعذر فتح واتساب" }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        "$label" + (if (price.isNotBlank()) " — $price" else ""),
+                        color = Color.White
                     )
                 }
             }
