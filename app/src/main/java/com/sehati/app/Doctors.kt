@@ -23,7 +23,11 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.Query
+import com.google.firebase.firestore.QuerySnapshot
+import kotlinx.coroutines.delay
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 
@@ -51,6 +55,8 @@ fun DoctorProfileScreen(onBack: () -> Unit) {
     var msg by remember { mutableStateOf("") }
     var ok by remember { mutableStateOf(false) }
     var photo by remember { mutableStateOf("") }
+    var emergency by remember { mutableStateOf(false) }
+    var emergencyPhone by remember { mutableStateOf("") }
     val ctx = LocalContext.current
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         if (uri != null) {
@@ -75,6 +81,8 @@ fun DoctorProfileScreen(onBack: () -> Unit) {
                     hours = d.getString("hours") ?: ""
                     fee = d.getString("fee") ?: ""
                     photo = d.getString("photo") ?: ""
+                    emergency = d.getBoolean("emergency") ?: false
+                    emergencyPhone = d.getString("emergencyPhone") ?: ""
                 } else {
                     fDb.collection("users").document(uid).get().addOnSuccessListener { u ->
                         name = u.getString("name") ?: ""
@@ -106,11 +114,27 @@ fun DoctorProfileScreen(onBack: () -> Unit) {
         Field(phone, { phone = it }, "رقم التواصل", keyboard = KeyboardType.Phone)
         Field(hours, { hours = it }, "ساعات الدوام (مثل: 9 صباحًا - 5 مساءً)")
         Field(fee, { fee = it }, "سعر الكشفية", keyboard = KeyboardType.Number)
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text("متاح لحالات الطوارئ", color = Color.White, fontSize = 16.sp)
+            Switch(checked = emergency, onCheckedChange = { emergency = it })
+        }
+        if (emergency) {
+            Field(emergencyPhone, { emergencyPhone = it }, "رقم الطوارئ (غير رقمك المعتاد)", keyboard = KeyboardType.Phone)
+        }
         if (msg.isNotEmpty()) Text(msg, color = if (ok) Color(0xFF3DDC84) else DDanger)
         RedButton("حفظ الملف", enabled = !busy) {
             if (name.isBlank() || specialty.isBlank() || city.isBlank()) {
                 ok = false
                 msg = "الاسم والاختصاص والمدينة مطلوبة"
+                return@RedButton
+            }
+            if (emergency && emergencyPhone.isBlank()) {
+                ok = false
+                msg = "أدخل رقم الطوارئ"
                 return@RedButton
             }
             busy = true
@@ -121,6 +145,7 @@ fun DoctorProfileScreen(onBack: () -> Unit) {
                     "clinicName" to clinicName.trim(), "city" to city.trim(),
                     "address" to address.trim(), "phone" to phone.trim(),
                     "hours" to hours.trim(), "fee" to fee.trim(), "photo" to photo,
+                    "emergency" to emergency, "emergencyPhone" to emergencyPhone.trim(),
                     "updatedAt" to FieldValue.serverTimestamp()
                 ),
                 SetOptions.merge()
@@ -137,23 +162,66 @@ fun DoctorProfileScreen(onBack: () -> Unit) {
 @Composable
 fun DoctorSearchScreen(onBack: () -> Unit, onOpen: (Map<String, Any?>) -> Unit) {
     var items by remember { mutableStateOf(listOf<Map<String, Any?>>()) }
+    var last by remember { mutableStateOf<DocumentSnapshot?>(null) }
+    var more by remember { mutableStateOf(true) }
+    var loading by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
     var error by remember { mutableStateOf("") }
+    var found by remember { mutableStateOf<Map<String, Map<String, Any?>>>(emptyMap()) }
+    var searching by remember { mutableStateOf(false) }
 
-    DisposableEffect(Unit) {
-        val reg = fDb.collection("doctors").limit(50).addSnapshotListener { snap, e ->
-            if (e != null) error = "تعذر تحميل الأطباء، تحقق من الإنترنت"
-            else {
-                error = ""
-                items = snap?.documents?.map { it.data.orEmpty() + ("id" to it.id) }.orEmpty()
-            }
+    fun loadPage() {
+        if (loading || !more) return
+        loading = true
+        var q: Query = fDb.collection("doctors").orderBy("name").limit(40)
+        val l = last
+        if (l != null) q = q.startAfter(l)
+        q.get().addOnSuccessListener { s ->
+            val docs = s.documents
+            items = items + docs.map { it.data.orEmpty() + ("id" to it.id) }
+            if (docs.isNotEmpty()) last = docs.last()
+            if (docs.size < 40) more = false
+            error = ""
+            loading = false
+        }.addOnFailureListener {
+            loading = false
+            error = "تعذر تحميل الأطباء، تحقق من الإنترنت"
         }
-        onDispose { reg.remove() }
     }
 
-    val shown = items.filter {
-        query.isBlank() ||
-            "${it["name"]} ${it["specialty"]} ${it["clinicName"]} ${it["city"]}".contains(query, true)
+    LaunchedEffect(Unit) { loadPage() }
+
+    LaunchedEffect(query) {
+        val q = query.trim()
+        if (q.isEmpty()) {
+            found = emptyMap()
+            searching = false
+            return@LaunchedEffect
+        }
+        delay(450)
+        searching = true
+        found = emptyMap()
+        var pending = 3
+        fun finish() { pending--; if (pending <= 0) searching = false }
+        fun add(s: QuerySnapshot) {
+            if (q != query.trim()) return
+            found = found + s.documents.associate { it.id to (it.data.orEmpty() + ("id" to it.id)) }
+        }
+        val col = fDb.collection("doctors")
+        col.orderBy("name").startAt(q).endAt(q + "\uf8ff").limit(30).get()
+            .addOnSuccessListener { add(it); finish() }.addOnFailureListener { finish() }
+        col.whereEqualTo("city", q).limit(30).get()
+            .addOnSuccessListener { add(it); finish() }.addOnFailureListener { finish() }
+        col.whereEqualTo("specialty", q).limit(30).get()
+            .addOnSuccessListener { add(it); finish() }.addOnFailureListener { finish() }
+    }
+
+    val qNow = query.trim()
+    val shown = if (qNow.isEmpty()) items else {
+        val local = items.filter {
+            "${it["name"]} ${it["specialty"]} ${it["clinicName"]} ${it["city"]}".contains(qNow, true)
+        }
+        (found.values.toList() + local).distinctBy { it["id"] as String }
     }
 
     Column(Modifier.fillMaxSize().background(DBg).padding(16.dp)) {
@@ -162,7 +230,8 @@ fun DoctorSearchScreen(onBack: () -> Unit, onOpen: (Map<String, Any?>) -> Unit) 
         Spacer(Modifier.height(8.dp))
         Field(query, { query = it }, "اسم، اختصاص، أو مدينة")
         if (error.isNotEmpty()) Text(error, color = DDanger)
-        if (shown.isEmpty() && error.isEmpty()) {
+        if (searching) Text("جاري البحث...", color = DMuted, modifier = Modifier.padding(8.dp))
+        if (shown.isEmpty() && error.isEmpty() && !searching && !loading) {
             Text("لا توجد نتائج", color = DMuted, modifier = Modifier.padding(16.dp))
         }
         LazyColumn(
@@ -188,6 +257,15 @@ fun DoctorSearchScreen(onBack: () -> Unit, onOpen: (Map<String, Any?>) -> Unit) 
                             Text("${d["city"] ?: ""}", color = DMuted)
                         }
                     }
+                }
+            }
+            if (qNow.isEmpty() && more) {
+                item {
+                    OutlinedButton(
+                        onClick = { loadPage() },
+                        enabled = !loading,
+                        modifier = Modifier.fillMaxWidth().height(48.dp)
+                    ) { Text(if (loading) "جاري التحميل..." else "عرض المزيد", color = Color.White) }
                 }
             }
         }
