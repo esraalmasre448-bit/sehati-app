@@ -47,6 +47,16 @@ fun HomeTab(name: String, type: String, onGo: (String) -> Unit) {
         )
         Text("${stringResource(R.string.hello)} $name", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
         Text(stringResource(R.string.home_sub), color = BMuted)
+        Button(
+            onClick = { onGo("emergency") },
+            colors = ButtonDefaults.buttonColors(containerColor = BDanger, contentColor = Color.White),
+            shape = RoundedCornerShape(14.dp),
+            modifier = Modifier.fillMaxWidth().height(56.dp)
+        ) {
+            Icon(Icons.Filled.Warning, null)
+            Spacer(Modifier.width(8.dp))
+            Text("طوارئ", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Tile(Icons.Filled.Search, stringResource(R.string.find_doctor), true, Modifier.weight(1f)) { onGo("search") }
             Tile(Icons.Filled.CalendarMonth, stringResource(R.string.book_appt), false, Modifier.weight(1f)) { onGo("search") }
@@ -59,6 +69,7 @@ fun HomeTab(name: String, type: String, onGo: (String) -> Unit) {
             Tile(Icons.Filled.Person, "ملفي المهني", true, Modifier.fillMaxWidth()) { onGo("profile") }
             Tile(Icons.Filled.LocationOn, "إعدادات العيادة (الدوام والموقع)", false, Modifier.fillMaxWidth()) { onGo("settings") }
             Tile(Icons.Filled.CalendarMonth, "لوحتي — الحجوزات والدور", false, Modifier.fillMaxWidth()) { onGo("dash") }
+            Tile(Icons.Filled.Info, "تجديد الاشتراك والتواصل مع الإدارة", false, Modifier.fillMaxWidth()) { onGo("renew") }
         }
     }
 }
