@@ -46,7 +46,14 @@ fun HomeTab(name: String, type: String, onGo: (String) -> Unit) {
             }
         )
         Text("${stringResource(R.string.hello)} $name", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
-        Text(stringResource(R.string.home_sub), color = BMuted)
+        Text(
+            when (type) {
+                "doctor", "clinic" -> "مريضك أخوك، فارحم وجعه وقدّر ظروفه."
+                "patient" -> "لأن صحتك أولويتنا، نحن معك."
+                else -> stringResource(R.string.home_sub)
+            },
+            color = BMuted
+        )
         Button(
             onClick = { onGo("emergency") },
             colors = ButtonDefaults.buttonColors(containerColor = BDanger, contentColor = Color.White),
