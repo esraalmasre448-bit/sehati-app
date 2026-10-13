@@ -117,7 +117,7 @@ fun Tile(icon: ImageVector, text: String, red: Boolean, modifier: Modifier, onCl
 }
 
 @Composable
-fun ProfileTab(name: String, email: String, typeLabel: String, onLogout: () -> Unit) {
+fun ProfileTab(name: String, email: String, typeLabel: String, onLogout: () -> Unit, onPrivacy: () -> Unit = {}) {
     Column(
         Modifier.fillMaxSize().padding(24.dp).verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -134,6 +134,9 @@ fun ProfileTab(name: String, email: String, typeLabel: String, onLogout: () -> U
         Text(email, color = BMuted)
         Text(typeLabel, color = BRed)
         Spacer(Modifier.height(24.dp))
+        OutlinedButton(onClick = onPrivacy, modifier = Modifier.fillMaxWidth().height(48.dp)) {
+            Text("سياسة الخصوصية", color = Color.White)
+        }
         RedButton(stringResource(R.string.logout), onClick = onLogout)
         Spacer(Modifier.height(8.dp))
         DeleteAccountSection(onDeleted = onLogout)
