@@ -119,6 +119,7 @@ fun App() {
         screen == "settings" -> ClinicSettingsScreen { screen = "main" }
         screen == "dash" -> DoctorDashboardContent(onBack = { screen = "main" })
         screen == "admin" -> AdminScreen { screen = "main" }
+        screen == "emergency" -> EmergencyScreen(onBack = { screen = "main" })
         else -> MainShell(
             onGo = { screen = it },
             onLogout = { auth.signOut(); loggedIn = false; screen = "main" }
