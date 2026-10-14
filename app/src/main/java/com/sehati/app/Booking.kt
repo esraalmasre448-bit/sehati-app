@@ -28,14 +28,13 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
-val BBg = Color(0xFF081513)
-val BCard = Color(0xFF10231F)
-val BLine = Color(0xFF1F3B35)
-val BRed = Color(0xFF38D0B4)
+val BBg = Color(0xFF0B1220)
+val BCard = Color(0xFF131C2E)
+val BLine = Color(0xFF24304A)
+val BRed = Color(0xFFE5171F)
 val BDanger = Color(0xFFFF5A5F)
-val BOnAccent = Color(0xFF06201B)
-val BMuted = Color(0xFF8FA9A2)
-val BGreen = Color(0xFF3DDC84)
+val BOnAccent = Color(0xFFFFFFFF)
+val BMuted = Color(0xFF9AA7BD)
 
 val bAuth get() = FirebaseAuth.getInstance()
 val bDb get() = FirebaseFirestore.getInstance()
