@@ -112,6 +112,10 @@ fun App() {
         screen == "book" && sel != null -> QueueBookingScreen(
             sel, onBack = { screen = "detail" }, onDone = { screen = "myappts" }
         )
+        screen == "specs" -> AllSpecialtiesScreen(
+            onBack = { screen = "main" },
+            onPick = { initialQuery = it; screen = "search" }
+        )
         screen == "myappts" -> MyAppointmentsContent(
             onFind = { screen = "search" }, onBack = { screen = "main" }
         )
