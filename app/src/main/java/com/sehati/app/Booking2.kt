@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -267,7 +269,7 @@ fun ExpiredCard(onRenew: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         androidx.compose.material3.Icon(
-            androidx.compose.material.icons.Icons.Filled.CalendarMonth, null,
+            Icons.Filled.CalendarMonth, null,
             tint = BRed, modifier = Modifier.size(56.dp)
         )
         Text("انتهى اشتراكك", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color.White)
