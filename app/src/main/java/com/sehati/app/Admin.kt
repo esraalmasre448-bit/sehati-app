@@ -24,13 +24,13 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
-private val ABg = Color(0xFF081513)
-private val ACard = Color(0xFF10231F)
-private val ALine = Color(0xFF1F3B35)
-private val ARed = Color(0xFF38D0B4)
+private val ABg = Color(0xFF0B1220)
+private val ACard = Color(0xFF131C2E)
+private val ALine = Color(0xFF24304A)
+private val ARed = Color(0xFFE5171F)
 private val ADanger = Color(0xFFFF5A5F)
-private val AOnAccent = Color(0xFF06201B)
-private val AMuted = Color(0xFF8FA9A2)
+private val AOnAccent = Color(0xFFFFFFFF)
+private val AMuted = Color(0xFF9AA7BD)
 private val AGreen = Color(0xFF3DDC84)
 private val AExpiredBg = Color(0xFF2A1215)
 
