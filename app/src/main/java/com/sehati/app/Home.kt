@@ -66,21 +66,16 @@ fun HomeTab(name: String, type: String, onGo: (String) -> Unit) {
             Text("طوارئ", fontWeight = FontWeight.Bold, fontSize = 18.sp)
         }
         Text("اختصاصات شائعة", color = BMuted, fontSize = 14.sp)
-        Row(
-            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            listOf("أسنان", "أطفال", "نسائية", "عيون", "قلب", "عظام").forEach { spec ->
-                Text(
-                    spec, color = Color.White, fontWeight = FontWeight.Bold,
-                    modifier = Modifier
-                        .background(BCard, RoundedCornerShape(20.dp))
-                        .border(1.dp, BLine, RoundedCornerShape(20.dp))
-                        .clickable { onGo("search:" + spec) }
-                        .padding(horizontal = 16.dp, vertical = 10.dp)
-                )
+        COMMON_SPECIALTIES.chunked(4).forEach { row ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                row.forEach { sp -> SpecTile(sp, Modifier.weight(1f)) { onGo("search:" + sp.name) } }
+                repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
             }
         }
+        OutlinedButton(
+            onClick = { onGo("specs") },
+            modifier = Modifier.fillMaxWidth().height(48.dp)
+        ) { Text("عرض كل التخصصات", color = Color.White) }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Tile(Icons.Filled.Search, stringResource(R.string.find_doctor), true, Modifier.weight(1f)) { onGo("search") }
             Tile(Icons.Filled.CalendarMonth, stringResource(R.string.book_appt), false, Modifier.weight(1f)) { onGo("search") }
