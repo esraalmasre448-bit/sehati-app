@@ -80,9 +80,9 @@ fun AdminHub(onBack: () -> Unit) {
 }
 
 @Composable
-private fun CountBox(label: String, value: Long?, modifier: Modifier = Modifier) {
+private fun CountBox(label: String, value: Long?, modifier: Modifier = Modifier, tint: Color = BCard) {
     Column(
-        modifier.background(BCard, RoundedCornerShape(14.dp))
+        modifier.background(tint, RoundedCornerShape(14.dp))
             .border(1.dp, BLine, RoundedCornerShape(14.dp)).padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
@@ -128,13 +128,13 @@ fun AdminStatsScreen(onBack: () -> Unit) {
         TextButton(onClick = onBack) { Text("رجوع", color = BRed) }
         Text("إحصائيات المستخدمين", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White)
         if (error.isNotEmpty()) Text(error, color = BDanger)
-        CountBox("إجمالي الحسابات", total, Modifier.fillMaxWidth())
+        CountBox("إجمالي الحسابات", total, Modifier.fillMaxWidth(), Color(0xFF3A4660))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            CountBox("مرضى", patients, Modifier.weight(1f))
-            CountBox("أطباء", doctors, Modifier.weight(1f))
+            CountBox("مرضى", patients, Modifier.weight(1f), Color(0xFF0F6B4B))
+            CountBox("أطباء", doctors, Modifier.weight(1f), Color(0xFF1F4FB8))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            CountBox("عيادات", clinics, Modifier.weight(1f))
+            CountBox("عيادات", clinics, Modifier.weight(1f), Color(0xFF5B2FA8))
             CountBox("ملفات مهنية مكتملة", profiles, Modifier.weight(1f))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
