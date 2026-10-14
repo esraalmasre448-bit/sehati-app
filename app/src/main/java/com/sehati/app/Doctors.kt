@@ -73,7 +73,8 @@ fun DoctorProfileScreen(onBack: () -> Unit) {
             fDb.collection("doctors").document(uid).get().addOnSuccessListener { d ->
                 if (d.exists()) {
                     name = d.getString("name") ?: ""
-                    specialty = d.getString("specialty") ?: ""
+                    val rawSp = d.getString("specialty") ?: ""
+                    specialty = matchSpecialty(rawSp)?.name ?: rawSp
                     clinicName = d.getString("clinicName") ?: ""
                     city = d.getString("city") ?: ""
                     address = d.getString("address") ?: ""
@@ -107,7 +108,7 @@ fun DoctorProfileScreen(onBack: () -> Unit) {
             modifier = Modifier.fillMaxWidth().height(48.dp)
         ) { Text(if (photo.isBlank()) "إضافة صورة" else "تغيير الصورة", color = Color.White) }
         Field(name, { name = it }, "الاسم")
-        Field(specialty, { specialty = it }, "الاختصاص (مثل: أسنان، أطفال)")
+        SpecialtyPicker(specialty) { specialty = it }
         Field(clinicName, { clinicName = it }, "اسم العيادة")
         Field(city, { city = it }, "المدينة")
         Field(address, { address = it }, "العنوان")
@@ -130,6 +131,11 @@ fun DoctorProfileScreen(onBack: () -> Unit) {
             if (name.isBlank() || specialty.isBlank() || city.isBlank()) {
                 ok = false
                 msg = "الاسم والاختصاص والمدينة مطلوبة"
+                return@RedButton
+            }
+            if (SPECIALTIES.none { it.name == specialty }) {
+                ok = false
+                msg = "اختر التخصص من القائمة"
                 return@RedButton
             }
             if (emergency && emergencyPhone.isBlank()) {
@@ -212,14 +218,22 @@ fun DoctorSearchScreen(onBack: () -> Unit, onOpen: (Map<String, Any?>) -> Unit, 
             .addOnSuccessListener { add(it); finish() }.addOnFailureListener { finish() }
         col.whereEqualTo("city", q).limit(30).get()
             .addOnSuccessListener { add(it); finish() }.addOnFailureListener { finish() }
-        col.whereEqualTo("specialty", q).limit(30).get()
-            .addOnSuccessListener { add(it); finish() }.addOnFailureListener { finish() }
+        val sp = matchSpecialty(q)
+        if (sp != null) {
+            col.whereIn("specialty", specVariants(sp)).limit(50).get()
+                .addOnSuccessListener { add(it); finish() }.addOnFailureListener { finish() }
+        } else {
+            col.whereEqualTo("specialty", q).limit(30).get()
+                .addOnSuccessListener { add(it); finish() }.addOnFailureListener { finish() }
+        }
     }
 
     val qNow = query.trim()
     val shown = if (qNow.isEmpty()) items else {
+        val qSpec = matchSpecialty(qNow)
         val local = items.filter {
-            "${it["name"]} ${it["specialty"]} ${it["clinicName"]} ${it["city"]}".contains(qNow, true)
+            "${it["name"]} ${it["specialty"]} ${it["clinicName"]} ${it["city"]}".contains(qNow, true) ||
+                (qSpec != null && matchSpecialty("${it["specialty"] ?: ""}")?.name == qSpec.name)
         }
         (found.values.toList() + local).distinctBy { it["id"] as String }
     }
@@ -232,7 +246,11 @@ fun DoctorSearchScreen(onBack: () -> Unit, onOpen: (Map<String, Any?>) -> Unit, 
         if (error.isNotEmpty()) Text(error, color = DDanger)
         if (searching) Text("جاري البحث...", color = DMuted, modifier = Modifier.padding(8.dp))
         if (shown.isEmpty() && error.isEmpty() && !searching && !loading) {
-            Text("لا توجد نتائج", color = DMuted, modifier = Modifier.padding(16.dp))
+            val sp0 = matchSpecialty(qNow)
+            Text(
+                if (sp0 != null) "لا يوجد حالياً أطباء مسجلون بتخصص ${sp0.name}" else "لا توجد نتائج",
+                color = DMuted, modifier = Modifier.padding(16.dp)
+            )
         }
         LazyColumn(
             verticalArrangement = Arrangement.spacedBy(8.dp),
