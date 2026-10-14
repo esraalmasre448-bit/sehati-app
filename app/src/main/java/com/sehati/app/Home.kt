@@ -46,7 +46,7 @@ fun HomeTab(name: String, type: String, onGo: (String) -> Unit) {
                 if (taps >= 4) { taps = 0; onGo("admin") }
             }
         )
-        Text("${stringResource(R.string.hello)} $name", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
+        Text("مرحباً بك $name", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White)
         Text(
             when (type) {
                 "doctor", "clinic" -> "مريضك أخوك، فارحم وجعه وقدّر ظروفه."
@@ -55,26 +55,34 @@ fun HomeTab(name: String, type: String, onGo: (String) -> Unit) {
             },
             color = BMuted
         )
-        Button(
-            onClick = { onGo("emergency") },
-            colors = ButtonDefaults.buttonColors(containerColor = BDanger, contentColor = Color.White),
-            shape = RoundedCornerShape(14.dp),
-            modifier = Modifier.fillMaxWidth().height(56.dp)
+        Row(
+            Modifier.fillMaxWidth().height(52.dp)
+                .background(BCard, RoundedCornerShape(14.dp))
+                .border(1.dp, BLine, RoundedCornerShape(14.dp))
+                .clickable { onGo("search") }
+                .padding(horizontal = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Icon(Icons.Filled.Warning, null)
-            Spacer(Modifier.width(8.dp))
-            Text("طوارئ", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            Icon(Icons.Filled.Search, null, tint = BMuted)
+            Text("ابحث عن طبيب أو عيادة...", color = BMuted)
         }
-        Text("اختصاصات شائعة", color = BMuted, fontSize = 14.sp)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            QuickBtn(Icons.Filled.Warning, "الطوارئ", BDanger, Modifier.weight(1f)) { onGo("emergency") }
+            QuickBtn(Icons.Filled.LocalHospital, "العيادات", BRed, Modifier.weight(1f)) { onGo("search:@clinics") }
+            QuickBtn(Icons.Filled.MedicalServices, "الأطباء", BRed, Modifier.weight(1f)) { onGo("search:@doctors") }
+        }
+        Text("تخصصات شائعة", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
         COMMON_SPECIALTIES.chunked(4).forEach { row ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                row.forEach { sp -> SpecTile(sp, Modifier.weight(1f)) { onGo("search:" + sp.name) } }
+                row.forEach { sp -> SpecCircle(sp, Modifier.weight(1f)) { onGo("search:" + sp.name) } }
                 repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
             }
         }
         OutlinedButton(
             onClick = { onGo("specs") },
-            modifier = Modifier.fillMaxWidth().height(48.dp)
+            modifier = Modifier.fillMaxWidth().height(48.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, BRed)
         ) { Text("عرض كل التخصصات", color = Color.White) }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Tile(Icons.Filled.Search, stringResource(R.string.find_doctor), true, Modifier.weight(1f)) { onGo("search") }
@@ -90,6 +98,39 @@ fun HomeTab(name: String, type: String, onGo: (String) -> Unit) {
             Tile(Icons.Filled.CalendarMonth, "لوحتي — الحجوزات والدور", false, Modifier.fillMaxWidth()) { onGo("dash") }
             Tile(Icons.Filled.Info, "تجديد الاشتراك والتواصل مع الإدارة", false, Modifier.fillMaxWidth()) { onGo("renew") }
         }
+    }
+}
+
+@Composable
+fun QuickBtn(icon: ImageVector, text: String, tint: Color, modifier: Modifier, onClick: () -> Unit) {
+    Column(
+        modifier
+            .height(92.dp)
+            .background(BCard, RoundedCornerShape(16.dp))
+            .border(1.dp, BLine, RoundedCornerShape(16.dp))
+            .clickable { onClick() }
+            .padding(8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Icon(icon, null, tint = tint, modifier = Modifier.size(30.dp))
+        Spacer(Modifier.height(6.dp))
+        Text(text, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp, textAlign = TextAlign.Center)
+    }
+}
+
+@Composable
+fun SpecCircle(sp: Spec, modifier: Modifier, onClick: () -> Unit) {
+    Column(
+        modifier.clickable { onClick() }.padding(vertical = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            Modifier.size(56.dp).background(BCard, CircleShape).border(1.dp, BRed, CircleShape),
+            contentAlignment = Alignment.Center
+        ) { Icon(sp.icon, null, tint = Color.White, modifier = Modifier.size(26.dp)) }
+        Spacer(Modifier.height(6.dp))
+        Text(sp.name, color = Color.White, fontSize = 12.sp, textAlign = TextAlign.Center, maxLines = 2)
     }
 }
 
