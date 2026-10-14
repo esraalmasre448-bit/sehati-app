@@ -267,7 +267,7 @@ fun ExpiredCard(onRenew: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         androidx.compose.material3.Icon(
-            androidx.compose.material.icons.Icons.Filled.EventBusy, null,
+            androidx.compose.material.icons.Icons.Filled.CalendarMonth, null,
             tint = BRed, modifier = Modifier.size(56.dp)
         )
         Text("انتهى اشتراكك", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color.White)
