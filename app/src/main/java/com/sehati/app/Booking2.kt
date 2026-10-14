@@ -186,9 +186,13 @@ fun DoctorDashboardContent(onBack: (() -> Unit)? = null) {
     ) {
         if (onBack != null) item { TextButton(onClick = onBack) { Text("رجوع", color = BRed) } }
         item { Text("لوحتي — الحجوزات", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White) }
-        item { LockNote(st) }
-        if (st != "active" && st != "loading") {
-            item { RedButton("تجديد الاشتراك والتواصل مع الإدارة") { renew = true } }
+        if (st == "expired" || st == "cancelled") {
+            item { ExpiredCard { renew = true } }
+        } else {
+            item { LockNote(st) }
+            if (st != "active" && st != "loading") {
+                item { RedButton("تجديد الاشتراك والتواصل مع الإدارة") { renew = true } }
+            }
         }
         item { DayChips(days, idx) { idx = it } }
         item {
@@ -249,5 +253,28 @@ fun DoctorDashboardContent(onBack: (() -> Unit)? = null) {
                 }
             }
         }
+    }
+}
+
+@Composable
+fun ExpiredCard(onRenew: () -> Unit) {
+    Column(
+        Modifier.fillMaxWidth()
+            .background(BCard, RoundedCornerShape(16.dp))
+            .border(1.dp, BRed, RoundedCornerShape(16.dp))
+            .padding(20.dp),
+        horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        androidx.compose.material3.Icon(
+            androidx.compose.material.icons.Icons.Filled.EventBusy, null,
+            tint = BRed, modifier = Modifier.size(56.dp)
+        )
+        Text("انتهى اشتراكك", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color.White)
+        Text(
+            "عزيزي الطبيب، انتهى اشتراكك في التطبيق. لتجديد الاشتراك والتمتع بجميع المزايا، تواصل مع الإدارة.",
+            color = BMuted, textAlign = androidx.compose.ui.text.style.TextAlign.Center
+        )
+        RedButton("تجديد الاشتراك") { onRenew() }
     }
 }
