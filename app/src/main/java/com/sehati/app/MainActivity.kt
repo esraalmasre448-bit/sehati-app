@@ -42,13 +42,13 @@ import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.delay
 
-private val Bg = Color(0xFF081513)
-private val CardC = Color(0xFF10231F)
-private val Line = Color(0xFF1F3B35)
-private val Red = Color(0xFF38D0B4)
+private val Bg = Color(0xFF0B1220)
+private val CardC = Color(0xFF131C2E)
+private val Line = Color(0xFF24304A)
+private val Red = Color(0xFFE5171F)
 private val Danger = Color(0xFFFF5A5F)
-private val OnAccent = Color(0xFF06201B)
-private val Muted = Color(0xFF8FA9A2)
+private val OnAccent = Color(0xFFFFFFFF)
+private val Muted = Color(0xFF9AA7BD)
 
 private val auth get() = FirebaseAuth.getInstance()
 private val db get() = FirebaseFirestore.getInstance()
@@ -71,7 +71,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             val scheme = darkColorScheme(
                 primary = Red, onPrimary = OnAccent, secondary = Red,
-                secondaryContainer = Color(0xFF1B4A41), onSecondaryContainer = Color.White,
+                secondaryContainer = Color(0xFF3A1519), onSecondaryContainer = Color.White,
                 background = Bg, surface = CardC,
                 onSurface = Color.White, onBackground = Color.White
             )
