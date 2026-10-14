@@ -31,13 +31,13 @@ import kotlinx.coroutines.delay
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 
-private val DBg = Color(0xFF081513)
-private val DCard = Color(0xFF10231F)
-private val DLine = Color(0xFF1F3B35)
-private val DRed = Color(0xFF38D0B4)
+private val DBg = Color(0xFF0B1220)
+private val DCard = Color(0xFF131C2E)
+private val DLine = Color(0xFF24304A)
+private val DRed = Color(0xFFE5171F)
 private val DDanger = Color(0xFFFF5A5F)
-private val DOnAccent = Color(0xFF06201B)
-private val DMuted = Color(0xFF8FA9A2)
+private val DOnAccent = Color(0xFFFFFFFF)
+private val DMuted = Color(0xFF9AA7BD)
 
 private val fAuth get() = FirebaseAuth.getInstance()
 private val fDb get() = FirebaseFirestore.getInstance()
@@ -171,10 +171,15 @@ fun DoctorSearchScreen(onBack: () -> Unit, onOpen: (Map<String, Any?>) -> Unit, 
     var last by remember { mutableStateOf<DocumentSnapshot?>(null) }
     var more by remember { mutableStateOf(true) }
     var loading by remember { mutableStateOf(false) }
-    var query by remember { mutableStateOf(initial) }
+    var tab by remember { mutableIntStateOf(if (initial.startsWith("@clinics")) 2 else if (initial.startsWith("@doctors")) 1 else 0) }
+    var query by remember { mutableStateOf(if (initial.startsWith("@")) "" else initial) }
     var error by remember { mutableStateOf("") }
     var found by remember { mutableStateOf<Map<String, Map<String, Any?>>>(emptyMap()) }
     var searching by remember { mutableStateOf(false) }
+    var showFilter by remember { mutableStateOf(false) }
+    var fCity by remember { mutableStateOf("") }
+    var fSpec by remember { mutableStateOf("") }
+    var fMax by remember { mutableStateOf("") }
 
     fun loadPage() {
         if (loading || !more) return
@@ -197,9 +202,11 @@ fun DoctorSearchScreen(onBack: () -> Unit, onOpen: (Map<String, Any?>) -> Unit, 
 
     LaunchedEffect(Unit) { loadPage() }
 
-    LaunchedEffect(query) {
+    LaunchedEffect(query, fSpec, fCity) {
         val q = query.trim()
-        if (q.isEmpty()) {
+        val fs = fSpec
+        val fc = fCity.trim()
+        if (q.isEmpty() && fs.isEmpty() && fc.isEmpty()) {
             found = emptyMap()
             searching = false
             return@LaunchedEffect
@@ -207,48 +214,102 @@ fun DoctorSearchScreen(onBack: () -> Unit, onOpen: (Map<String, Any?>) -> Unit, 
         delay(450)
         searching = true
         found = emptyMap()
-        var pending = 3
-        fun finish() { pending--; if (pending <= 0) searching = false }
+        val jobs = mutableListOf<(() -> Unit) -> Unit>()
+        val col = fDb.collection("doctors")
+        fun cur() = q == query.trim() && fs == fSpec && fc == fCity.trim()
         fun add(s: QuerySnapshot) {
-            if (q != query.trim()) return
+            if (!cur()) return
             found = found + s.documents.associate { it.id to (it.data.orEmpty() + ("id" to it.id)) }
         }
-        val col = fDb.collection("doctors")
-        col.orderBy("name").startAt(q).endAt(q + "\uf8ff").limit(30).get()
-            .addOnSuccessListener { add(it); finish() }.addOnFailureListener { finish() }
-        col.whereEqualTo("city", q).limit(30).get()
-            .addOnSuccessListener { add(it); finish() }.addOnFailureListener { finish() }
-        val sp = matchSpecialty(q)
-        if (sp != null) {
-            col.whereIn("specialty", specVariants(sp)).limit(50).get()
-                .addOnSuccessListener { add(it); finish() }.addOnFailureListener { finish() }
-        } else {
-            col.whereEqualTo("specialty", q).limit(30).get()
-                .addOnSuccessListener { add(it); finish() }.addOnFailureListener { finish() }
+        if (q.isNotEmpty()) {
+            jobs.add { done -> col.orderBy("name").startAt(q).endAt(q + "").limit(30).get()
+                .addOnSuccessListener { add(it); done() }.addOnFailureListener { done() } }
+            jobs.add { done -> col.whereEqualTo("city", q).limit(30).get()
+                .addOnSuccessListener { add(it); done() }.addOnFailureListener { done() } }
+            val sp = matchSpecialty(q)
+            if (sp != null) {
+                jobs.add { done -> col.whereIn("specialty", specVariants(sp)).limit(50).get()
+                    .addOnSuccessListener { add(it); done() }.addOnFailureListener { done() } }
+            } else {
+                jobs.add { done -> col.whereEqualTo("specialty", q).limit(30).get()
+                    .addOnSuccessListener { add(it); done() }.addOnFailureListener { done() } }
+            }
         }
+        if (fs.isNotEmpty()) {
+            val sp = matchSpecialty(fs)
+            if (sp != null) jobs.add { done -> col.whereIn("specialty", specVariants(sp)).limit(50).get()
+                .addOnSuccessListener { add(it); done() }.addOnFailureListener { done() } }
+        }
+        if (fc.isNotEmpty()) {
+            jobs.add { done -> col.whereEqualTo("city", fc).limit(50).get()
+                .addOnSuccessListener { add(it); done() }.addOnFailureListener { done() } }
+        }
+        if (jobs.isEmpty()) { searching = false; return@LaunchedEffect }
+        var pending = jobs.size
+        val fin = { pending--; if (pending <= 0) searching = false }
+        jobs.forEach { it(fin) }
     }
 
     val qNow = query.trim()
-    val shown = if (qNow.isEmpty()) items else {
-        val qSpec = matchSpecialty(qNow)
-        val local = items.filter {
-            "${it["name"]} ${it["specialty"]} ${it["clinicName"]} ${it["city"]}".contains(qNow, true) ||
-                (qSpec != null && matchSpecialty("${it["specialty"] ?: ""}")?.name == qSpec.name)
-        }
-        (found.values.toList() + local).distinctBy { it["id"] as String }
+    val filtersOn = qNow.isNotEmpty() || fSpec.isNotEmpty() || fCity.isNotBlank()
+    val qSpec = matchSpecialty(qNow)
+    fun ok(d: Map<String, Any?>): Boolean {
+        val text = "${d["name"]} ${d["specialty"]} ${d["clinicName"]} ${d["city"]}"
+        val dSpec = matchSpecialty("${d["specialty"] ?: ""}")?.name
+        val qOk = qNow.isEmpty() || text.contains(qNow, true) || (qSpec != null && dSpec == qSpec.name)
+        val sOk = fSpec.isEmpty() || dSpec == fSpec
+        val cOk = fCity.isBlank() || "${d["city"] ?: ""}".contains(fCity.trim(), true)
+        val maxV = fMax.trim().toLongOrNull()
+        val feeV = "${d["fee"] ?: ""}".trim().toLongOrNull()
+        val fOk = maxV == null || (feeV != null && feeV <= maxV)
+        val hasClinic = "${d["clinicName"] ?: ""}".isNotBlank()
+        val tOk = tab == 0 || (tab == 1 && !hasClinic) || (tab == 2 && hasClinic)
+        return qOk && sOk && cOk && fOk && tOk
     }
+    val pool = if (filtersOn) (found.values.toList() + items).distinctBy { it["id"] as String } else items
+    val shown = pool.filter { ok(it) }
 
     Column(Modifier.fillMaxSize().background(DBg).padding(16.dp)) {
-        TextButton(onClick = onBack) { Text("رجوع", color = DRed) }
-        Text("ابحث عن طبيب أو عيادة", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
-        Spacer(Modifier.height(8.dp))
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+            TextButton(onClick = onBack) { Text("رجوع", color = DRed) }
+            Text("ابحث عن طبيب أو عيادة", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            TextButton(onClick = { showFilter = !showFilter }) { Text(if (showFilter) "إخفاء الفلتر" else "فلتر", color = DRed) }
+        }
         Field(query, { query = it }, "اسم، اختصاص، أو مدينة")
+        Spacer(Modifier.height(8.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("الكل", "الأطباء", "العيادات").forEachIndexed { i, t ->
+                Box(
+                    Modifier.weight(1f).height(40.dp)
+                        .background(if (tab == i) DRed else DCard, RoundedCornerShape(20.dp))
+                        .border(1.dp, if (tab == i) DRed else DLine, RoundedCornerShape(20.dp))
+                        .clickable { tab = i },
+                    contentAlignment = Alignment.Center
+                ) { Text(t, color = Color.White, fontWeight = FontWeight.Bold) }
+            }
+        }
+        if (showFilter) {
+            Column(
+                Modifier.fillMaxWidth().padding(top = 8.dp)
+                    .background(DCard, RoundedCornerShape(14.dp))
+                    .border(1.dp, DLine, RoundedCornerShape(14.dp))
+                    .padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Field(fCity, { fCity = it }, "المدينة")
+                SpecialtyPicker(fSpec) { fSpec = it }
+                if (fSpec.isNotEmpty()) TextButton(onClick = { fSpec = "" }) { Text("إلغاء فلتر التخصص", color = DRed) }
+                Field(fMax, { fMax = it.filter { c -> c.isDigit() } }, "أقصى سعر للكشفية", keyboard = KeyboardType.Number)
+                RedButton("تطبيق الفلتر") { showFilter = false }
+                TextButton(onClick = { fCity = ""; fSpec = ""; fMax = "" }) { Text("مسح كل الفلاتر", color = DMuted) }
+            }
+        }
         if (error.isNotEmpty()) Text(error, color = DDanger)
         if (searching) Text("جاري البحث...", color = DMuted, modifier = Modifier.padding(8.dp))
         if (shown.isEmpty() && error.isEmpty() && !searching && !loading) {
-            val sp0 = matchSpecialty(qNow)
+            val spName = if (fSpec.isNotEmpty()) fSpec else qSpec?.name
             Text(
-                if (sp0 != null) "لا يوجد حالياً أطباء مسجلون بتخصص ${sp0.name}" else "لا توجد نتائج",
+                if (spName != null) "لا يوجد حالياً أطباء مسجلون بتخصص $spName" else "لا توجد نتائج",
                 color = DMuted, modifier = Modifier.padding(16.dp)
             )
         }
@@ -257,33 +318,30 @@ fun DoctorSearchScreen(onBack: () -> Unit, onOpen: (Map<String, Any?>) -> Unit, 
             contentPadding = PaddingValues(vertical = 12.dp)
         ) {
             items(shown, key = { it["id"] as String }) { d ->
-                Column(
+                Row(
                     Modifier.fillMaxWidth()
                         .background(DCard, RoundedCornerShape(14.dp))
                         .border(1.dp, DLine, RoundedCornerShape(14.dp))
                         .clickable { onOpen(d) }
                         .padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        DoctorAvatar(d["photo"]?.toString(), "${d["name"] ?: ""}", 56.dp)
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text("${d["name"]}", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                            Text("${d["specialty"]}", color = DRed)
-                            val c = "${d["clinicName"] ?: ""}"
-                            if (c.isNotBlank()) Text(c, color = Color.White)
-                            Text("${d["city"] ?: ""}", color = DMuted)
-                        }
+                    DoctorAvatar(d["photo"]?.toString(), "${d["name"] ?: ""}", 56.dp)
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text("${d["name"]}", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        Text("${d["specialty"]}", color = DRed)
+                        val c = "${d["clinicName"] ?: ""}"
+                        if (c.isNotBlank()) Text(c, color = Color.White)
+                        Text("${d["city"] ?: ""}", color = DMuted)
                     }
+                    val fee = "${d["fee"] ?: ""}"
+                    if (fee.isNotBlank()) Text("كشفية: $fee", color = DMuted, fontSize = 12.sp)
                 }
             }
-            if (qNow.isEmpty() && more) {
+            if (!filtersOn && more) {
                 item {
-                    OutlinedButton(
-                        onClick = { loadPage() },
-                        enabled = !loading,
-                        modifier = Modifier.fillMaxWidth().height(48.dp)
-                    ) { Text(if (loading) "جاري التحميل..." else "عرض المزيد", color = Color.White) }
+                    RedButton(if (loading) "جاري التحميل..." else "عرض المزيد", enabled = !loading) { loadPage() }
                 }
             }
         }
