@@ -35,6 +35,7 @@ val BRed = Color(0xFFE5171F)
 val BDanger = Color(0xFFFF5A5F)
 val BOnAccent = Color(0xFFFFFFFF)
 val BMuted = Color(0xFF9AA7BD)
+val BGreen = Color(0xFF3DDC84)
 
 val bAuth get() = FirebaseAuth.getInstance()
 val bDb get() = FirebaseFirestore.getInstance()
