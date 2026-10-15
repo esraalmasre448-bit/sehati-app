@@ -43,6 +43,11 @@ private val fAuth get() = FirebaseAuth.getInstance()
 private val fDb get() = FirebaseFirestore.getInstance()
 
 @Composable
+private fun SectionTitle(text: String) {
+    Text(text, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = DRed, modifier = Modifier.padding(top = 8.dp))
+}
+
+@Composable
 fun DoctorProfileScreen(onBack: () -> Unit) {
     var name by remember { mutableStateOf("") }
     var specialty by remember { mutableStateOf("") }
@@ -57,6 +62,8 @@ fun DoctorProfileScreen(onBack: () -> Unit) {
     var photo by remember { mutableStateOf("") }
     var emergency by remember { mutableStateOf(false) }
     var emergencyPhone by remember { mutableStateOf("") }
+    var hospitalName by remember { mutableStateOf("") }
+    var hospitalHours by remember { mutableStateOf("") }
     val ctx = LocalContext.current
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         if (uri != null) {
@@ -84,6 +91,8 @@ fun DoctorProfileScreen(onBack: () -> Unit) {
                     photo = d.getString("photo") ?: ""
                     emergency = d.getBoolean("emergency") ?: false
                     emergencyPhone = d.getString("emergencyPhone") ?: ""
+                    hospitalName = d.getString("hospitalName") ?: ""
+                    hospitalHours = d.getString("hospitalHours") ?: ""
                 } else {
                     fDb.collection("users").document(uid).get().addOnSuccessListener { u ->
                         name = u.getString("name") ?: ""
@@ -107,14 +116,21 @@ fun DoctorProfileScreen(onBack: () -> Unit) {
             onClick = { picker.launch("image/*") },
             modifier = Modifier.fillMaxWidth().height(48.dp)
         ) { Text(if (photo.isBlank()) "إضافة صورة" else "تغيير الصورة", color = Color.White) }
+        SectionTitle("معلوماتي")
         Field(name, { name = it }, "الاسم")
         SpecialtyPicker(specialty) { specialty = it }
+        SectionTitle("عملي بالعيادة")
         Field(clinicName, { clinicName = it }, "اسم العيادة")
         Field(city, { city = it }, "المدينة")
         Field(address, { address = it }, "العنوان")
         Field(phone, { phone = it }, "رقم التواصل", keyboard = KeyboardType.Phone)
-        Field(hours, { hours = it }, "ساعات الدوام (مثل: 9 صباحًا - 5 مساءً)")
+        Field(hours, { hours = it }, "أيام وساعات الدوام بالعيادة (مثل: السبت والأحد 5 - 9 مساءً)")
         Field(fee, { fee = it }, "سعر الكشفية", keyboard = KeyboardType.Number)
+        SectionTitle("المشفى (اختياري)")
+        Text("إذا كنت تداوم أيضاً بمشفى، اكتب اسمه ومواعيد دوامك فيه ليراها المرضى.", color = DMuted, fontSize = 13.sp)
+        Field(hospitalName, { hospitalName = it }, "اسم المشفى")
+        Field(hospitalHours, { hospitalHours = it }, "أيام وساعات الدوام بالمشفى (مثل: الإثنين والثلاثاء 8 - 2)")
+        SectionTitle("الطوارئ")
         Row(
             Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -152,6 +168,7 @@ fun DoctorProfileScreen(onBack: () -> Unit) {
                     "address" to address.trim(), "phone" to phone.trim(),
                     "hours" to hours.trim(), "fee" to fee.trim(), "photo" to photo,
                     "emergency" to emergency, "emergencyPhone" to emergencyPhone.trim(),
+                    "hospitalName" to hospitalName.trim(), "hospitalHours" to hospitalHours.trim(),
                     "updatedAt" to FieldValue.serverTimestamp()
                 ),
                 SetOptions.merge()
