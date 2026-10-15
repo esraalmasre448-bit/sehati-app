@@ -61,6 +61,27 @@ fun compressFit(ctx: Context, uri: Uri): String? {
 @Composable
 fun AdminHub(onBack: () -> Unit) {
     var page by remember { mutableStateOf("menu") }
+    var gate by remember { mutableStateOf("loading") }
+    val myUid = bAuth.currentUser?.uid ?: ""
+    LaunchedEffect(myUid) {
+        bDb.collection("config").document("admin").get()
+            .addOnSuccessListener { d -> gate = if (d.exists() && d.getString("uid") == myUid && myUid.isNotEmpty()) "ok" else "denied" }
+            .addOnFailureListener { gate = "error" }
+    }
+    if (gate != "ok") {
+        Column(
+            Modifier.fillMaxSize().background(BBg).padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            TextButton(onClick = onBack) { Text("رجوع", color = BRed) }
+            when (gate) {
+                "loading" -> CircularProgressIndicator(color = BRed)
+                "denied" -> Text("لا يمكن فتح هذه الصفحة", color = Color.White)
+                else -> Text("تعذر التحميل، تحقق من الإنترنت وحاول مرة أخرى", color = Color.White)
+            }
+        }
+        return
+    }
     when (page) {
         "subs" -> AdminScreen { page = "menu" }
         "stats" -> AdminStatsScreen { page = "menu" }
