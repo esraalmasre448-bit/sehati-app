@@ -49,22 +49,33 @@ fun DeleteAccountSection(onDeleted: () -> Unit) {
                                             busy = false
                                             msg = "لا يمكن حذف حساب الأدمن"
                                         } else {
-                                            val b = bDb.batch()
-                                            b.delete(bDb.collection("users").document(user.uid))
-                                            b.delete(bDb.collection("doctors").document(user.uid))
-                                            b.commit().addOnSuccessListener {
-                                                user.delete().addOnSuccessListener {
-                                                    busy = false
-                                                    open = false
-                                                    onDeleted()
-                                                }.addOnFailureListener {
-                                                    busy = false
-                                                    msg = "تعذر حذف الحساب. سجّل خروجًا ثم دخولًا وحاول مرة أخرى"
-                                                }
-                                            }.addOnFailureListener {
-                                                busy = false
-                                                msg = "تعذر حذف البيانات، تحقق من الإنترنت"
-                                            }
+                                            val netErr = { busy = false; msg = "تعذر الاتصال، تحقق من الإنترنت" }
+                                            bDb.collection("appointments").whereEqualTo("patientId", user.uid).get()
+                                                .addOnSuccessListener { aps ->
+                                                    bDb.collection("prescriptions").whereEqualTo("patientId", user.uid).get()
+                                                        .addOnSuccessListener { rxs ->
+                                                            val b = bDb.batch()
+                                                            aps.documents.take(200).forEach { d ->
+                                                                b.update(d.reference, mapOf("patientName" to "حساب محذوف", "patientPhone" to "", "note" to ""))
+                                                            }
+                                                            rxs.documents.take(200).forEach { d -> b.delete(d.reference) }
+                                                            b.delete(bDb.collection("users").document(user.uid))
+                                                            b.delete(bDb.collection("doctors").document(user.uid))
+                                                            b.commit().addOnSuccessListener {
+                                                                user.delete().addOnSuccessListener {
+                                                                    busy = false
+                                                                    open = false
+                                                                    onDeleted()
+                                                                }.addOnFailureListener {
+                                                                    busy = false
+                                                                    msg = "تعذر حذف الحساب. سجّل خروجًا ثم دخولًا وحاول مرة أخرى"
+                                                                }
+                                                            }.addOnFailureListener {
+                                                                busy = false
+                                                                msg = "تعذر حذف البيانات، تحقق من الإنترنت"
+                                                            }
+                                                        }.addOnFailureListener { netErr() }
+                                                }.addOnFailureListener { netErr() }
                                         }
                                     }
                                     .addOnFailureListener {
