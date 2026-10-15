@@ -249,9 +249,12 @@ fun DoctorDetailFull(d: Map<String, Any?>, onBack: () -> Unit, onBook: () -> Uni
         BInfo("العنوان", d["address"])
         BInfo("رقم التواصل", d["phone"])
         BInfo(
-            "ساعات الدوام",
+            "ساعات استقبال الحجوزات بالعيادة",
             "${slotLabel((num(d["startHour"]) ?: 9) * 60)} - ${slotLabel((num(d["endHour"]) ?: 17) * 60)}"
         )
+        BInfo("أيام وساعات الدوام بالعيادة", d["hours"])
+        BInfo("المشفى", d["hospitalName"])
+        BInfo("أيام وساعات الدوام بالمشفى", d["hospitalHours"])
         BInfo("سعر الكشفية", d["fee"])
         if (msg.isNotEmpty()) Text(msg, color = BDanger)
         RedButton("احجز موعد", onClick = onBook)
@@ -362,6 +365,15 @@ fun MyAppointmentsContent(onFind: () -> Unit, onBack: (() -> Unit)? = null) {
     var loaded by remember { mutableStateOf(false) }
     var msg by remember { mutableStateOf("") }
     var cancelId by remember { mutableStateOf<String?>(null) }
+    var notes by remember { mutableStateOf(listOf<Map<String, Any?>>()) }
+
+    DisposableEffect(uid) {
+        val regN = bDb.collection("prescriptions").whereEqualTo("patientId", uid).limit(200)
+            .addSnapshotListener { s, e ->
+                if (e == null) notes = s?.documents?.map { it.data.orEmpty() + ("id" to it.id) }.orEmpty()
+            }
+        onDispose { regN.remove() }
+    }
 
     DisposableEffect(uid) {
         val reg = bDb.collection("appointments").whereEqualTo("patientId", uid).limit(100)
@@ -406,6 +418,9 @@ fun MyAppointmentsContent(onFind: () -> Unit, onBack: (() -> Unit)? = null) {
                 Text("التاريخ: ${a["date"]}  •  الساعة: ${a["time"]}", color = Color.White)
                 Text("رقمك بالدور: ${a["number"]}", color = Color.White, fontWeight = FontWeight.Bold)
                 Text(label, color = color, fontWeight = FontWeight.Bold)
+                notes.filter { it["appointmentId"] == a["id"] }
+                    .sortedBy { (it["createdAt"] as? com.google.firebase.Timestamp)?.seconds ?: 0L }
+                    .forEach { NoteBox(it, null) }
                 if (a["status"] == "CONFIRMED") {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(
