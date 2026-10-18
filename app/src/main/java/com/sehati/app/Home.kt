@@ -170,6 +170,7 @@ fun ProfileTab(name: String, email: String, typeLabel: String, onLogout: () -> U
         Text(email, color = BMuted)
         Text(typeLabel, color = BRed)
         Spacer(Modifier.height(24.dp))
+        AppLockSection()
         OutlinedButton(onClick = onPrivacy, modifier = Modifier.fillMaxWidth().height(48.dp)) {
             Text("سياسة الخصوصية", color = Color.White)
         }
