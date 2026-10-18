@@ -32,6 +32,8 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
@@ -47,6 +49,7 @@ private val CardC = Color(0xFF131C2E)
 private val Line = Color(0xFF24304A)
 private val Red = Color(0xFFE5171F)
 private val Danger = Color(0xFFFF5A5F)
+private val Good = Color(0xFF3DDC84)
 private val OnAccent = Color(0xFFFFFFFF)
 private val Muted = Color(0xFF9AA7BD)
 
@@ -89,6 +92,22 @@ fun App() {
     var screen by remember { mutableStateOf("main") }
     var selected by remember { mutableStateOf<Map<String, Any?>?>(null) }
     var initialQuery by remember { mutableStateOf("") }
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    var locked by remember { mutableStateOf(AppLockStore.enabled(ctx) && auth.currentUser != null) }
+    val owner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    DisposableEffect(owner) {
+        var away = 0L
+        val obs = LifecycleEventObserver { _, e ->
+            if (e == Lifecycle.Event.ON_STOP) away = System.currentTimeMillis()
+            if (e == Lifecycle.Event.ON_START && away != 0L) {
+                if (AppLockStore.enabled(ctx) && auth.currentUser != null &&
+                    System.currentTimeMillis() - away > 30_000L
+                ) locked = true
+            }
+        }
+        owner.lifecycle.addObserver(obs)
+        onDispose { owner.lifecycle.removeObserver(obs) }
+    }
     LaunchedEffect(Unit) { delay(1500); splash = false }
     BackHandler(enabled = screen != "main") {
         screen = when (screen) {
@@ -100,6 +119,16 @@ fun App() {
     val sel = selected
     when {
         splash -> Splash()
+        loggedIn && locked -> LockScreen(
+            onUnlock = { locked = false },
+            onForgot = {
+                AppLockStore.clear(ctx)
+                auth.signOut()
+                loggedIn = false
+                locked = false
+                screen = "main"
+            }
+        )
         !loggedIn -> AuthFlow { loggedIn = true }
         screen == "search" -> DoctorSearchScreen(
             onBack = { initialQuery = ""; screen = "main" },
@@ -133,7 +162,13 @@ fun App() {
                 if (it.startsWith("search:")) { initialQuery = it.removePrefix("search:"); screen = "search" }
                 else { if (it == "search") initialQuery = ""; screen = it }
             },
-            onLogout = { auth.signOut(); loggedIn = false; screen = "main" }
+            onLogout = {
+                AppLockStore.clear(ctx)
+                auth.signOut()
+                loggedIn = false
+                locked = false
+                screen = "main"
+            }
         )
     }
 }
@@ -213,7 +248,11 @@ fun AuthFlow(onDone: () -> Unit) {
     val errGeneric = stringResource(R.string.error_generic)
     val enterBoth = stringResource(R.string.enter_email_pass)
     val enterName = stringResource(R.string.enter_name)
-    val resetSent = stringResource(R.string.reset_sent)
+    var showReset by remember { mutableStateOf(false) }
+    var resetEmail by remember { mutableStateOf("") }
+    var resetMsg by remember { mutableStateOf("") }
+    var resetOk by remember { mutableStateOf(false) }
+    var resetBusy by remember { mutableStateOf(false) }
 
     Column(
         Modifier.fillMaxSize().background(Bg).padding(24.dp).verticalScroll(rememberScrollState()),
@@ -250,10 +289,11 @@ fun AuthFlow(onDone: () -> Unit) {
         Field(pass, { pass = it }, stringResource(R.string.password), password = true)
         if (!signup) {
             TextButton(onClick = {
-                if (email.isBlank()) msg = enterBoth
-                else auth.sendPasswordResetEmail(email.trim())
-                    .addOnSuccessListener { msg = resetSent }
-                    .addOnFailureListener { msg = authError(it) }
+                msg = ""
+                resetEmail = email.trim()
+                resetMsg = ""
+                resetOk = false
+                showReset = true
             }) { Text(stringResource(R.string.forgot), color = Red) }
         }
         if (msg.isNotEmpty()) Text(msg, color = Danger)
@@ -332,6 +372,41 @@ fun AuthFlow(onDone: () -> Unit) {
             )
         }
     }
+
+    if (showReset) {
+        AlertDialog(
+            onDismissRequest = { showReset = false },
+            containerColor = CardC,
+            title = { Text("استعادة كلمة المرور", color = Color.White) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("اكتب بريدك الإلكتروني وسنرسل لك رابطًا لتعيين كلمة سر جديدة.", color = Muted)
+                    Field(resetEmail, { resetEmail = it; resetMsg = "" }, stringResource(R.string.email), keyboard = KeyboardType.Email)
+                    if (resetMsg.isNotEmpty()) Text(resetMsg, color = if (resetOk) Good else Danger)
+                    if (resetOk) Text(
+                        "افتح الرابط من بريدك، اختر كلمة سر جديدة، ثم ارجع وسجّل دخولك. إن لم تجد الرسالة فابحث في مجلد الرسائل غير المرغوبة (Spam).",
+                        color = Muted, fontSize = 13.sp
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(enabled = !resetBusy, onClick = {
+                    val r = resetEmail.trim()
+                    if (r.isBlank()) {
+                        resetOk = false
+                        resetMsg = "اكتب بريدك الإلكتروني أولاً"
+                    } else {
+                        resetBusy = true
+                        resetMsg = ""
+                        auth.sendPasswordResetEmail(r)
+                            .addOnSuccessListener { resetBusy = false; resetOk = true; resetMsg = "تم إرسال الرابط إلى $r" }
+                            .addOnFailureListener { resetBusy = false; resetOk = false; resetMsg = authError(it) }
+                    }
+                }) { Text(if (resetOk) "إعادة الإرسال" else "إرسال الرابط", color = Red) }
+            },
+            dismissButton = { TextButton(onClick = { showReset = false }) { Text("إغلاق", color = Muted) } }
+        )
+    }
 }
 
 @Composable
@@ -367,47 +442,4 @@ fun MainShell(onGo: (String) -> Unit, onLogout: () -> Unit) {
         if (tab == 2 && sn != null) {
             fresh = ns.items.map { it.key }.filter { it !in sn }.toSet() + fresh
             val all = sn + ns.items.map { it.key }
-            if (all != sn) { seen = all; saveSeen(ctx, uid, all) }
-        }
-    }
-    val typeLabel = when (type) {
-        "doctor" -> stringResource(R.string.doctor)
-        "clinic" -> stringResource(R.string.clinic)
-        "patient" -> stringResource(R.string.patient)
-        else -> ""
-    }
-    val itemColors = NavigationBarItemDefaults.colors(
-        selectedIconColor = Red, selectedTextColor = Red, indicatorColor = Color.Transparent,
-        unselectedIconColor = Muted, unselectedTextColor = Muted
-    )
-    Scaffold(
-        containerColor = Bg,
-        bottomBar = {
-            NavigationBar(containerColor = CardC) {
-                NavigationBarItem(tab == 0, { tab = 0 }, { Icon(Icons.Filled.Home, null) },
-                    label = { Text(stringResource(R.string.nav_home)) }, colors = itemColors)
-                NavigationBarItem(tab == 1, { tab = 1 }, { Icon(Icons.Filled.CalendarMonth, null) },
-                    label = { Text(stringResource(R.string.nav_appts)) }, colors = itemColors)
-                NavigationBarItem(tab == 2, { tab = 2 },
-                    {
-                        BadgedBox(badge = { if (unread > 0 && tab != 2) Badge { Text("$unread") } }) {
-                            Icon(Icons.Filled.Notifications, null)
-                        }
-                    },
-                    label = { Text("الإشعارات") }, colors = itemColors)
-                NavigationBarItem(tab == 3, { tab = 3 }, { Icon(Icons.Filled.Person, null) },
-                    label = { Text(stringResource(R.string.nav_profile)) }, colors = itemColors)
-            }
-        }
-    ) { pad ->
-        Box(Modifier.padding(pad).fillMaxSize()) {
-            when (tab) {
-                0 -> HomeTab(name, type, onGo)
-                1 -> if (type == "doctor" || type == "clinic") DoctorDashboardContent()
-                else MyAppointmentsContent(onFind = { onGo("search") })
-                2 -> NotifTab(ns.items, fresh)
-                else -> ProfileTab(name, email, typeLabel, onLogout, onPrivacy = { onGo("privacy") })
-            }
-        }
-    }
-}
+ 
