@@ -5,6 +5,8 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      KS_B64: ${{ secrets.KEYSTORE_B64 }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -20,8 +22,11 @@ jobs:
         with:
           path: app/sehati.keystore
           key: sehati-keystore-v1
+      - name: Use signing key from secret
+        if: env.KS_B64 != ''
+        run: echo "$KS_B64" | base64 -d > app/sehati.keystore
       - name: Create signing key if missing
-        if: steps.ks.outputs.cache-hit != 'true'
+        if: env.KS_B64 == '' && steps.ks.outputs.cache-hit != 'true'
         run: >
           keytool -genkeypair -keystore app/sehati.keystore -storetype PKCS12
           -alias sehati -keyalg RSA -keysize 2048 -validity 10000
@@ -32,6 +37,28 @@ jobs:
           GS: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: echo "$GS" > app/google-services.json
       - run: gradle assembleDebug
+      - name: Export signing key as text (one time)
+        if: env.KS_B64 == ''
+        continue-on-error: true
+        run: base64 -w0 app/sehati.keystore > keystore-b64.txt
+      - name: Upload signing key text (one time)
+        if: env.KS_B64 == ''
+        continue-on-error: true
+        uses: actions/upload-artifact@v7
+        with:
+          name: keystore-b64
+          path: keystore-b64.txt
+          archive: false
+      - name: Prepare direct APK
+        continue-on-error: true
+        run: cp app/build/outputs/apk/debug/*.apk sehati.apk
+      - name: Upload direct APK (no zip)
+        continue-on-error: true
+        uses: actions/upload-artifact@v7
+        with:
+          name: sehati-apk-direct
+          path: sehati.apk
+          archive: false
       - uses: actions/upload-artifact@v4
         with:
           name: sehati-apk
