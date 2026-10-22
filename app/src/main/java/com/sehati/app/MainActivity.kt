@@ -56,18 +56,6 @@ private val Muted = Color(0xFF9AA7BD)
 private val auth get() = FirebaseAuth.getInstance()
 private val db get() = FirebaseFirestore.getInstance()
 
-private fun authError(e: Exception): String = when (e) {
-    is FirebaseAuthWeakPasswordException -> "كلمة السر ضعيفة، استخدم 6 أحرف على الأقل"
-    is FirebaseAuthInvalidUserException -> "لا يوجد حساب بهذا البريد"
-    is FirebaseAuthInvalidCredentialsException -> "البريد أو كلمة السر غير صحيحة"
-    is FirebaseAuthUserCollisionException -> "هذا البريد مسجّل مسبقًا، سجّل دخولك"
-    is FirebaseNetworkException -> "تحقق من اتصال الإنترنت وحاول مرة أخرى"
-    else ->
-        if (e.message?.contains("API key", true) == true)
-            "تعذر الاتصال بالخدمة (رمز: API_KEY). ثبّت آخر نسخة من التطبيق"
-        else "تعذر إتمام العملية، حاول مرة أخرى"
-}
-
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -193,223 +181,6 @@ fun Splash() {
 }
 
 @Composable
-fun Field(
-    value: String, onChange: (String) -> Unit, label: String,
-    password: Boolean = false, keyboard: KeyboardType = KeyboardType.Text
-) {
-    var show by remember { mutableStateOf(false) }
-    OutlinedTextField(
-        value = value, onValueChange = onChange,
-        label = { Text(label, color = Muted) },
-        singleLine = true,
-        visualTransformation = if (password && !show) PasswordVisualTransformation() else VisualTransformation.None,
-        keyboardOptions = KeyboardOptions(keyboardType = if (password) KeyboardType.Password else keyboard),
-        trailingIcon = if (password) {
-            {
-                IconButton(onClick = { show = !show }) {
-                    Icon(
-                        if (show) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
-                        contentDescription = null, tint = Muted
-                    )
-                }
-            }
-        } else null,
-        shape = RoundedCornerShape(12.dp),
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = Red, unfocusedBorderColor = Line,
-            focusedContainerColor = CardC, unfocusedContainerColor = CardC,
-            focusedTextColor = Color.White, unfocusedTextColor = Color.White,
-            cursorColor = Red
-        ),
-        modifier = Modifier.fillMaxWidth()
-    )
-}
-
-@Composable
-fun RedButton(text: String, enabled: Boolean = true, onClick: () -> Unit) {
-    Button(
-        onClick = onClick, enabled = enabled,
-        colors = ButtonDefaults.buttonColors(containerColor = Red, contentColor = OnAccent),
-        shape = RoundedCornerShape(12.dp),
-        modifier = Modifier.fillMaxWidth().height(52.dp)
-    ) { Text(text, fontSize = 16.sp, fontWeight = FontWeight.Bold) }
-}
-
-@Composable
-fun AuthFlow(onDone: () -> Unit) {
-    var signup by remember { mutableStateOf(false) }
-    var name by remember { mutableStateOf("") }
-    var phone by remember { mutableStateOf("") }
-    var email by remember { mutableStateOf("") }
-    var pass by remember { mutableStateOf("") }
-    var type by remember { mutableStateOf("patient") }
-    var busy by remember { mutableStateOf(false) }
-    var msg by remember { mutableStateOf("") }
-    val errGeneric = stringResource(R.string.error_generic)
-    val enterBoth = stringResource(R.string.enter_email_pass)
-    val enterName = stringResource(R.string.enter_name)
-    var showReset by remember { mutableStateOf(false) }
-    var resetEmail by remember { mutableStateOf("") }
-    var resetMsg by remember { mutableStateOf("") }
-    var resetOk by remember { mutableStateOf(false) }
-    var resetBusy by remember { mutableStateOf(false) }
-
-    Column(
-        Modifier.fillMaxSize().background(Bg).padding(24.dp).verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Image(
-            painterResource(R.drawable.ic_launcher), null,
-            Modifier.size(150.dp).align(Alignment.CenterHorizontally)
-        )
-        Text(stringResource(R.string.welcome_back), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White)
-        Text(stringResource(R.string.login_sub), color = Muted)
-        if (signup) {
-            Field(name, { name = it }, stringResource(R.string.name))
-            Field(phone, { phone = it }, stringResource(R.string.phone), keyboard = KeyboardType.Phone)
-            Text(stringResource(R.string.account_type), color = Muted)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf(
-                    "patient" to R.string.patient,
-                    "doctor" to R.string.doctor,
-                    "clinic" to R.string.clinic
-                ).forEach { (k, label) ->
-                    FilterChip(
-                        selected = type == k, onClick = { type = k },
-                        label = { Text(stringResource(label)) },
-                        colors = FilterChipDefaults.filterChipColors(
-                            containerColor = CardC, labelColor = Color.White,
-                            selectedContainerColor = Red, selectedLabelColor = OnAccent
-                        )
-                    )
-                }
-            }
-        }
-        Field(email, { email = it }, stringResource(R.string.email), keyboard = KeyboardType.Email)
-        Field(pass, { pass = it }, stringResource(R.string.password), password = true)
-        if (!signup) {
-            TextButton(onClick = {
-                msg = ""
-                resetEmail = email.trim()
-                resetMsg = ""
-                resetOk = false
-                showReset = true
-            }) { Text(stringResource(R.string.forgot), color = Red) }
-        }
-        if (msg.isNotEmpty()) Text(msg, color = Danger)
-        RedButton(
-            text = stringResource(if (signup) R.string.signup_btn else R.string.login),
-            enabled = !busy
-        ) {
-            msg = ""
-            val e = email.trim()
-            if (e.isBlank() || pass.isBlank()) {
-                msg = enterBoth
-            } else if (signup && name.isBlank()) {
-                msg = enterName
-            } else {
-                busy = true
-                if (signup) {
-                    auth.createUserWithEmailAndPassword(e, pass).addOnSuccessListener { r ->
-                        val u = r.user!!
-                        db.collection("users").document(u.uid).set(
-                            mapOf(
-                                "name" to name.trim(), "phone" to phone.trim(), "email" to e,
-                                "accountType" to type, "createdAt" to FieldValue.serverTimestamp()
-                            )
-                        ).addOnSuccessListener { busy = false; onDone() }
-                            .addOnFailureListener {
-                                u.delete().addOnCompleteListener {
-                                    auth.signOut()
-                                    busy = false
-                                    msg = errGeneric
-                                }
-                            }
-                    }.addOnFailureListener { busy = false; msg = authError(it) }
-                } else {
-                    auth.signInWithEmailAndPassword(e, pass).addOnSuccessListener { r ->
-                        val u = r.user!!
-                        db.collection("users").document(u.uid).get()
-                            .addOnSuccessListener { d ->
-                                if (d.exists()) {
-                                    busy = false
-                                    onDone()
-                                } else if (d.metadata.isFromCache) {
-                                    auth.signOut()
-                                    busy = false
-                                    msg = errGeneric
-                                } else {
-                                    u.delete().addOnCompleteListener {
-                                        auth.signOut()
-                                        busy = false
-                                        msg = "كان الحساب ناقصًا وتم حذفه. أنشئ حسابًا جديدًا بنفس الإيميل"
-                                    }
-                                }
-                            }
-                            .addOnFailureListener {
-                                auth.signOut()
-                                busy = false
-                                msg = errGeneric
-                            }
-                    }.addOnFailureListener { busy = false; msg = authError(it) }
-                }
-            }
-        }
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            HorizontalDivider(Modifier.weight(1f), color = Line)
-            Text(stringResource(R.string.or), color = Muted, modifier = Modifier.padding(horizontal = 12.dp))
-            HorizontalDivider(Modifier.weight(1f), color = Line)
-        }
-        OutlinedButton(
-            onClick = { signup = !signup; msg = "" },
-            shape = RoundedCornerShape(12.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Line),
-            modifier = Modifier.fillMaxWidth().height(52.dp)
-        ) {
-            Text(
-                stringResource(if (signup) R.string.have_account else R.string.create_account),
-                color = Color.White, fontSize = 16.sp
-            )
-        }
-    }
-
-    if (showReset) {
-        AlertDialog(
-            onDismissRequest = { showReset = false },
-            containerColor = CardC,
-            title = { Text("استعادة كلمة المرور", color = Color.White) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("اكتب بريدك الإلكتروني وسنرسل لك رابطًا لتعيين كلمة سر جديدة.", color = Muted)
-                    Field(resetEmail, { resetEmail = it; resetMsg = "" }, stringResource(R.string.email), keyboard = KeyboardType.Email)
-                    if (resetMsg.isNotEmpty()) Text(resetMsg, color = if (resetOk) Good else Danger)
-                    if (resetOk) Text(
-                        "افتح الرابط من بريدك، اختر كلمة سر جديدة، ثم ارجع وسجّل دخولك. إن لم تجد الرسالة فابحث في مجلد الرسائل غير المرغوبة (Spam).",
-                        color = Muted, fontSize = 13.sp
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(enabled = !resetBusy, onClick = {
-                    val r = resetEmail.trim()
-                    if (r.isBlank()) {
-                        resetOk = false
-                        resetMsg = "اكتب بريدك الإلكتروني أولاً"
-                    } else {
-                        resetBusy = true
-                        resetMsg = ""
-                        auth.sendPasswordResetEmail(r)
-                            .addOnSuccessListener { resetBusy = false; resetOk = true; resetMsg = "تم إرسال الرابط إلى $r" }
-                            .addOnFailureListener { resetBusy = false; resetOk = false; resetMsg = authError(it) }
-                    }
-                }) { Text(if (resetOk) "إعادة الإرسال" else "إرسال الرابط", color = Red) }
-            },
-            dismissButton = { TextButton(onClick = { showReset = false }) { Text("إغلاق", color = Muted) } }
-        )
-    }
-}
-
-@Composable
 fun MainShell(onGo: (String) -> Unit, onLogout: () -> Unit) {
     var tab by remember { mutableIntStateOf(0) }
     var name by remember { mutableStateOf("") }
@@ -442,4 +213,47 @@ fun MainShell(onGo: (String) -> Unit, onLogout: () -> Unit) {
         if (tab == 2 && sn != null) {
             fresh = ns.items.map { it.key }.filter { it !in sn }.toSet() + fresh
             val all = sn + ns.items.map { it.key }
- 
+            if (all != sn) { seen = all; saveSeen(ctx, uid, all) }
+        }
+    }
+    val typeLabel = when (type) {
+        "doctor" -> stringResource(R.string.doctor)
+        "clinic" -> stringResource(R.string.clinic)
+        "patient" -> stringResource(R.string.patient)
+        else -> ""
+    }
+    val itemColors = NavigationBarItemDefaults.colors(
+        selectedIconColor = Red, selectedTextColor = Red, indicatorColor = Color.Transparent,
+        unselectedIconColor = Muted, unselectedTextColor = Muted
+    )
+    Scaffold(
+        containerColor = Bg,
+        bottomBar = {
+            NavigationBar(containerColor = CardC) {
+                NavigationBarItem(tab == 0, { tab = 0 }, { Icon(Icons.Filled.Home, null) },
+                    label = { Text(stringResource(R.string.nav_home)) }, colors = itemColors)
+                NavigationBarItem(tab == 1, { tab = 1 }, { Icon(Icons.Filled.CalendarMonth, null) },
+                    label = { Text(stringResource(R.string.nav_appts)) }, colors = itemColors)
+                NavigationBarItem(tab == 2, { tab = 2 },
+                    {
+                        BadgedBox(badge = { if (unread > 0 && tab != 2) Badge { Text("$unread") } }) {
+                            Icon(Icons.Filled.Notifications, null)
+                        }
+                    },
+                    label = { Text("الإشعارات") }, colors = itemColors)
+                NavigationBarItem(tab == 3, { tab = 3 }, { Icon(Icons.Filled.Person, null) },
+                    label = { Text(stringResource(R.string.nav_profile)) }, colors = itemColors)
+            }
+        }
+    ) { pad ->
+        Box(Modifier.padding(pad).fillMaxSize()) {
+            when (tab) {
+                0 -> HomeTab(name, type, onGo)
+                1 -> if (type == "doctor" || type == "clinic") DoctorDashboardContent()
+                else MyAppointmentsContent(onFind = { onGo("search") })
+                2 -> NotifTab(ns.items, fresh)
+                else -> ProfileTab(name, email, typeLabel, onLogout, onPrivacy = { onGo("privacy") })
+            }
+        }
+    }
+}
