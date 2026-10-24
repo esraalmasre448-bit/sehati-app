@@ -103,7 +103,15 @@ private fun bookByQueue(
                 )
             }
         }.addOnFailureListener { e ->
-            onResult(false, "تعذر الحجز: " + (e.message ?: ""))
+            val code = (e as? com.google.firebase.firestore.FirebaseFirestoreException)?.code
+            val text = when (code) {
+                com.google.firebase.firestore.FirebaseFirestoreException.Code.PERMISSION_DENIED ->
+                    "لم يتم الحجز. قد يكون اشتراك الطبيب منتهيًا أو تغيّر رقم الدور، حاول مرة أخرى"
+                com.google.firebase.firestore.FirebaseFirestoreException.Code.UNAVAILABLE ->
+                    "تعذر الحجز، تحقق من الإنترنت وحاول مجددًا"
+                else -> "تعذر الحجز، حاول مرة أخرى"
+            }
+            onResult(false, text)
         }
     }.addOnFailureListener { onResult(false, "تعذر تحميل بياناتك، تحقق من الإنترنت") }
 }
@@ -189,7 +197,7 @@ fun QueueBookingScreen(d: Map<String, Any?>, onBack: () -> Unit, onDone: () -> U
             RedButton("تأكيد الحجز", enabled = !busy && !full) {
                 busy = true
                 msg = ""
-                bookByQueue(d, date, isToday, note.trim()) { ok, text ->
+                bookByQueue(d, date, isToday, note.trim().take(300)) { ok, text ->
                     busy = false
                     if (ok) { done = true; resultText = text } else msg = text
                 }
