@@ -9,7 +9,6 @@ import android.util.Base64
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -24,14 +23,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.google.firebase.firestore.AggregateSource
@@ -421,36 +415,3 @@ fun AdminStatsScreen(onBack: () -> Unit) {
         ) { Text("تحديث", color = Color.White) }
     }
 }
-
-@Composable
-fun AdminPaymentScreen(onBack: () -> Unit) {
-    val ctx = LocalContext.current
-    var name by remember { mutableStateOf("") }
-    var phone by remember { mutableStateOf("") }
-    var sham by remember { mutableStateOf("") }
-    var notes by remember { mutableStateOf("") }
-    var qr by remember { mutableStateOf("") }
-    var p1 by remember { mutableStateOf("") }
-    var p3 by remember { mutableStateOf("") }
-    var p6 by remember { mutableStateOf("") }
-    var p12 by remember { mutableStateOf("") }
-    var msg by remember { mutableStateOf("") }
-    var ok by remember { mutableStateOf(false) }
-    var busy by remember { mutableStateOf(false) }
-    var loaded by remember { mutableStateOf(false) }
-
-    LaunchedEffect(Unit) {
-        bDb.collection("config").document("contact").get().addOnSuccessListener { d ->
-            if (d.exists()) {
-                name = d.getString("name") ?: ""
-                phone = d.getString("phone") ?: ""
-                sham = d.getString("sham") ?: ""
-                notes = d.getString("notes") ?: ""
-                qr = d.getString("qr") ?: ""
-                p1 = d.getString("price1") ?: ""
-                p3 = d.getString("price3") ?: ""
-                p6 = d.getString("price6") ?: ""
-                p12 = d.getString("price12") ?: ""
-            }
-            loaded = true
-        }.addOnFail
