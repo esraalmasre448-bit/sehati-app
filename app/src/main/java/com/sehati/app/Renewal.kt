@@ -183,7 +183,7 @@ fun RenewalScreen(onBack: () -> Unit) {
                 }
             }
         }
-        if (msg.isNotEmpty()) Text(msg, color = BGreen)
+        if (msg.isNotEmpty()) Text(msg, color = if (msg.startsWith("تعذر")) BDanger else BGreen)
         Text(
             "بعد الدفع أرسل صورة الحوالة للإدارة عبر واتساب ليتم تفعيل اشتراكك.",
             color = BMuted, fontSize = 14.sp
