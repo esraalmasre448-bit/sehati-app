@@ -41,19 +41,19 @@ val SPECIALTIES: List<Spec> = listOf(
     Spec("جراحة أعصاب", Icons.Filled.Biotech, listOf("جراحة الأعصاب", "جراحة دماغ وأعصاب")),
     Spec("جراحة تجميل", Icons.Filled.Spa, listOf("تجميل", "جراحة التجميل", "تجميلية")),
     Spec("مسالك بولية", Icons.Filled.WaterDrop, listOf("بولية", "المسالك البولية", "جراحة بولية")),
-    Spec("كلية", Icons.Filled.Science, listOf("الكلية", "أمراض الكلى", "كلى", "الكلى")),
+    Spec("كلية", Icons.Filled.Opacity, listOf("الكلية", "أمراض الكلى", "كلى", "الكلى")),
     Spec("جهاز هضمي", Icons.Filled.Restaurant, listOf("هضمية", "الجهاز الهضمي", "هضمي", "أمراض هضمية")),
     Spec("غدد صماء وسكري", Icons.Filled.Bloodtype, listOf("غدد", "سكري", "الغدد الصماء", "الغدد", "غدد وسكري")),
     Spec("صدرية", Icons.Filled.Air, listOf("الصدرية", "صدر", "رئة", "أمراض صدرية", "صدرية وتنفسية")),
-    Spec("أمراض الدم", Icons.Filled.Bloodtype, listOf("دم", "الدم", "أمراض دم")),
-    Spec("أورام", Icons.Filled.Biotech, listOf("الأورام", "أمراض الأورام", "أورام وسرطان")),
-    Spec("طب نفسي", Icons.Filled.Psychology, listOf("نفسية", "نفسي", "الطب النفسي", "أمراض نفسية", "صحة نفسية")),
-    Spec("روماتيزم", Icons.Filled.Accessibility, listOf("الروماتيزم", "رثية", "أمراض رثوية")),
-    Spec("أوعية دموية", Icons.Filled.MonitorHeart, listOf("الأوعية الدموية", "جراحة الأوعية", "وعائية")),
-    Spec("تخدير", Icons.Filled.Vaccines, listOf("التخدير", "إنعاش", "تخدير وإنعاش")),
-    Spec("أشعة تشخيصية", Icons.Filled.Science, listOf("أشعة", "الأشعة", "اشعة", "تصوير شعاعي")),
+    Spec("أمراض الدم", Icons.Filled.Vaccines, listOf("دم", "الدم", "أمراض دم")),
+    Spec("أورام", Icons.Filled.Coronavirus, listOf("الأورام", "أمراض الأورام", "أورام وسرطان")),
+    Spec("طب نفسي", Icons.Filled.Mood, listOf("نفسية", "نفسي", "الطب النفسي", "أمراض نفسية", "صحة نفسية")),
+    Spec("روماتيزم", Icons.Filled.Elderly, listOf("الروماتيزم", "رثية", "أمراض رثوية")),
+    Spec("أوعية دموية", Icons.Filled.Emergency, listOf("الأوعية الدموية", "جراحة الأوعية", "وعائية")),
+    Spec("تخدير", Icons.Filled.Masks, listOf("التخدير", "إنعاش", "تخدير وإنعاش")),
+    Spec("أشعة تشخيصية", Icons.Filled.Lens, listOf("أشعة", "الأشعة", "اشعة", "تصوير شعاعي")),
     Spec("علاج فيزيائي", Icons.Filled.FitnessCenter, listOf("فيزيائي", "فيزيو", "العلاج الفيزيائي", "تأهيل", "علاج طبيعي")),
-    Spec("تغذية", Icons.Filled.Restaurant, listOf("التغذية", "تغذية علاجية", "حمية"))
+    Spec("تغذية", Icons.Filled.LocalDining, listOf("التغذية", "تغذية علاجية", "حمية"))
 )
 
 /** الأكثر شيوعاً — تظهر في الصفحة الرئيسية. */
