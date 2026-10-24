@@ -9,6 +9,8 @@ jobs:
       KS_B64: ${{ secrets.KEYSTORE_B64 }}
     steps:
       - uses: actions/checkout@v4
+      - name: Remove resource files with invalid names
+        run: find app/src/main/res -type f -name '[0-9]*' -print -delete
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
