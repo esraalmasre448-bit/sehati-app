@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -171,7 +172,7 @@ fun ProfileTab(name: String, email: String, typeLabel: String, onLogout: () -> U
     }
 }
 
-/** صورة ثابتة للمريض أو الطبيب، وصورة المطوّر إذا كان الحساب هو الأدمن. */
+/** بنر الصفحة الرئيسية: المريض والطبيب لكل واحد صورته الثابتة، والأدمن له صورة المطوّر. */
 @Composable
 fun HomeBanner(type: String) {
     var isDev by remember { mutableStateOf(false) }
@@ -183,15 +184,19 @@ fun HomeBanner(type: String) {
             }
         }
     }
-    val art = when {
-        isDev -> R.drawable.art_dev
-        type == "doctor" || type == "clinic" -> R.drawable.art_doctor
-        else -> R.drawable.art_patient
+    if (isDev) {
+        Image(
+            painterResource(R.drawable.art_dev), null,
+            Modifier.fillMaxWidth().aspectRatio(1.8f).clip(RoundedCornerShape(18.dp))
+        )
+    } else {
+        val art = if (type == "doctor" || type == "clinic") R.drawable.doctor_banner else R.drawable.patient_banner
+        Image(
+            painterResource(art), null,
+            Modifier.fillMaxWidth().height(240.dp).clip(RoundedCornerShape(18.dp)),
+            contentScale = ContentScale.Crop
+        )
     }
-    Image(
-        painterResource(art), null,
-        Modifier.fillMaxWidth().aspectRatio(1.8f).clip(RoundedCornerShape(18.dp))
-    )
 }
 
 /** ملخص الطبيب: مواعيد اليوم، الحجوزات القادمة، وحالة الاشتراك الفعلية. */
