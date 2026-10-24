@@ -17,6 +17,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
@@ -55,6 +56,7 @@ fun HomeTab(name: String, type: String, onGo: (String) -> Unit) {
             },
             color = BMuted
         )
+        HomeBanner(type)
         Row(
             Modifier.fillMaxWidth().height(52.dp)
                 .background(BCard, RoundedCornerShape(14.dp))
@@ -178,4 +180,27 @@ fun ProfileTab(name: String, email: String, typeLabel: String, onLogout: () -> U
         Spacer(Modifier.height(8.dp))
         DeleteAccountSection(onDeleted = onLogout)
     }
+}
+
+/** صورة ثابتة للمريض أو الطبيب، وصورة المطوّر إذا كان الحساب هو الأدمن. */
+@Composable
+fun HomeBanner(type: String) {
+    var isDev by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        val me = bAuth.currentUser?.uid
+        if (me != null) {
+            bDb.collection("config").document("admin").get().addOnSuccessListener { d ->
+                if (d.getString("uid") == me) isDev = true
+            }
+        }
+    }
+    val art = when {
+        isDev -> R.drawable.art_dev
+        type == "doctor" || type == "clinic" -> R.drawable.art_doctor
+        else -> R.drawable.art_patient
+    }
+    Image(
+        painterResource(art), null,
+        Modifier.fillMaxWidth().aspectRatio(1.8f).clip(RoundedCornerShape(18.dp))
+    )
 }
