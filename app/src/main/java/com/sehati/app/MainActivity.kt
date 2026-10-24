@@ -141,7 +141,7 @@ fun App() {
         screen == "profile" -> DoctorProfileScreen { screen = "main" }
         screen == "settings" -> ClinicSettingsScreen { screen = "main" }
         screen == "dash" -> DoctorDashboardContent(onBack = { screen = "main" })
-        screen == "admin" -> AdminHub(onBack = { screen = "main" })
+        screen == "admin" -> AdminGate(onBack = { screen = "main" })
         screen == "renew" -> RenewalScreen(onBack = { screen = "main" })
         screen == "emergency" -> EmergencyScreen(onBack = { screen = "main" })
         screen == "privacy" -> PrivacyScreen(onBack = { screen = "main" })
@@ -158,6 +158,27 @@ fun App() {
                 screen = "main"
             }
         )
+    }
+}
+
+/** بوابة لوحة المطوّر: تفتحها فقط إذا كان الحساب الحالي هو الأدمن المسجّل في config/admin. */
+@Composable
+fun AdminGate(onBack: () -> Unit) {
+    var ok by remember { mutableStateOf<Boolean?>(null) }
+    LaunchedEffect(Unit) {
+        db.collection("config").document("admin").get()
+            .addOnSuccessListener { d -> ok = d.getString("uid") == auth.currentUser?.uid }
+            .addOnFailureListener { ok = false }
+    }
+    when (ok) {
+        null -> Box(Modifier.fillMaxSize().background(Bg)) {
+            CircularProgressIndicator(Modifier.align(Alignment.Center), color = Red)
+        }
+        true -> AdminHub(onBack = onBack)
+        else -> Column(Modifier.fillMaxSize().background(Bg).padding(24.dp)) {
+            TextButton(onClick = onBack) { Text("رجوع", color = Red) }
+            Text("لا يمكن فتح هذه الصفحة", color = Color.White)
+        }
     }
 }
 
@@ -185,6 +206,7 @@ fun MainShell(onGo: (String) -> Unit, onLogout: () -> Unit) {
     var tab by remember { mutableIntStateOf(0) }
     var name by remember { mutableStateOf("") }
     var type by remember { mutableStateOf("") }
+    var isAdmin by remember { mutableStateOf(false) }
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val uid = auth.currentUser?.uid ?: ""
     val email = auth.currentUser?.email ?: ""
@@ -193,6 +215,9 @@ fun MainShell(onGo: (String) -> Unit, onLogout: () -> Unit) {
             db.collection("users").document(id).get().addOnSuccessListener { d ->
                 name = d.getString("name") ?: ""
                 type = d.getString("accountType") ?: ""
+            }
+            db.collection("config").document("admin").get().addOnSuccessListener { d ->
+                isAdmin = d.getString("uid") == id
             }
         }
     }
@@ -243,6 +268,15 @@ fun MainShell(onGo: (String) -> Unit, onLogout: () -> Unit) {
                     label = { Text("الإشعارات") }, colors = itemColors)
                 NavigationBarItem(tab == 3, { tab = 3 }, { Icon(Icons.Filled.Person, null) },
                     label = { Text(stringResource(R.string.nav_profile)) }, colors = itemColors)
+                if (isAdmin) {
+                    NavigationBarItem(
+                        selected = false,
+                        onClick = { onGo("admin") },
+                        icon = { Icon(Icons.Filled.Code, null) },
+                        label = { Text("المطوّر") },
+                        colors = itemColors
+                    )
+                }
             }
         }
     ) { pad ->
