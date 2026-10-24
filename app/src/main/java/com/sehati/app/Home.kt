@@ -4,7 +4,6 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -57,6 +56,7 @@ fun HomeTab(name: String, type: String, onGo: (String) -> Unit) {
             color = BMuted
         )
         HomeBanner(type)
+        if (type == "doctor" || type == "clinic") DoctorSummary()
         Row(
             Modifier.fillMaxWidth().height(52.dp)
                 .background(BCard, RoundedCornerShape(14.dp))
@@ -203,4 +203,63 @@ fun HomeBanner(type: String) {
         painterResource(art), null,
         Modifier.fillMaxWidth().aspectRatio(1.8f).clip(RoundedCornerShape(18.dp))
     )
+}
+
+/** ملخص الطبيب: مواعيد اليوم، الحجوزات القادمة، وحالة الاشتراك الفعلية. */
+@Composable
+fun DoctorSummary() {
+    val uid = bAuth.currentUser?.uid ?: ""
+    val today = todayKey()
+    val sub = subState(uid)
+    var todayN by remember { mutableStateOf<Int?>(null) }
+    var upcomingN by remember { mutableStateOf<Int?>(null) }
+    var failed by remember { mutableStateOf(false) }
+
+    DisposableEffect(uid, today) {
+        val reg = bDb.collection("appointments").whereEqualTo("doctorId", uid).limit(300)
+            .addSnapshotListener { s, e ->
+                if (e != null || s == null) {
+                    failed = true
+                } else {
+                    failed = false
+                    val list = s.documents.map { it.data.orEmpty() }
+                    todayN = list.count { it["date"] == today && it["status"] != "CANCELLED" }
+                    upcomingN = list.count { it["status"] == "CONFIRMED" && it["date"].toString() >= today }
+                }
+            }
+        onDispose { reg.remove() }
+    }
+
+    val subLabel = when (sub) {
+        "active" -> "فعّال"
+        "expired" -> "منتهي"
+        "cancelled" -> "ملغى"
+        "none" -> "بدون اشتراك"
+        "error" -> "غير متاح"
+        else -> "..."
+    }
+    val subColor = when (sub) {
+        "active" -> BGreen
+        "expired", "cancelled" -> BDanger
+        else -> Color.White
+    }
+    val countText: (Int?) -> String = { n -> if (failed) "غير متاح" else n?.toString() ?: "..." }
+
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        DocSumBox("مواعيد اليوم", countText(todayN), Color.White, Modifier.weight(1f))
+        DocSumBox("الحجوزات القادمة", countText(upcomingN), Color.White, Modifier.weight(1f))
+        DocSumBox("الاشتراك", subLabel, subColor, Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun DocSumBox(label: String, value: String, color: Color, modifier: Modifier) {
+    Column(
+        modifier.background(BCard, RoundedCornerShape(14.dp))
+            .border(1.dp, BLine, RoundedCornerShape(14.dp)).padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Text(value, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = color)
+        Text(label, color = BMuted, fontSize = 12.sp)
+    }
 }
