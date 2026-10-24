@@ -34,14 +34,8 @@ private val AMuted = Color(0xFF9AA7BD)
 private val AGreen = Color(0xFF3DDC84)
 private val AExpiredBg = Color(0xFF2A1215)
 
-private const val CODE_HASH = "3dacdbccd5c182f2ea0f8496ae6f09c1a3a66676aba26fc8b911b87131af35fd"
-
 private val aAuth get() = FirebaseAuth.getInstance()
 private val aDb get() = FirebaseFirestore.getInstance()
-
-private fun sha256(s: String): String =
-    java.security.MessageDigest.getInstance("SHA-256").digest(s.toByteArray())
-        .joinToString("") { "%02x".format(it) }
 
 private fun fmt(ts: Any?): String =
     (ts as? Timestamp)?.toDate()?.let { SimpleDateFormat("yyyy/MM/dd", Locale.US).format(it) } ?: "-"
@@ -113,14 +107,13 @@ fun AdminScreen(onBack: () -> Unit) {
     LaunchedEffect(Unit) {
         aDb.collection("config").document("admin").get()
             .addOnSuccessListener { d ->
-                state = if (!d.exists()) "claim" else if (d.getString("uid") == myUid) "panel" else "denied"
+                state = if (!d.exists()) "denied" else if (d.getString("uid") == myUid) "panel" else "denied"
             }
             .addOnFailureListener { state = "error" }
     }
     Box(Modifier.fillMaxSize().background(ABg)) {
         when (state) {
             "loading" -> CircularProgressIndicator(Modifier.align(Alignment.Center), color = ARed)
-            "claim" -> ClaimScreen(myUid, onBack) { state = "panel" }
             "panel" -> AdminPanel(onBack)
             "denied" -> AMessage("لا يمكن فتح هذه الصفحة", onBack)
             else -> AMessage("تعذر التحميل، تحقق من الإنترنت وحاول مرة أخرى", onBack)
@@ -133,30 +126,6 @@ private fun AMessage(text: String, onBack: () -> Unit) {
     Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         TextButton(onClick = onBack) { Text("رجوع", color = ARed) }
         Text(text, color = Color.White)
-    }
-}
-
-@Composable
-private fun ClaimScreen(uid: String, onBack: () -> Unit, onDone: () -> Unit) {
-    var code by remember { mutableStateOf("") }
-    var msg by remember { mutableStateOf("") }
-    var busy by remember { mutableStateOf(false) }
-    Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        TextButton(onClick = onBack) { Text("رجوع", color = ARed) }
-        Text("الرمز", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
-        Field(code, { code = it }, "الرمز")
-        if (msg.isNotEmpty()) Text(msg, color = ADanger)
-        RedButton("اجعلني أدمن", enabled = !busy) {
-            if (sha256(code.trim()) != CODE_HASH) {
-                msg = "الرمز غير صحيح"
-                return@RedButton
-            }
-            busy = true
-            aDb.collection("config").document("admin")
-                .set(mapOf("uid" to uid, "createdAt" to FieldValue.serverTimestamp()))
-                .addOnSuccessListener { onDone() }
-                .addOnFailureListener { busy = false; msg = "تعذر التنفيذ، تحقق من الإنترنت وحاول مرة أخرى" }
-        }
     }
 }
 
