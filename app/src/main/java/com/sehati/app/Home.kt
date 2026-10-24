@@ -4,7 +4,6 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -28,23 +27,13 @@ import androidx.compose.ui.unit.sp
 
 @Composable
 fun HomeTab(name: String, type: String, onGo: (String) -> Unit) {
-    var taps by remember { mutableIntStateOf(0) }
-    var last by remember { mutableLongStateOf(0L) }
     Column(
         Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Image(
             painterResource(R.drawable.ic_launcher), null,
-            Modifier.size(90.dp).align(Alignment.CenterHorizontally).clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null
-            ) {
-                val now = System.currentTimeMillis()
-                taps = if (now - last < 1500) taps + 1 else 1
-                last = now
-                if (taps >= 4) { taps = 0; onGo("admin") }
-            }
+            Modifier.size(90.dp).align(Alignment.CenterHorizontally)
         )
         Text("مرحباً بك $name", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White)
         Text(
