@@ -116,13 +116,13 @@ fun ClinicSettingsScreen(onBack: () -> Unit) {
                 data["lat"] = ll.first
                 data["lng"] = ll.second
                 data["mapLink"] = FieldValue.delete()
-            } else if (locText.trim().startsWith("http")) {
+            } else if (isMapsLink(locText)) {
                 data["mapLink"] = locText.trim()
                 data["lat"] = FieldValue.delete()
                 data["lng"] = FieldValue.delete()
             } else if (locText.isNotBlank()) {
                 ok = false
-                msg = "الموقع غير مفهوم. الصق رابط خرائط جوجل أو إحداثيات مثل 33.51,36.29"
+                msg = "الموقع غير مفهوم. الصق رابط خرائط جوجل (https) أو إحداثيات مثل 33.51,36.29"
                 return@RedButton
             }
             busy = true
