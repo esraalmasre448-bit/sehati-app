@@ -187,6 +187,11 @@ private fun DoctorListCard(d: Map<String, Any?>, km: Double?, onOpen: (Map<Strin
             val c = "${d["clinicName"] ?: ""}"
             if (c.isNotBlank()) Text(c, color = Color.White, fontSize = 12.sp)
             Text("${d["city"] ?: ""}", color = BMuted, fontSize = 12.sp)
+            when (d["available"]) {
+                true -> Text("متاح الآن", color = BGreen, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                false -> Text("غير متاح حالياً", color = BMuted, fontSize = 12.sp)
+                else -> {}
+            }
         }
         if (km != null) Text("%.1f كم".format(km), color = BMuted, fontSize = 12.sp)
     }
