@@ -80,6 +80,7 @@ fun App() {
     var screen by remember { mutableStateOf("main") }
     var selected by remember { mutableStateOf<Map<String, Any?>?>(null) }
     var initialQuery by remember { mutableStateOf("") }
+    var chatId by remember { mutableStateOf("") }
     val ctx = androidx.compose.ui.platform.LocalContext.current
     var locked by remember { mutableStateOf(AppLockStore.enabled(ctx) && auth.currentUser != null) }
     val owner = androidx.compose.ui.platform.LocalLifecycleOwner.current
@@ -101,6 +102,7 @@ fun App() {
         screen = when (screen) {
             "detail" -> "search"
             "book" -> "detail"
+            "chat" -> "messages"
             else -> "main"
         }
     }
@@ -145,6 +147,13 @@ fun App() {
         screen == "renew" -> RenewalScreen(onBack = { screen = "main" })
         screen == "emergency" -> EmergencyScreen(onBack = { screen = "main" })
         screen == "privacy" -> PrivacyScreen(onBack = { screen = "main" })
+        screen == "messages" -> MessagesScreen(
+            onBack = { screen = "main" },
+            onOpenChat = { chatId = it; screen = "chat" }
+        )
+        screen == "chat" && chatId.isNotEmpty() -> ChatScreen(
+            convId = chatId, onBack = { screen = "messages" }
+        )
         else -> MainShell(
             onOpen = { selected = it; screen = "detail" },
             onGo = {
