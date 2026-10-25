@@ -279,7 +279,7 @@ fun MainShell(onGo: (String) -> Unit, onOpen: (Map<String, Any?>) -> Unit, onLog
     val unread = if (seenNow == null) 0 else ns.items.count { it.key !in seenNow }
     LaunchedEffect(tab, ns.items.size) {
         val sn = seen
-        if (tab == 2 && sn != null) {
+        if (tab == 4 && sn != null) {
             fresh = ns.items.map { it.key }.filter { it !in sn }.toSet() + fresh
             val all = sn + ns.items.map { it.key }
             if (all != sn) { seen = all; saveSeen(ctx, uid, all) }
@@ -303,13 +303,8 @@ fun MainShell(onGo: (String) -> Unit, onOpen: (Map<String, Any?>) -> Unit, onLog
                     label = { Text(stringResource(R.string.nav_home)) }, colors = itemColors)
                 NavigationBarItem(tab == 1, { tab = 1 }, { Icon(Icons.Filled.CalendarMonth, null) },
                     label = { Text(stringResource(R.string.nav_appts)) }, colors = itemColors)
-                NavigationBarItem(tab == 2, { tab = 2 },
-                    {
-                        BadgedBox(badge = { if (unread > 0 && tab != 2) Badge { Text("$unread") } }) {
-                            Icon(Icons.Filled.Notifications, null)
-                        }
-                    },
-                    label = { Text("الإشعارات") }, colors = itemColors)
+                NavigationBarItem(false, { onGo("messages") }, { Icon(Icons.Filled.Email, null) },
+                    label = { Text("الرسائل") }, colors = itemColors)
                 NavigationBarItem(tab == 3, { tab = 3 }, { Icon(Icons.Filled.Person, null) },
                     label = { Text(stringResource(R.string.nav_profile)) }, colors = itemColors)
                 if (isAdmin) {
@@ -329,7 +324,7 @@ fun MainShell(onGo: (String) -> Unit, onOpen: (Map<String, Any?>) -> Unit, onLog
                 0 -> HomeTab(name, type, unread, onGo, onOpen, onTab = { tab = it })
                 1 -> if (type == "doctor" || type == "clinic") DoctorDashboardContent()
                 else MyAppointmentsContent(onFind = { onGo("search") })
-                2 -> NotifTab(ns.items, fresh)
+                4 -> NotifTab(ns.items, fresh)
                 else -> ProfileTab(name, email, typeLabel, onLogout, onPrivacy = { onGo("privacy") })
             }
         }
