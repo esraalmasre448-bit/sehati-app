@@ -55,7 +55,7 @@ fun PatientHome(
                 Text(name.trim().take(1).uppercase().ifBlank { "؟" }, color = Color.White, fontWeight = FontWeight.Bold)
             }
             Box {
-                IconButton(onClick = { onTab(2) }) { Icon(Icons.Filled.Notifications, null, tint = Color.White) }
+                IconButton(onClick = { onTab(4) }) { Icon(Icons.Filled.Notifications, null, tint = Color.White) }
                 if (unread > 0) Badge(Modifier.align(Alignment.TopEnd)) { Text("$unread") }
             }
             Spacer(Modifier.weight(1f))
