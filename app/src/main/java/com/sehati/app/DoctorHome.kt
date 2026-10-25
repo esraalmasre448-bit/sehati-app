@@ -26,6 +26,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.google.firebase.Timestamp
+import com.google.firebase.firestore.FieldValue
 import java.util.Date
 
 /** الصفحة الرئيسية للطبيب (التصميم المرجعي). الصفحات الفرعية تُفتح داخلها بحالة محلية. */
@@ -55,6 +56,8 @@ private fun DoctorHomeContent(
     var newN by remember { mutableStateOf<Int?>(null) }
     var waiting by remember { mutableStateOf<Long?>(null) }
     var failed by remember { mutableStateOf(false) }
+    var available by remember { mutableStateOf<Boolean?>(null) }
+    var toggleMsg by remember { mutableStateOf("") }
 
     LaunchedEffect(uid) {
         if (uid.isEmpty()) return@LaunchedEffect
@@ -64,6 +67,7 @@ private fun DoctorHomeContent(
             clinic = d.getString("clinicName") ?: ""
             city = d.getString("city") ?: ""
             photo = d.getString("photo")
+            available = d.getBoolean("available")
         }
     }
 
@@ -130,6 +134,32 @@ private fun DoctorHomeContent(
                     if (place.isNotBlank()) Text(place, color = BMuted, fontSize = 12.sp)
                 }
             }
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    when (available) {
+                        true -> "متاح لاستقبال المرضى"
+                        false -> "غير متاح حالياً"
+                        null -> "لم تحددي حالتك بعد"
+                    },
+                    color = if (available == true) BGreen else BMuted,
+                    fontWeight = FontWeight.Bold
+                )
+                Switch(
+                    checked = available == true,
+                    onCheckedChange = { v ->
+                        toggleMsg = ""
+                        bDb.collection("doctors").document(uid)
+                            .update(mapOf("available" to v, "availableUpdatedAt" to FieldValue.serverTimestamp()))
+                            .addOnSuccessListener { available = v }
+                            .addOnFailureListener { toggleMsg = "تعذر تغيير الحالة، تحقق من الإنترنت" }
+                    }
+                )
+            }
+            if (toggleMsg.isNotEmpty()) Text(toggleMsg, color = BDanger, fontSize = 12.sp)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 DoctorStat("مواعيد اليوم", countText(todayN?.toLong()), Modifier.weight(1f))
                 DoctorStat("المرضى المنتظرون", countText(waiting), Modifier.weight(1f))
