@@ -239,7 +239,7 @@ fun DoctorSearchScreen(onBack: () -> Unit, onOpen: (Map<String, Any?>) -> Unit, 
             found = found + s.documents.associate { it.id to (it.data.orEmpty() + ("id" to it.id)) }
         }
         if (q.isNotEmpty()) {
-            jobs.add { done -> col.orderBy("name").startAt(q).endAt(q + "").limit(30).get()
+            jobs.add { done -> col.orderBy("name").startAt(q).endAt(q + "").limit(30).get()
                 .addOnSuccessListener { add(it); done() }.addOnFailureListener { done() } }
             jobs.add { done -> col.whereEqualTo("city", q).limit(30).get()
                 .addOnSuccessListener { add(it); done() }.addOnFailureListener { done() } }
@@ -351,6 +351,11 @@ fun DoctorSearchScreen(onBack: () -> Unit, onOpen: (Map<String, Any?>) -> Unit, 
                         val c = "${d["clinicName"] ?: ""}"
                         if (c.isNotBlank()) Text(c, color = Color.White)
                         Text("${d["city"] ?: ""}", color = DMuted)
+                        when (d["available"]) {
+                            true -> Text("متاح الآن", color = Color(0xFF3DDC84), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            false -> Text("غير متاح حالياً", color = DMuted, fontSize = 12.sp)
+                            else -> {}
+                        }
                     }
                     val fee = "${d["fee"] ?: ""}"
                     if (fee.isNotBlank()) Text("كشفية: $fee", color = DMuted, fontSize = 12.sp)
