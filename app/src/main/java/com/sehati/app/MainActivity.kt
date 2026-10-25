@@ -81,6 +81,12 @@ fun App() {
     var selected by remember { mutableStateOf<Map<String, Any?>?>(null) }
     var initialQuery by remember { mutableStateOf("") }
     var chatId by remember { mutableStateOf("") }
+    var myName by remember { mutableStateOf("") }
+    LaunchedEffect(Unit) {
+        auth.currentUser?.uid?.let { id ->
+            db.collection("users").document(id).get().addOnSuccessListener { myName = it.getString("name") ?: "" }
+        }
+    }
     val ctx = androidx.compose.ui.platform.LocalContext.current
     var locked by remember { mutableStateOf(AppLockStore.enabled(ctx) && auth.currentUser != null) }
     val owner = androidx.compose.ui.platform.LocalLifecycleOwner.current
@@ -125,8 +131,10 @@ fun App() {
             onOpen = { selected = it; screen = "detail" },
             initial = initialQuery
         )
-        screen == "detail" && sel != null -> DoctorDetailFull(
-            sel, onBack = { screen = "search" }, onBook = { screen = "book" }
+        screen == "detail" && sel != null -> DoctorDetailWithChat(
+            sel, patientName = myName,
+            onBack = { screen = "search" }, onBook = { screen = "book" },
+            onOpenChat = { chatId = it; screen = "chat" }
         )
         screen == "book" && sel != null -> QueueBookingScreen(
             sel, onBack = { screen = "detail" }, onDone = { screen = "myappts" }
@@ -168,6 +176,32 @@ fun App() {
                 screen = "main"
             }
         )
+    }
+}
+
+/** صفحة تفاصيل الطبيب مع زر «راسل الطبيب» ثابت أسفل الشاشة. */
+@Composable
+fun DoctorDetailWithChat(
+    d: Map<String, Any?>, patientName: String,
+    onBack: () -> Unit, onBook: () -> Unit, onOpenChat: (String) -> Unit
+) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    Column(Modifier.fillMaxSize().background(Bg)) {
+        Box(Modifier.weight(1f).fillMaxWidth()) {
+            DoctorDetailFull(d, onBack = onBack, onBook = onBook)
+        }
+        OutlinedButton(
+            onClick = {
+                openConversation(
+                    doctorId = "${d["id"]}",
+                    doctorName = "${d["name"] ?: ""}",
+                    patientName = patientName,
+                    onReady = onOpenChat,
+                    onError = { android.widget.Toast.makeText(ctx, it, android.widget.Toast.LENGTH_LONG).show() }
+                )
+            },
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp).height(52.dp)
+        ) { Text("راسل الطبيب", color = Color.White) }
     }
 }
 
