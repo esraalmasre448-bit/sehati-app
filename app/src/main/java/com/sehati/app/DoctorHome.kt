@@ -180,6 +180,7 @@ private fun DoctorHomeContent(
         Tile(Icons.Filled.Person, "ملفي المهني", true, Modifier.fillMaxWidth()) { onGo("profile") }
         Tile(Icons.Filled.LocationOn, "إعدادات العيادة (الدوام والموقع)", false, Modifier.fillMaxWidth()) { onGo("settings") }
         Tile(Icons.Filled.Info, "تجديد الاشتراك والتواصل مع الإدارة", false, Modifier.fillMaxWidth()) { onGo("renew") }
+        Tile(Icons.Filled.Email, "الرسائل", false, Modifier.fillMaxWidth()) { onGo("messages") }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Tile(Icons.Filled.Search, stringResource(R.string.find_doctor), false, Modifier.weight(1f)) { onGo("search") }
             Tile(Icons.Filled.Warning, "الطوارئ", false, Modifier.weight(1f)) { onGo("emergency") }
