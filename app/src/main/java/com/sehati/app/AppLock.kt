@@ -72,9 +72,18 @@ object AppLockStore {
     fun validCode(code: String): Boolean = code.length in 4..32
 
     /** البصمة تتطلب أندرويد 9 فأعلى وجهازاً فيه مستشعر بصمة. */
-    fun bioAvailable(c: Context): Boolean =
-        Build.VERSION.SDK_INT >= 28 &&
-            c.packageManager.hasSystemFeature(PackageManager.FEATURE_FINGERPRINT)
+    fun bioAvailable(c: Context): Boolean {
+        if (Build.VERSION.SDK_INT < 28) return false
+        if (!c.packageManager.hasSystemFeature(PackageManager.FEATURE_FINGERPRINT)) return false
+        // لا نعرض زر البصمة إلا إذا كانت هناك بصمة مسجّلة فعلاً على الجهاز.
+        return try {
+            val fm = c.getSystemService(android.hardware.fingerprint.FingerprintManager::class.java)
+            fm?.hasEnrolledFingerprints() == true
+        } catch (e: Exception) {
+            // عند تعذّر التأكد من البصمة نُخفي الخيار، ويبقى رمز القفل متاحاً دائماً.
+            false
+        }
+    }
 }
 
 fun askBiometric(c: Context, onOk: () -> Unit, onMsg: (String) -> Unit) {
