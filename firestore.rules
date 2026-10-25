@@ -195,6 +195,47 @@ service cloud.firestore {
         || resource.data.patientId == request.auth.uid);
     }
 
+    match /conversations/{id} {
+      allow read: if signedIn() && (resource.data.patientId == request.auth.uid
+        || resource.data.doctorId == request.auth.uid || isAdmin());
+
+      allow create: if signedIn()
+        && request.resource.data.patientId == request.auth.uid
+        && request.resource.data.keys().hasOnly(['doctorId','patientId','doctorName','patientName','appointmentId','lastMessage','lastAt','createdAt'])
+        && request.resource.data.doctorId is string
+        && request.resource.data.appointmentId is string
+        && id == request.resource.data.doctorId + '_' + request.resource.data.patientId
+        && exists(/databases/$(database)/documents/appointments/$(request.resource.data.appointmentId))
+        && get(/databases/$(database)/documents/appointments/$(request.resource.data.appointmentId)).data.patientId == request.auth.uid
+        && get(/databases/$(database)/documents/appointments/$(request.resource.data.appointmentId)).data.doctorId == request.resource.data.doctorId;
+
+      allow update: if signedIn()
+        && (resource.data.patientId == request.auth.uid || resource.data.doctorId == request.auth.uid)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastMessage','lastAt']);
+
+      allow delete: if false;
+    }
+
+    match /messages/{id} {
+      allow read: if signedIn() && (
+        resource.data.senderId == request.auth.uid
+        || get(/databases/$(database)/documents/conversations/$(resource.data.convId)).data.patientId == request.auth.uid
+        || get(/databases/$(database)/documents/conversations/$(resource.data.convId)).data.doctorId == request.auth.uid
+        || isAdmin());
+
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['convId','senderId','text','createdAt'])
+        && request.resource.data.senderId == request.auth.uid
+        && request.resource.data.text is string
+        && request.resource.data.text.size() > 0
+        && request.resource.data.text.size() <= 1000
+        && exists(/databases/$(database)/documents/conversations/$(request.resource.data.convId))
+        && (get(/databases/$(database)/documents/conversations/$(request.resource.data.convId)).data.patientId == request.auth.uid
+          || get(/databases/$(database)/documents/conversations/$(request.resource.data.convId)).data.doctorId == request.auth.uid);
+
+      allow update, delete: if false;
+    }
+
     match /slots/{id} {
       allow read, create, update: if false;
       allow delete: if signedIn();
