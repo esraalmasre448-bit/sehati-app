@@ -30,8 +30,8 @@
     <string name="my_turn">دوري الآن</string>
     <string name="way_to_clinic">الطريق إلى العيادة</string>
     <string name="nav_home">الرئيسية</string>
-    <string name="nav_appts">المواعيد</string>
-    <string name="nav_profile">الملف</string>
+    <string name="nav_appts">مواعيدي</string>
+    <string name="nav_profile">حسابي</string>
     <string name="logout">تسجيل الخروج</string>
     <string name="soon">هذه الميزة تُضاف في المرحلة القادمة</string>
 </resources>
