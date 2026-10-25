@@ -58,6 +58,7 @@ private fun DoctorHomeContent(
     var failed by remember { mutableStateOf(false) }
     var available by remember { mutableStateOf<Boolean?>(null) }
     var toggleMsg by remember { mutableStateOf("") }
+    var hasProfile by remember { mutableStateOf<Boolean?>(null) }
 
     LaunchedEffect(uid) {
         if (uid.isEmpty()) return@LaunchedEffect
@@ -68,6 +69,11 @@ private fun DoctorHomeContent(
             city = d.getString("city") ?: ""
             photo = d.getString("photo")
             available = d.getBoolean("available")
+            // الملف مكتمل فقط إذا كانت الحقول التي يطلبها نموذج الحفظ موجودة وصالحة
+            hasProfile = d.exists() &&
+                !(d.getString("name") ?: "").isBlank() &&
+                !(d.getString("city") ?: "").isBlank() &&
+                SPECIALTIES.any { it.name == (d.getString("specialty") ?: "") }
         }
     }
 
@@ -106,7 +112,7 @@ private fun DoctorHomeContent(
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             DoctorAvatar(photo, shownName.ifBlank { "د" }, 44.dp)
             Box {
-                IconButton(onClick = { onTab(2) }) { Icon(Icons.Filled.Notifications, null, tint = Color.White) }
+                IconButton(onClick = { onTab(4) }) { Icon(Icons.Filled.Notifications, null, tint = Color.White) }
                 if (unread > 0) Badge(Modifier.align(Alignment.TopEnd)) { Text("$unread") }
             }
             Spacer(Modifier.weight(1f))
@@ -150,6 +156,7 @@ private fun DoctorHomeContent(
                 )
                 Switch(
                     checked = available == true,
+                    enabled = hasProfile == true,
                     onCheckedChange = { v ->
                         toggleMsg = ""
                         bDb.collection("doctors").document(uid)
@@ -159,6 +166,7 @@ private fun DoctorHomeContent(
                     }
                 )
             }
+            if (hasProfile == false) Text("أكملي ملفك المهني أولاً لتتمكني من تغيير حالة التوافر", color = BMuted, fontSize = 12.sp)
             if (toggleMsg.isNotEmpty()) Text(toggleMsg, color = BDanger, fontSize = 12.sp)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 DoctorStat("مواعيد اليوم", countText(todayN?.toLong()), Modifier.weight(1f))
@@ -181,14 +189,6 @@ private fun DoctorHomeContent(
         Tile(Icons.Filled.LocationOn, "إعدادات العيادة (الدوام والموقع)", false, Modifier.fillMaxWidth()) { onGo("settings") }
         Tile(Icons.Filled.Info, "تجديد الاشتراك والتواصل مع الإدارة", false, Modifier.fillMaxWidth()) { onGo("renew") }
         Tile(Icons.Filled.Email, "الرسائل", false, Modifier.fillMaxWidth()) { onGo("messages") }
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Tile(Icons.Filled.Search, stringResource(R.string.find_doctor), false, Modifier.weight(1f)) { onGo("search") }
-            Tile(Icons.Filled.Warning, "الطوارئ", false, Modifier.weight(1f)) { onGo("emergency") }
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Tile(Icons.Filled.Person, stringResource(R.string.my_turn), false, Modifier.weight(1f)) { onGo("queue") }
-            Tile(Icons.Filled.LocationOn, stringResource(R.string.way_to_clinic), false, Modifier.weight(1f)) { onGo("route") }
-        }
     }
 }
 
