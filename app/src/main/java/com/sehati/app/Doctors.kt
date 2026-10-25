@@ -239,7 +239,7 @@ fun DoctorSearchScreen(onBack: () -> Unit, onOpen: (Map<String, Any?>) -> Unit, 
             found = found + s.documents.associate { it.id to (it.data.orEmpty() + ("id" to it.id)) }
         }
         if (q.isNotEmpty()) {
-            jobs.add { done -> col.orderBy("name").startAt(q).endAt(q + "").limit(30).get()
+            jobs.add { done -> col.orderBy("name").startAt(q).endAt(q + "").limit(30).get()
                 .addOnSuccessListener { add(it); done() }.addOnFailureListener { done() } }
             jobs.add { done -> col.whereEqualTo("city", q).limit(30).get()
                 .addOnSuccessListener { add(it); done() }.addOnFailureListener { done() } }
