@@ -178,6 +178,7 @@ private fun DoctorRow(
         Column(Modifier.weight(1.3f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text("${u["name"]}", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White)
             Text(if (u["accountType"] == "clinic") "عيادة" else "طبيب", color = AMuted, fontSize = 12.sp)
+            Text("المعرّف: ${u["id"]}", color = AMuted, fontSize = 10.sp)
             Text(label, color = color, fontSize = 14.sp, fontWeight = FontWeight.Bold)
             if (detail.isNotEmpty()) Text(detail, color = color, fontSize = 11.sp)
         }
@@ -229,6 +230,7 @@ private fun AdminPanel(onBack: () -> Unit) {
     var grantUser by remember { mutableStateOf<Map<String, Any?>?>(null) }
     var cancelUser by remember { mutableStateOf<Map<String, Any?>?>(null) }
     var busy by remember { mutableStateOf(false) }
+    var query by remember { mutableStateOf("") }
     val handled = remember { mutableSetOf<String>() }
 
     DisposableEffect(Unit) {
@@ -315,9 +317,24 @@ private fun AdminPanel(onBack: () -> Unit) {
             }
         }
         if (tab == 0) {
+            item {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    label = { Text("ابحث بالاسم أو المعرّف (uid)") }
+                )
+            }
             item { TableHeader() }
+            val q = query.trim()
+            val shown = if (q.isEmpty()) users else users.filter { u ->
+                "${u["name"] ?: ""}".contains(q, ignoreCase = true) ||
+                    (u["id"] as String).contains(q, ignoreCase = true)
+            }
             if (users.isEmpty()) item { Text("لا توجد حسابات أطباء أو عيادات بعد", color = AMuted) }
-            items(users, key = { it["id"] as String }) { u ->
+            else if (shown.isEmpty()) item { Text("لا توجد نتائج مطابقة للبحث", color = AMuted) }
+            items(shown, key = { it["id"] as String }) { u ->
                 val id = u["id"] as String
                 DoctorRow(
                     u, subs[id], specs[id].orEmpty(),
