@@ -1,5 +1,12 @@
 package com.sehati.app
 
+import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
+import android.location.Location
+import android.location.LocationManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -19,6 +26,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -26,8 +34,21 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+/** الصفحة الرئيسية: المريض يرى التصميم الجديد، والطبيب يرى لوحته كما كانت. */
 @Composable
-fun HomeTab(name: String, type: String, onGo: (String) -> Unit) {
+fun HomeTab(
+    name: String, type: String, unread: Int,
+    onGo: (String) -> Unit, onOpen: (Map<String, Any?>) -> Unit, onTab: (Int) -> Unit
+) {
+    if (type == "doctor" || type == "clinic") {
+        DoctorHomeLayout(name, type, onGo)
+    } else {
+        PatientHome(name, unread, onGo, onOpen, onTab)
+    }
+}
+
+@Composable
+private fun DoctorHomeLayout(name: String, type: String, onGo: (String) -> Unit) {
     Column(
         Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -40,7 +61,6 @@ fun HomeTab(name: String, type: String, onGo: (String) -> Unit) {
         Text(
             when (type) {
                 "doctor", "clinic" -> "مريضك أخوك، فارحم وجعه وقدّر ظروفه."
-                "patient" -> "لأن صحتك أولويتنا، نحن معك."
                 else -> stringResource(R.string.home_sub)
             },
             color = BMuted
@@ -84,12 +104,10 @@ fun HomeTab(name: String, type: String, onGo: (String) -> Unit) {
             Tile(Icons.Filled.Person, stringResource(R.string.my_turn), false, Modifier.weight(1f)) { onGo("queue") }
             Tile(Icons.Filled.LocationOn, stringResource(R.string.way_to_clinic), false, Modifier.weight(1f)) { onGo("route") }
         }
-        if (type == "doctor" || type == "clinic") {
-            Tile(Icons.Filled.Person, "ملفي المهني", true, Modifier.fillMaxWidth()) { onGo("profile") }
-            Tile(Icons.Filled.LocationOn, "إعدادات العيادة (الدوام والموقع)", false, Modifier.fillMaxWidth()) { onGo("settings") }
-            Tile(Icons.Filled.CalendarMonth, "لوحتي — الحجوزات والدور", false, Modifier.fillMaxWidth()) { onGo("dash") }
-            Tile(Icons.Filled.Info, "تجديد الاشتراك والتواصل مع الإدارة", false, Modifier.fillMaxWidth()) { onGo("renew") }
-        }
+        Tile(Icons.Filled.Person, "ملفي المهني", true, Modifier.fillMaxWidth()) { onGo("profile") }
+        Tile(Icons.Filled.LocationOn, "إعدادات العيادة (الدوام والموقع)", false, Modifier.fillMaxWidth()) { onGo("settings") }
+        Tile(Icons.Filled.CalendarMonth, "لوحتي — الحجوزات والدور", false, Modifier.fillMaxWidth()) { onGo("dash") }
+        Tile(Icons.Filled.Info, "تجديد الاشتراك والتواصل مع الإدارة", false, Modifier.fillMaxWidth()) { onGo("renew") }
     }
 }
 
@@ -172,7 +190,7 @@ fun ProfileTab(name: String, email: String, typeLabel: String, onLogout: () -> U
     }
 }
 
-/** بنر الصفحة الرئيسية: المريض والطبيب لكل واحد صورته الثابتة، والأدمن له صورة المطوّر. */
+/** بنر الصفحة الرئيسية للطبيب: صورته الثابتة، والأدمن له صورة المطوّر. */
 @Composable
 fun HomeBanner(type: String) {
     var isDev by remember { mutableStateOf(false) }
