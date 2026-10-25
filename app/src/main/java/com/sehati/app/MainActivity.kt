@@ -146,6 +146,7 @@ fun App() {
         screen == "emergency" -> EmergencyScreen(onBack = { screen = "main" })
         screen == "privacy" -> PrivacyScreen(onBack = { screen = "main" })
         else -> MainShell(
+            onOpen = { selected = it; screen = "detail" },
             onGo = {
                 if (it.startsWith("search:")) { initialQuery = it.removePrefix("search:"); screen = "search" }
                 else { if (it == "search") initialQuery = ""; screen = it }
@@ -202,7 +203,7 @@ fun Splash() {
 }
 
 @Composable
-fun MainShell(onGo: (String) -> Unit, onLogout: () -> Unit) {
+fun MainShell(onGo: (String) -> Unit, onOpen: (Map<String, Any?>) -> Unit, onLogout: () -> Unit) {
     var tab by remember { mutableIntStateOf(0) }
     var name by remember { mutableStateOf("") }
     var type by remember { mutableStateOf("") }
@@ -282,7 +283,7 @@ fun MainShell(onGo: (String) -> Unit, onLogout: () -> Unit) {
     ) { pad ->
         Box(Modifier.padding(pad).fillMaxSize()) {
             when (tab) {
-                0 -> HomeTab(name, type, onGo)
+                0 -> HomeTab(name, type, unread, onGo, onOpen, onTab = { tab = it })
                 1 -> if (type == "doctor" || type == "clinic") DoctorDashboardContent()
                 else MyAppointmentsContent(onFind = { onGo("search") })
                 2 -> NotifTab(ns.items, fresh)
