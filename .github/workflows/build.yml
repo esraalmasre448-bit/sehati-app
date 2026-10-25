@@ -1,7 +1,7 @@
 name: Build APK
 on: workflow_dispatch
 env:
-  KS_PASS: sehatiKeystore2026
+  KS_PASS: ${{ secrets.KS_PASS }}
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -18,39 +18,52 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: 8.7
-      - name: Restore signing key
-        id: ks
-        uses: actions/cache@v4
-        with:
-          path: app/sehati.keystore
-          key: sehati-keystore-v1
-      - name: Use signing key from secret
-        if: env.KS_B64 != ''
+      - name: Verify signing secrets exist
+        env:
+          SECRET_CHECK: ${{ secrets.KS_PASS }}
+        run: |
+          if [ -z "$SECRET_CHECK" ]; then echo "::error::Secret KS_PASS is missing"; exit 1; fi
+          if [ -z "$KS_B64" ]; then echo "::error::Secret KEYSTORE_B64 is missing. Build stopped so no new or debug key is used."; exit 1; fi
+      - name: Restore signing key from secret
         run: echo "$KS_B64" | base64 -d > app/sehati.keystore
-      - name: Create signing key if missing
-        if: env.KS_B64 == '' && steps.ks.outputs.cache-hit != 'true'
-        run: >
-          keytool -genkeypair -keystore app/sehati.keystore -storetype PKCS12
-          -alias sehati -keyalg RSA -keysize 2048 -validity 10000
-          -storepass "$KS_PASS" -keypass "$KS_PASS"
-          -dname "CN=Sehati, O=Sehati, C=SY"
-      - name: Write google-services.json
+      - name: Check keystore matches password
+        run: |
+          keytool -list -keystore app/sehati.keystore -storetype PKCS12 -storepass "$KS_PASS" -alias sehati > /dev/null 2>&1 || { echo "::error::Keystore cannot be opened with KS_PASS, or alias sehati is missing. Build stopped."; exit 1; }
+      - name: Validate and write google-services.json
         env:
           GS: ${{ secrets.GOOGLE_SERVICES_JSON }}
-        run: echo "$GS" > app/google-services.json
+        run: |
+          python3 - <<'PYEOF'
+          import json, os, sys
+          raw = os.environ.get("GS", "")
+          if not raw.strip():
+              print("::error::Secret GOOGLE_SERVICES_JSON is missing. Build stopped.")
+              sys.exit(1)
+          try:
+              d = json.loads(raw)
+          except Exception:
+              print("::error::Secret GOOGLE_SERVICES_JSON is not valid JSON. Build stopped.")
+              sys.exit(1)
+          pkgs = [c.get("client_info", {}).get("android_client_info", {}).get("package_name")
+                  for c in d.get("client", [])]
+          if "com.sehati.app" not in pkgs:
+              print("::error::GOOGLE_SERVICES_JSON does not contain package com.sehati.app. Build stopped.")
+              sys.exit(1)
+          with open("app/google-services.json", "w", encoding="utf-8") as f:
+              f.write(raw)
+          print("google-services.json validated (content not shown)")
+          PYEOF
       - run: gradle assembleDebug
-      - name: Export signing key as text (one time)
-        if: env.KS_B64 == ''
-        continue-on-error: true
-        run: base64 -w0 app/sehati.keystore > keystore-b64.txt
-      - name: Upload signing key text (one time)
-        if: env.KS_B64 == ''
-        continue-on-error: true
-        uses: actions/upload-artifact@v7
-        with:
-          name: keystore-b64
-          path: keystore-b64.txt
-          archive: false
+      - name: Print APK signing certificate fingerprint (public, no secrets)
+        run: |
+          set -o pipefail
+          APKSIGNER=$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner 2>/dev/null | sort -V | tail -1)
+          if [ -z "$APKSIGNER" ]; then echo "::warning::apksigner not found; signing fingerprint was NOT verified"; exit 0; fi
+          "$APKSIGNER" verify --print-certs app/build/outputs/apk/debug/*.apk | grep "SHA-256 digest" \
+            || { echo "::error::Could not read the APK signing certificate"; exit 1; }
+      - name: Remove signing key from runner
+        if: always()
+        run: rm -f app/sehati.keystore
       - name: Prepare direct APK
         continue-on-error: true
         run: cp app/build/outputs/apk/debug/*.apk sehati.apk
