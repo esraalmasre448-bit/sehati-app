@@ -7,10 +7,17 @@ import android.location.Location
 import android.location.LocationManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -23,6 +30,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -42,8 +50,24 @@ fun PatientHome(
     name: String, unread: Int,
     onGo: (String) -> Unit, onOpen: (Map<String, Any?>) -> Unit, onTab: (Int) -> Unit
 ) {
+    // حركة دخول واحدة هادئة للشاشة كلها: ظهور تدريجي مع انزلاق خفيف للأعلى
+    var entered by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { entered = true }
+    val enter by animateFloatAsState(
+        targetValue = if (entered) 1f else 0f,
+        animationSpec = tween(durationMillis = 450),
+        label = "homeEnter"
+    )
+
     Column(
-        Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()),
+        Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState())
+            .graphicsLayer {
+                alpha = enter
+                translationY = (1f - enter) * 24.dp.toPx()
+            },
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         // الرأس: في RTL العنصر الأول يظهر على اليمين
@@ -172,11 +196,21 @@ private fun PatientDoctorList(onOpen: (Map<String, Any?>) -> Unit) {
 
 @Composable
 private fun DoctorListCard(d: Map<String, Any?>, km: Double?, onOpen: (Map<String, Any?>) -> Unit) {
+    // تأثير ضغط خفيف على البطاقة نفسها، يعطي إحساس الاستجابة عند اللمس
+    val source = remember { MutableInteractionSource() }
+    val pressed by source.collectIsPressedAsState()
+    val pressScale by animateFloatAsState(
+        targetValue = if (pressed) 0.98f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+        label = "cardPress"
+    )
+
     Row(
         Modifier.fillMaxWidth()
+            .graphicsLayer { scaleX = pressScale; scaleY = pressScale }
             .background(BCard, RoundedCornerShape(14.dp))
             .border(1.dp, BLine, RoundedCornerShape(14.dp))
-            .clickable { onOpen(d) }
+            .clickable(interactionSource = source, indication = LocalIndication.current) { onOpen(d) }
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
