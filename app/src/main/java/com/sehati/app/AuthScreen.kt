@@ -4,11 +4,16 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -22,6 +27,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -103,11 +109,22 @@ fun Field(
 
 @Composable
 fun RedButton(text: String, enabled: Boolean = true, onClick: () -> Unit) {
+    val source = remember { MutableInteractionSource() }
+    val pressed by source.collectIsPressedAsState()
+    val pressScale by animateFloatAsState(
+        targetValue = if (pressed) 0.97f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+        label = "pressScale"
+    )
     Button(
         onClick = onClick, enabled = enabled,
+        interactionSource = source,
         colors = ButtonDefaults.buttonColors(containerColor = Red, contentColor = OnAccent),
         shape = RoundedCornerShape(12.dp),
-        modifier = Modifier.fillMaxWidth().height(52.dp)
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(52.dp)
+            .graphicsLayer { scaleX = pressScale; scaleY = pressScale }
     ) { Text(text, fontSize = 16.sp, fontWeight = FontWeight.Bold) }
 }
 
@@ -130,15 +147,39 @@ fun AuthFlow(onDone: () -> Unit) {
     var resetOk by remember { mutableStateOf(false) }
     var resetBusy by remember { mutableStateOf(false) }
 
+    var entered by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { entered = true }
+    val logoScale by animateFloatAsState(
+        targetValue = if (entered) 1f else 0.8f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+        label = "logoScale"
+    )
+    val contentAlpha by animateFloatAsState(
+        targetValue = if (entered) 1f else 0f,
+        animationSpec = tween(durationMillis = 400),
+        label = "contentAlpha"
+    )
+
     Column(
         Modifier.fillMaxSize().background(Bg).padding(24.dp).verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Image(
             painterResource(R.drawable.ic_launcher), null,
-            Modifier.size(150.dp).align(Alignment.CenterHorizontally)
+            Modifier
+                .size(150.dp)
+                .align(Alignment.CenterHorizontally)
+                .graphicsLayer {
+                    scaleX = logoScale
+                    scaleY = logoScale
+                    alpha = contentAlpha
+                }
         )
-        Text(stringResource(R.string.welcome_back), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White)
+        Text(
+            stringResource(R.string.welcome_back),
+            fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White,
+            modifier = Modifier.graphicsLayer { alpha = contentAlpha }
+        )
         Text(stringResource(R.string.login_sub), color = Muted)
         if (signup) {
             Field(name, { name = it }, stringResource(R.string.name))
