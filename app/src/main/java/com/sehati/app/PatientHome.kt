@@ -7,15 +7,14 @@ import android.location.Location
 import android.location.LocationManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
@@ -29,17 +28,18 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/** تخصصات الرئيسية للمريض (9 + أخرى)، بحسب التصميم المرجعي. */
+/** تخصصات الرئيسية للمريض (9 + أخرى). */
 private val PATIENT_SPECS: List<Spec> = listOf(
     "أعصاب", "طب الأسنان", "طب العيون", "عظمية ومفاصل", "قلبية",
     "طب الأطفال", "نسائية وتوليد", "باطنية", "جلدية"
@@ -50,89 +50,189 @@ fun PatientHome(
     name: String, unread: Int,
     onGo: (String) -> Unit, onOpen: (Map<String, Any?>) -> Unit, onTab: (Int) -> Unit
 ) {
-    // حركة دخول واحدة هادئة للشاشة كلها: ظهور تدريجي مع انزلاق خفيف للأعلى
+    // ظهور خفيف للشاشة مرة واحدة
     var entered by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { entered = true }
     val enter by animateFloatAsState(
         targetValue = if (entered) 1f else 0f,
-        animationSpec = tween(durationMillis = 450),
+        animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing),
         label = "homeEnter"
     )
 
     Column(
         Modifier
             .fillMaxSize()
-            .padding(16.dp)
             .verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp, vertical = 12.dp)
             .graphicsLayer {
                 alpha = enter
-                translationY = (1f - enter) * 24.dp.toPx()
+                translationY = (1f - enter) * 8.dp.toPx()
             },
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+        verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        // الرأس: في RTL العنصر الأول يظهر على اليمين
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        // الترحيب
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Box(
-                Modifier.size(40.dp).background(BCard, CircleShape).border(1.dp, BLine, CircleShape).clickable { onTab(3) },
+                Modifier
+                    .size(48.dp)
+                    .background(Brush.linearGradient(listOf(BRed, BDanger)), CircleShape)
+                    .clickable { onTab(3) },
                 contentAlignment = Alignment.Center
             ) {
-                Text(name.trim().take(1).uppercase().ifBlank { "؟" }, color = Color.White, fontWeight = FontWeight.Bold)
+                Text(
+                    name.trim().take(1).uppercase().ifBlank { "؟" },
+                    color = BOnAccent, fontWeight = FontWeight.Bold, fontSize = 19.sp
+                )
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    if (name.isNotBlank()) "أهلاً، ${name.trim()}" else "أهلاً بك",
+                    fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis
+                )
+                Text("الطريق إلى صحتي", fontSize = 12.sp, color = BMuted)
             }
             Box {
-                IconButton(onClick = { onTab(4) }) { Icon(Icons.Filled.Notifications, null, tint = Color.White) }
+                IconButton(onClick = { onTab(4) }) {
+                    Icon(Icons.Filled.Notifications, "الإشعارات", tint = Color.White)
+                }
                 if (unread > 0) Badge(Modifier.align(Alignment.TopEnd)) { Text("$unread") }
             }
-            Spacer(Modifier.weight(1f))
-            Column(Modifier.weight(2f)) {
-                Text("الطريق إلى صحتي", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                Text("لأن صحتك أولويتنا، نحن معك.", fontSize = 12.sp, color = BMuted)
-            }
-            Image(painterResource(R.drawable.ic_launcher), null, Modifier.size(48.dp))
         }
 
+        // البحث
         Row(
-            Modifier.fillMaxWidth().height(52.dp)
-                .background(BCard, RoundedCornerShape(14.dp))
-                .border(1.dp, BLine, RoundedCornerShape(14.dp))
+            Modifier
+                .fillMaxWidth()
+                .height(54.dp)
+                .background(BCard, RoundedCornerShape(16.dp))
+                .border(1.dp, BLine, RoundedCornerShape(16.dp))
                 .clickable { onGo("search") }
-                .padding(horizontal = 14.dp),
+                .padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Icon(Icons.Filled.Search, null, tint = BMuted)
-            Text("ابحث عن طبيب أو عيادة...", color = BMuted)
+            Text("ابحث عن طبيب أو عيادة...", color = BMuted, fontSize = 14.sp)
         }
 
+        // الإجراءات السريعة
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            QuickBtn(Icons.Filled.Warning, "الطوارئ", BDanger, Modifier.weight(1f)) { onGo("emergency") }
-            QuickBtn(Icons.Filled.LocalHospital, "العيادات", BRed, Modifier.weight(1f)) { onGo("search:@clinics") }
-            QuickBtn(Icons.Filled.MedicalServices, "الأطباء", BRed, Modifier.weight(1f)) { onGo("search:@doctors") }
+            PHQuick(Icons.Filled.Emergency, "الطوارئ", BDanger, Modifier.weight(1f)) { onGo("emergency") }
+            PHQuick(Icons.Filled.LocalHospital, "العيادات", BRed, Modifier.weight(1f)) { onGo("search:@clinics") }
+            PHQuick(Icons.Filled.MedicalServices, "الأطباء", BRed, Modifier.weight(1f)) { onGo("search:@doctors") }
         }
 
-        Text("التخصصات", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-        val specCells: List<Spec?> = PATIENT_SPECS + listOf<Spec?>(null)
-        specCells.chunked(5).forEach { row ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                row.forEach { sp ->
-                    if (sp != null) SpecCircle(sp, Modifier.weight(1f)) { onGo("search:" + sp.name) }
-                    else OtherSpecCircle(Modifier.weight(1f)) { onGo("specs") }
+        // التخصصات
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            PHSectionTitle("التخصصات")
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                PATIENT_SPECS.forEach { sp ->
+                    PHSpec(sp.icon, sp.name, Modifier.width(76.dp)) { onGo("search:" + sp.name) }
                 }
-                repeat(5 - row.size) { Spacer(Modifier.weight(1f)) }
+                PHSpec(Icons.Filled.MoreHoriz, "أخرى", Modifier.width(76.dp), accent = true) { onGo("specs") }
             }
         }
 
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = { onGo("search:@doctors") }) { Text("عرض الكل", color = BRed) }
-            Spacer(Modifier.weight(1f))
-            Text("أطباء وعيادات", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        // الأطباء والعيادات
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                PHSectionTitle("أطباء وعيادات")
+                Spacer(Modifier.weight(1f))
+                TextButton(onClick = { onGo("search:@doctors") }) { Text("عرض الكل", color = BRed, fontWeight = FontWeight.SemiBold) }
+            }
+            PatientDoctorList(onOpen)
         }
-        PatientDoctorList(onOpen)
 
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Tile(Icons.Filled.Person, stringResource(R.string.my_turn), false, Modifier.weight(1f)) { onGo("queue") }
-            Tile(Icons.Filled.LocationOn, stringResource(R.string.way_to_clinic), false, Modifier.weight(1f)) { onGo("route") }
+        // الاختصارات
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            PHSectionTitle("اختصارات")
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                PHShortcut(Icons.Filled.Schedule, "دوري", Modifier.weight(1f)) { onGo("queue") }
+                PHShortcut(Icons.Filled.Map, "طريق العيادة", Modifier.weight(1f)) { onGo("route") }
+            }
+            PHShortcut(Icons.Filled.Chat, "الرسائل", Modifier.fillMaxWidth()) { onGo("messages") }
         }
-        Tile(Icons.Filled.Email, "الرسائل", false, Modifier.fillMaxWidth()) { onGo("messages") }
+    }
+}
+
+@Composable
+private fun PHSectionTitle(text: String) {
+    Text(text, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+}
+
+/** زر إجراء سريع: بطاقة بأيقونة ملوّنة ونص واضح. */
+@Composable
+private fun PHQuick(icon: ImageVector, text: String, tint: Color, modifier: Modifier, onClick: () -> Unit) {
+    Column(
+        modifier
+            .height(100.dp)
+            .background(BCard, RoundedCornerShape(18.dp))
+            .border(1.dp, BLine, RoundedCornerShape(18.dp))
+            .clickable { onClick() }
+            .padding(10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Box(
+            Modifier.size(40.dp).background(tint.copy(alpha = 0.16f), CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, null, tint = tint, modifier = Modifier.size(22.dp))
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(text, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, textAlign = TextAlign.Center)
+    }
+}
+
+/** دائرة تخصص: أيقونة داخل دائرة وعنوان تحتها. */
+@Composable
+private fun PHSpec(icon: ImageVector, label: String, modifier: Modifier, accent: Boolean = false, onClick: () -> Unit) {
+    Column(
+        modifier.clickable { onClick() }.padding(vertical = 2.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            Modifier
+                .size(60.dp)
+                .background(BCard, CircleShape)
+                .border(1.dp, if (accent) BRed else BLine, CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, null, tint = if (accent) BRed else Color.White, modifier = Modifier.size(26.dp))
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(
+            label, color = Color.White, fontSize = 12.sp,
+            textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+/** بطاقة اختصار: أيقونة صغيرة مع عنوان، بنفس أسلوب باقي البطاقات. */
+@Composable
+private fun PHShortcut(icon: ImageVector, title: String, modifier: Modifier, onClick: () -> Unit) {
+    Row(
+        modifier
+            .background(BCard, RoundedCornerShape(16.dp))
+            .border(1.dp, BLine, RoundedCornerShape(16.dp))
+            .clickable { onClick() }
+            .padding(horizontal = 14.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Box(
+            Modifier.size(38.dp).background(BRed.copy(alpha = 0.16f), CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, null, tint = BRed, modifier = Modifier.size(20.dp))
+        }
+        Text(title, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, modifier = Modifier.weight(1f))
+        Icon(Icons.Filled.ChevronLeft, null, tint = BMuted)
     }
 }
 
@@ -171,8 +271,13 @@ private fun PatientDoctorList(onOpen: (Map<String, Any?>) -> Unit) {
     if (!hasPerm) {
         OutlinedButton(
             onClick = { permLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION) },
-            modifier = Modifier.fillMaxWidth().height(48.dp)
-        ) { Text("فعّل الموقع لعرض الأقرب إليك", color = Color.White) }
+            modifier = Modifier.fillMaxWidth().height(50.dp),
+            shape = RoundedCornerShape(14.dp)
+        ) {
+            Icon(Icons.Filled.LocationOn, null, tint = BRed, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("فعّل الموقع لعرض الأقرب إليك", color = Color.White, fontWeight = FontWeight.SemiBold)
+        }
     }
     if (locMsg.isNotEmpty()) Text(locMsg, color = BMuted, fontSize = 12.sp)
 
@@ -184,7 +289,7 @@ private fun PatientDoctorList(onOpen: (Map<String, Any?>) -> Unit) {
         list.isEmpty() -> Text("لا يوجد أطباء أو عيادات مسجلة بعد", color = BMuted)
         else -> {
             val shown = if (from == null) list else list.sortedBy { distanceKm(it, from) ?: Double.MAX_VALUE }
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 shown.take(20).forEach { d ->
                     val km = from?.let { distanceKm(d, it) }
                     DoctorListCard(d, km, onOpen)
@@ -196,54 +301,54 @@ private fun PatientDoctorList(onOpen: (Map<String, Any?>) -> Unit) {
 
 @Composable
 private fun DoctorListCard(d: Map<String, Any?>, km: Double?, onOpen: (Map<String, Any?>) -> Unit) {
-    // تأثير ضغط خفيف على البطاقة نفسها، يعطي إحساس الاستجابة عند اللمس
     val source = remember { MutableInteractionSource() }
     val pressed by source.collectIsPressedAsState()
     val pressScale by animateFloatAsState(
-        targetValue = if (pressed) 0.98f else 1f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+        targetValue = if (pressed) 0.985f else 1f,
+        animationSpec = tween(durationMillis = 90, easing = FastOutSlowInEasing),
         label = "cardPress"
     )
 
     Row(
-        Modifier.fillMaxWidth()
+        Modifier
+            .fillMaxWidth()
             .graphicsLayer { scaleX = pressScale; scaleY = pressScale }
-            .background(BCard, RoundedCornerShape(14.dp))
-            .border(1.dp, BLine, RoundedCornerShape(14.dp))
+            .background(BCard, RoundedCornerShape(18.dp))
+            .border(1.dp, BLine, RoundedCornerShape(18.dp))
             .clickable(interactionSource = source, indication = LocalIndication.current) { onOpen(d) }
-            .padding(12.dp),
+            .padding(14.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        DoctorAvatar(d["photo"]?.toString(), "${d["name"] ?: ""}", 56.dp)
+        DoctorAvatar(d["photo"]?.toString(), "${d["name"] ?: ""}", 60.dp)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Text("${d["name"]}", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
-            Text("${d["specialty"] ?: ""}", color = BRed, fontSize = 13.sp)
+            Text(
+                "${d["name"] ?: ""}",
+                fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White,
+                maxLines = 1, overflow = TextOverflow.Ellipsis
+            )
+            Text("${d["specialty"] ?: ""}", color = BRed, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
             val c = "${d["clinicName"] ?: ""}"
-            if (c.isNotBlank()) Text(c, color = Color.White, fontSize = 12.sp)
-            Text("${d["city"] ?: ""}", color = BMuted, fontSize = 12.sp)
-            when (d["available"]) {
-                true -> Text("متاح الآن", color = BGreen, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                false -> Text("غير متاح حالياً", color = BMuted, fontSize = 12.sp)
-                else -> {}
+            if (c.isNotBlank()) Text(c, color = Color.White, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("${d["city"] ?: ""}", color = BMuted, fontSize = 12.sp)
+                when (d["available"]) {
+                    true -> Text("• متاح الآن", color = BGreen, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    false -> Text("• غير متاح حالياً", color = BMuted, fontSize = 12.sp)
+                    else -> {}
+                }
             }
         }
-        if (km != null) Text("%.1f كم".format(km), color = BMuted, fontSize = 12.sp)
-    }
-}
-
-@Composable
-private fun OtherSpecCircle(modifier: Modifier, onClick: () -> Unit) {
-    Column(
-        modifier.clickable { onClick() }.padding(vertical = 4.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Box(
-            Modifier.size(56.dp).background(BCard, CircleShape).border(1.dp, BRed, CircleShape),
-            contentAlignment = Alignment.Center
-        ) { Icon(Icons.Filled.MoreHoriz, null, tint = Color.White, modifier = Modifier.size(26.dp)) }
-        Spacer(Modifier.height(6.dp))
-        Text("أخرى", color = Color.White, fontSize = 12.sp, textAlign = TextAlign.Center)
+        if (km != null) {
+            Box(
+                Modifier
+                    .background(BBg, RoundedCornerShape(10.dp))
+                    .border(1.dp, BLine, RoundedCornerShape(10.dp))
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                Text("%.1f كم".format(km), color = BMuted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            }
+        }
     }
 }
 
