@@ -18,18 +18,20 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FieldValue
 import java.util.Date
 
-/** الصفحة الرئيسية للطبيب (التصميم المرجعي). الصفحات الفرعية تُفتح داخلها بحالة محلية. */
+/** الصفحة الرئيسية للطبيب. الصفحات الفرعية تُفتح داخلها بحالة محلية. */
 @Composable
 fun DoctorHome(name: String, unread: Int, onGo: (String) -> Unit, onTab: (Int) -> Unit) {
     var page by remember { mutableStateOf("home") }
@@ -54,10 +56,7 @@ private fun DoctorHomeContent(
     var photo by remember { mutableStateOf<String?>(null) }
     var todayN by remember { mutableStateOf<Int?>(null) }
     var newN by remember { mutableStateOf<Int?>(null) }
-    // مواعيد اليوم كما تظهر في قائمة الحجوزات، ورقم الدور الحالي من الطابور
-    var todayAppts by remember { mutableStateOf<List<Map<String, Any?>>>(emptyList()) }
-    var apptsLoaded by remember { mutableStateOf(false) }
-    var currentNo by remember { mutableStateOf(0L) }
+    var waiting by remember { mutableStateOf<Long?>(null) }
     var failed by remember { mutableStateOf(false) }
     var available by remember { mutableStateOf<Boolean?>(null) }
     var toggleMsg by remember { mutableStateOf("") }
@@ -89,81 +88,101 @@ private fun DoctorHomeContent(
                     failed = false
                     val dayAgo = Date(System.currentTimeMillis() - 24L * 3600 * 1000)
                     val list = s.documents.map { it.data.orEmpty() }
-                    todayAppts = list.filter { it["date"] == today && it["status"] != "CANCELLED" }
-                    apptsLoaded = true
-                    todayN = todayAppts.size
+                    todayN = list.count { it["date"] == today && it["status"] != "CANCELLED" }
                     newN = list.count {
                         it["status"] == "CONFIRMED" && (it["createdAt"] as? Timestamp)?.toDate()?.after(dayAgo) == true
                     }
                 }
             }
-        // الرقم الحالي من الطابور فقط. عدد المنتظرين يُحسب لاحقاً من المواعيد المؤكدة نفسها.
+        // الرقم الحالي = آخر رقم نُودي، آخر رقم صدر = آخر رقم أُعطي. المنتظرون = الفرق بينهما.
         val r2 = bDb.collection("queues").document("${uid}_$today").addSnapshotListener { s, _ ->
-            currentNo = s?.getLong("current") ?: 0L
+            val cur = s?.getLong("current") ?: 0L
+            val lst = s?.getLong("last") ?: 0L
+            waiting = (lst - cur).coerceAtLeast(0L)
         }
         onDispose { r1.remove(); r2.remove() }
     }
 
-    // المنتظرون = مواعيد اليوم المؤكدة التي رقمها أكبر من الرقم الحالي (تطابق القائمة تماماً)
-    val waitingN: Int? = if (failed || !apptsLoaded) null else todayAppts.count {
-        it["status"] == "CONFIRMED" && ((it["number"] as? Number)?.toLong() ?: 0L) > currentNo
-    }
-
     val shownName = docName.ifBlank { name }
     val countText: (Long?) -> String = { n -> if (failed) "غير متاح" else n?.toString() ?: "..." }
+    val isOn = available == true
+    val statusText = when (available) {
+        true -> "متاح لاستقبال المرضى"
+        false -> "غير متاح حالياً"
+        null -> "لم تحددي حالتك بعد"
+    }
 
     Column(
-        Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+        Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        // الرأس: في RTL العنصر الأول يظهر على اليمين
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            DoctorAvatar(photo, shownName.ifBlank { "د" }, 44.dp)
+        // الرأس
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Image(painterResource(R.drawable.ic_launcher), null, Modifier.size(40.dp))
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text("الطريق إلى صحتي", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Text("مريضك أخوك، فارحم وجعه", fontSize = 12.sp, color = BMuted)
+            }
             Box {
-                IconButton(onClick = { onTab(4) }) { Icon(Icons.Filled.Notifications, null, tint = Color.White) }
+                IconButton(onClick = { onTab(4) }) {
+                    Icon(Icons.Filled.Notifications, "الإشعارات", tint = Color.White)
+                }
                 if (unread > 0) Badge(Modifier.align(Alignment.TopEnd)) { Text("$unread") }
             }
-            Spacer(Modifier.weight(1f))
-            Column(Modifier.weight(2f)) {
-                Text("الطريق إلى صحتي", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                Text("مريضك أخوك، فارحم وجعه وقدّر ظروفه.", fontSize = 12.sp, color = BMuted)
-            }
-            Image(painterResource(R.drawable.ic_launcher), null, Modifier.size(48.dp))
         }
 
-        // بطاقة الطبيب
+        // بطاقة الهوية والتوافر والإحصائيات
         Column(
-            Modifier.fillMaxWidth()
-                .background(BCard, RoundedCornerShape(18.dp))
-                .border(1.dp, BLine, RoundedCornerShape(18.dp))
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            Modifier
+                .fillMaxWidth()
+                .background(Brush.verticalGradient(listOf(BCard, BBg)), RoundedCornerShape(20.dp))
+                .border(1.dp, BLine, RoundedCornerShape(20.dp))
+                .padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                DoctorAvatar(photo, shownName.ifBlank { "د" }, 84.dp)
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(shownName, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                    if (specialty.isNotBlank()) Text(specialty, color = BRed, fontSize = 14.sp)
+                DoctorAvatar(photo, shownName.ifBlank { "د" }, 72.dp)
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text(
+                        shownName.ifBlank { "أهلاً بك" },
+                        fontSize = 19.sp, fontWeight = FontWeight.Bold, color = Color.White,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis
+                    )
+                    if (specialty.isNotBlank()) {
+                        Text(specialty, color = BRed, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    }
                     val place = listOf(clinic, city).filter { it.isNotBlank() }.joinToString(" - ")
-                    if (place.isNotBlank()) Text(place, color = BMuted, fontSize = 12.sp)
+                    if (place.isNotBlank()) {
+                        Text(place, color = BMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
                 }
             }
+
+            // صف التوافر
             Row(
-                Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                Modifier
+                    .fillMaxWidth()
+                    .background(BBg, RoundedCornerShape(14.dp))
+                    .border(1.dp, BLine, RoundedCornerShape(14.dp))
+                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    when (available) {
-                        true -> "متاح لاستقبال المرضى"
-                        false -> "غير متاح حالياً"
-                        null -> "لم تحددي حالتك بعد"
-                    },
-                    color = if (available == true) BGreen else BMuted,
-                    fontWeight = FontWeight.Bold
-                )
+                Icon(Icons.Filled.Circle, null, tint = if (isOn) BGreen else BMuted, modifier = Modifier.size(10.dp))
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        statusText,
+                        color = if (isOn) BGreen else Color.White,
+                        fontWeight = FontWeight.Bold, fontSize = 14.sp
+                    )
+                    Text("تظهر حالتك للمرضى في قائمة الأطباء", color = BMuted, fontSize = 11.sp)
+                }
                 Switch(
-                    checked = available == true,
+                    checked = isOn,
                     enabled = hasProfile == true,
                     onCheckedChange = { v ->
                         toggleMsg = ""
@@ -174,63 +193,123 @@ private fun DoctorHomeContent(
                     }
                 )
             }
-            if (hasProfile == false) Text("أكملي ملفك المهني أولاً لتتمكني من تغيير حالة التوافر", color = BMuted, fontSize = 12.sp)
+            if (hasProfile == false) {
+                Text("أكملي ملفك المهني أولاً لتتمكني من تغيير حالة التوافر", color = BMuted, fontSize = 12.sp)
+            }
             if (toggleMsg.isNotEmpty()) Text(toggleMsg, color = BDanger, fontSize = 12.sp)
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                DoctorStat("مواعيد اليوم", countText(todayN?.toLong()), Modifier.weight(1f))
-                DoctorStat("المرضى المنتظرون", countText(waitingN?.toLong()), Modifier.weight(1f))
+
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                DoctorStat("مواعيد اليوم", countText(todayN?.toLong()), Icons.Filled.CalendarMonth, Modifier.weight(1f))
+                DoctorStat("المرضى المنتظرون", countText(waiting), Icons.Filled.Schedule, Modifier.weight(1f))
             }
         }
 
-        Text("الأدوات", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            HubTile(Icons.Filled.CalendarMonth, "المواعيد", "عرض وإدارة المواعيد", true, Modifier.weight(1f)) { onGo("dash") }
-            HubTile(Icons.Filled.Group, "المرضى", "قائمة المرضى وملفاتهم", false, Modifier.weight(1f)) { onPatients() }
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            HubTile(Icons.Filled.Assignment, "الطلبات الجديدة", "حجوزات آخر 24 ساعة (${newN ?: "..."})", false, Modifier.weight(1f)) { onGo("dash") }
-            HubTile(Icons.Filled.ManageAccounts, "إعدادات الحساب", "الملف الشخصي والتخصص", false, Modifier.weight(1f)) { onTab(3) }
+        // الأدوات
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            DoctorSectionTitle("الأدوات")
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                ToolTile(Icons.Filled.CalendarMonth, "المواعيد", "عرض وإدارة المواعيد", true, Modifier.weight(1f)) { onGo("dash") }
+                ToolTile(Icons.Filled.Group, "المرضى", "قائمة المرضى وملفاتهم", false, Modifier.weight(1f)) { onPatients() }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                ToolTile(Icons.Filled.Inbox, "الطلبات الجديدة", "آخر 24 ساعة: ${newN ?: "..."}", false, Modifier.weight(1f)) { onGo("dash") }
+                ToolTile(Icons.Filled.ManageAccounts, "إعدادات الحساب", "الملف الشخصي والتخصص", false, Modifier.weight(1f)) { onTab(3) }
+            }
         }
 
-        Text("خدمات", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-        Tile(Icons.Filled.Person, "ملفي المهني", true, Modifier.fillMaxWidth()) { onGo("profile") }
-        Tile(Icons.Filled.LocationOn, "إعدادات العيادة (الدوام والموقع)", false, Modifier.fillMaxWidth()) { onGo("settings") }
-        Tile(Icons.Filled.Info, "تجديد الاشتراك والتواصل مع الإدارة", false, Modifier.fillMaxWidth()) { onGo("renew") }
-        Tile(Icons.Filled.Email, "الرسائل", false, Modifier.fillMaxWidth()) { onGo("messages") }
+        // الخدمات
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            DoctorSectionTitle("الخدمات")
+            ServiceRow(Icons.Filled.Badge, "ملفي المهني") { onGo("profile") }
+            ServiceRow(Icons.Filled.Settings, "إعدادات العيادة (الدوام والموقع)") { onGo("settings") }
+            ServiceRow(Icons.Filled.Autorenew, "تجديد الاشتراك والتواصل مع الإدارة") { onGo("renew") }
+            ServiceRow(Icons.Filled.Chat, "الرسائل") { onGo("messages") }
+        }
     }
 }
 
 @Composable
-private fun DoctorStat(label: String, value: String, modifier: Modifier) {
-    Column(
-        modifier.background(BBg, RoundedCornerShape(14.dp))
+private fun DoctorSectionTitle(text: String) {
+    Text(text, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+}
+
+@Composable
+private fun DoctorStat(label: String, value: String, icon: ImageVector, modifier: Modifier) {
+    Row(
+        modifier
+            .background(BCard, RoundedCornerShape(14.dp))
             .border(1.dp, BLine, RoundedCornerShape(14.dp))
             .padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Text(value, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White)
-        Text(label, color = BMuted, fontSize = 12.sp)
+        Box(
+            Modifier.size(36.dp).background(BRed.copy(alpha = 0.16f), CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, null, tint = BRed, modifier = Modifier.size(18.dp))
+        }
+        Column(Modifier.weight(1f)) {
+            Text(
+                value, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(label, color = BMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
     }
 }
 
 @Composable
-private fun HubTile(
-    icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, sub: String,
-    red: Boolean, modifier: Modifier, onClick: () -> Unit
+private fun ToolTile(
+    icon: ImageVector, title: String, sub: String,
+    highlighted: Boolean, modifier: Modifier, onClick: () -> Unit
 ) {
+    val fg = if (highlighted) BOnAccent else Color.White
+    val fgSub = if (highlighted) BOnAccent.copy(alpha = 0.85f) else BMuted
     Column(
-        modifier.height(118.dp)
-            .background(if (red) BRed else BCard, RoundedCornerShape(16.dp))
-            .border(1.dp, if (red) BRed else BLine, RoundedCornerShape(16.dp))
+        modifier
+            .height(122.dp)
+            .background(if (highlighted) BRed else BCard, RoundedCornerShape(18.dp))
+            .border(1.dp, if (highlighted) BRed else BLine, RoundedCornerShape(18.dp))
             .clickable { onClick() }
-            .padding(10.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+            .padding(14.dp),
+        verticalArrangement = Arrangement.SpaceBetween
     ) {
-        Icon(icon, null, tint = if (red) BOnAccent else Color.White, modifier = Modifier.size(30.dp))
-        Spacer(Modifier.height(6.dp))
-        Text(title, color = if (red) BOnAccent else Color.White, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
-        Text(sub, color = if (red) BOnAccent else BMuted, fontSize = 11.sp, textAlign = TextAlign.Center, maxLines = 2)
+        Box(
+            Modifier
+                .size(38.dp)
+                .background(if (highlighted) BOnAccent.copy(alpha = 0.18f) else BRed.copy(alpha = 0.16f), CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, null, tint = if (highlighted) BOnAccent else BRed, modifier = Modifier.size(20.dp))
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(title, color = fg, fontWeight = FontWeight.Bold, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(sub, color = fgSub, fontSize = 11.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+@Composable
+private fun ServiceRow(icon: ImageVector, title: String, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .background(BCard, RoundedCornerShape(16.dp))
+            .border(1.dp, BLine, RoundedCornerShape(16.dp))
+            .clickable { onClick() }
+            .padding(horizontal = 14.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Box(
+            Modifier.size(38.dp).background(BRed.copy(alpha = 0.16f), CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, null, tint = BRed, modifier = Modifier.size(20.dp))
+        }
+        Text(title, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, modifier = Modifier.weight(1f))
+        Icon(Icons.Filled.ChevronLeft, null, tint = BMuted)
     }
 }
 
@@ -265,28 +344,51 @@ fun DoctorPatientsScreen(onBack: () -> Unit) {
         onDispose { reg.remove() }
     }
 
-    Column(Modifier.fillMaxSize().background(BBg).padding(16.dp)) {
-        TextButton(onClick = onBack) { Text("رجوع", color = BRed) }
-        Text("المرضى", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White)
-        Spacer(Modifier.height(10.dp))
+    Column(Modifier.fillMaxSize().background(BBg).padding(horizontal = 16.dp, vertical = 12.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowForward, "رجوع", tint = Color.White) }
+            Text("المرضى", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White)
+        }
+        Spacer(Modifier.height(8.dp))
         val list = patients
         when {
             failed -> Text("تعذر تحميل المرضى، تحقق من الإنترنت", color = BDanger)
             list == null -> Text("جارٍ التحميل...", color = BMuted)
             list.isEmpty() -> Text("لا يوجد مرضى مرتبطون بحجوزاتك بعد", color = BMuted)
-            else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 items(list, key = { it["id"].toString() }) { p ->
-                    Column(
-                        Modifier.fillMaxWidth()
-                            .background(BCard, RoundedCornerShape(14.dp))
-                            .border(1.dp, BLine, RoundedCornerShape(14.dp))
+                    val pname = p["name"].toString()
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .background(BCard, RoundedCornerShape(16.dp))
+                            .border(1.dp, BLine, RoundedCornerShape(16.dp))
                             .padding(14.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Text("${p["name"]}", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                        val phone = p["phone"].toString()
-                        if (phone.isNotBlank()) Text(phone, color = BMuted, fontSize = 13.sp)
-                        Text("عدد الحجوزات: ${p["count"]}  •  آخر موعد: ${p["last"]}", color = BMuted, fontSize = 12.sp)
+                        Box(
+                            Modifier.size(44.dp).background(BRed.copy(alpha = 0.16f), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                pname.trim().take(1).ifBlank { "؟" },
+                                color = BRed, fontWeight = FontWeight.Bold, fontSize = 17.sp
+                            )
+                        }
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text(
+                                pname.ifBlank { "مريض" },
+                                color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis
+                            )
+                            val phone = p["phone"].toString()
+                            if (phone.isNotBlank()) Text(phone, color = BMuted, fontSize = 13.sp)
+                            Text(
+                                "الحجوزات: ${p["count"]}  •  آخر موعد: ${p["last"]}",
+                                color = BMuted, fontSize = 12.sp
+                            )
+                        }
                     }
                 }
             }
