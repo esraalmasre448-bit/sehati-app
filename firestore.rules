@@ -26,6 +26,10 @@ service cloud.firestore {
       return ['uid','name','specialty','clinicName','city','address','phone','hours','fee','updatedAt',
               'startHour','endHour','slotMinutes','bio','lat','lng','mapLink','locationUpdatedAt','photo','emergency','emergencyPhone','hospitalName','hospitalHours','available','availableUpdatedAt'];
     }
+    function photoOk() {
+      return !('photo' in request.resource.data)
+        || (request.resource.data.photo is string && request.resource.data.photo.size() < 400000);
+    }
     function apptKeys() {
       return ['patientId','patientName','patientPhone','doctorId','doctorName','specialty','clinicName',
               'address','city','date','slot','time','number','status','note','createdAt'];
@@ -49,6 +53,14 @@ service cloud.firestore {
         && request.resource.data.qr.size() < 400000;
     }
 
+    match /config/developer {
+      allow read: if signedIn();
+      allow write: if isAdmin()
+        && request.resource.data.keys().hasOnly(['name','photo','updatedAt'])
+        && (!('photo' in request.resource.data)
+            || (request.resource.data.photo is string && request.resource.data.photo.size() < 400000));
+    }
+
     match /users/{uid} {
       allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
       allow create: if signedIn() && request.auth.uid == uid
@@ -65,10 +77,12 @@ service cloud.firestore {
       allow read: if signedIn();
       allow create: if signedIn() && request.auth.uid == id
         && userType() in ['doctor','clinic']
-        && request.resource.data.keys().hasOnly(docKeys());
+        && request.resource.data.keys().hasOnly(docKeys())
+        && photoOk();
       allow update: if signedIn() && (
         (request.auth.uid == id && userType() in ['doctor','clinic']
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(docKeys()))
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(docKeys())
+          && photoOk())
         || (isAdmin()
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['approved','approvedBy','approvedAt'])));
       allow delete: if isAdmin() || (signedIn() && request.auth.uid == id);
@@ -191,8 +205,8 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/appointments/$(request.resource.data.appointmentId)).data.patientId == request.resource.data.patientId;
 
       allow update: if false;
-      allow delete: if signedIn() && (resource.data.doctorId == request.auth.uid
-        || resource.data.patientId == request.auth.uid);
+      // الوصفة سجل طبي: يحذفها الطبيب فقط، والمريض لا يقدر يحذفها
+      allow delete: if signedIn() && resource.data.doctorId == request.auth.uid;
     }
 
     match /conversations/{id} {
@@ -236,6 +250,7 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // slots: يستخدمها مسار الحجز القديم في Booking.kt (يحذف الفتحة عند إلغاء الموعد)، فأبقينا القاعدة كما هي
     match /slots/{id} {
       allow read, create, update: if false;
       allow delete: if signedIn();
