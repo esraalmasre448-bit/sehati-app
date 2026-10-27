@@ -1,8 +1,12 @@
-name: Build APK (test)
+name: Build APK
 on: workflow_dispatch
+env:
+  KS_PASS: ${{ secrets.KS_PASS }}
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      KS_B64: ${{ secrets.KEYSTORE_B64 }}
     steps:
       - uses: actions/checkout@v4
       - name: Remove resource files with invalid names
@@ -14,6 +18,17 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: 8.7
+      - name: Verify signing secrets exist
+        env:
+          SECRET_CHECK: ${{ secrets.KS_PASS }}
+        run: |
+          if [ -z "$SECRET_CHECK" ]; then echo "::error::Secret KS_PASS is missing"; exit 1; fi
+          if [ -z "$KS_B64" ]; then echo "::error::Secret KEYSTORE_B64 is missing. Build stopped so no new or debug key is used."; exit 1; fi
+      - name: Restore signing key from secret
+        run: echo "$KS_B64" | base64 -d > app/sehati.keystore
+      - name: Check keystore matches password
+        run: |
+          keytool -list -keystore app/sehati.keystore -storetype PKCS12 -storepass "$KS_PASS" -alias sehati > /dev/null 2>&1 || { echo "::error::Keystore cannot be opened with KS_PASS, or alias sehati is missing. Build stopped."; exit 1; }
       - name: Validate and write google-services.json
         env:
           GS: ${{ secrets.GOOGLE_SERVICES_JSON }}
@@ -39,11 +54,27 @@ jobs:
           print("google-services.json validated (content not shown)")
           PYEOF
       - run: gradle assembleDebug
+      - name: Print APK signing certificate fingerprint (public, no secrets)
+        run: |
+          set -o pipefail
+          APKSIGNER=$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner 2>/dev/null | sort -V | tail -1)
+          if [ -z "$APKSIGNER" ]; then echo "::warning::apksigner not found; signing fingerprint was NOT verified"; exit 0; fi
+          "$APKSIGNER" verify --print-certs app/build/outputs/apk/debug/*.apk | grep "SHA-256 digest" \
+            || { echo "::error::Could not read the APK signing certificate"; exit 1; }
+      - name: Remove signing key from runner
+        if: always()
+        run: rm -f app/sehati.keystore
       - name: Prepare direct APK
         continue-on-error: true
-        run: cp app/build/outputs/apk/debug/*.apk sehati-test.apk
-      - name: Upload test APK
-        uses: actions/upload-artifact@v4
+        run: cp app/build/outputs/apk/debug/*.apk sehati.apk
+      - name: Upload direct APK (no zip)
+        continue-on-error: true
+        uses: actions/upload-artifact@v7
         with:
-          name: sehati-apk-test
-          path: sehati-test.apk
+          name: sehati-apk-direct
+          path: sehati.apk
+          archive: false
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sehati-apk
+          path: app/build/outputs/apk/debug/*.apk
