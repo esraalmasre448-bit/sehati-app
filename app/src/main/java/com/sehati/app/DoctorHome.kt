@@ -54,7 +54,10 @@ private fun DoctorHomeContent(
     var photo by remember { mutableStateOf<String?>(null) }
     var todayN by remember { mutableStateOf<Int?>(null) }
     var newN by remember { mutableStateOf<Int?>(null) }
-    var waiting by remember { mutableStateOf<Long?>(null) }
+    // مواعيد اليوم كما تظهر في قائمة الحجوزات، ورقم الدور الحالي من الطابور
+    var todayAppts by remember { mutableStateOf<List<Map<String, Any?>>>(emptyList()) }
+    var apptsLoaded by remember { mutableStateOf(false) }
+    var currentNo by remember { mutableStateOf(0L) }
     var failed by remember { mutableStateOf(false) }
     var available by remember { mutableStateOf<Boolean?>(null) }
     var toggleMsg by remember { mutableStateOf("") }
@@ -86,19 +89,24 @@ private fun DoctorHomeContent(
                     failed = false
                     val dayAgo = Date(System.currentTimeMillis() - 24L * 3600 * 1000)
                     val list = s.documents.map { it.data.orEmpty() }
-                    todayN = list.count { it["date"] == today && it["status"] != "CANCELLED" }
+                    todayAppts = list.filter { it["date"] == today && it["status"] != "CANCELLED" }
+                    apptsLoaded = true
+                    todayN = todayAppts.size
                     newN = list.count {
                         it["status"] == "CONFIRMED" && (it["createdAt"] as? Timestamp)?.toDate()?.after(dayAgo) == true
                     }
                 }
             }
-        // الرقم الحالي = آخر رقم نُودي، آخر رقم صدر = آخر رقم أُعطي. المنتظرون = الفرق بينهما.
+        // الرقم الحالي من الطابور فقط. عدد المنتظرين يُحسب لاحقاً من المواعيد المؤكدة نفسها.
         val r2 = bDb.collection("queues").document("${uid}_$today").addSnapshotListener { s, _ ->
-            val cur = s?.getLong("current") ?: 0L
-            val lst = s?.getLong("last") ?: 0L
-            waiting = (lst - cur).coerceAtLeast(0L)
+            currentNo = s?.getLong("current") ?: 0L
         }
         onDispose { r1.remove(); r2.remove() }
+    }
+
+    // المنتظرون = مواعيد اليوم المؤكدة التي رقمها أكبر من الرقم الحالي (تطابق القائمة تماماً)
+    val waitingN: Int? = if (failed || !apptsLoaded) null else todayAppts.count {
+        it["status"] == "CONFIRMED" && ((it["number"] as? Number)?.toLong() ?: 0L) > currentNo
     }
 
     val shownName = docName.ifBlank { name }
@@ -170,7 +178,7 @@ private fun DoctorHomeContent(
             if (toggleMsg.isNotEmpty()) Text(toggleMsg, color = BDanger, fontSize = 12.sp)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 DoctorStat("مواعيد اليوم", countText(todayN?.toLong()), Modifier.weight(1f))
-                DoctorStat("المرضى المنتظرون", countText(waiting), Modifier.weight(1f))
+                DoctorStat("المرضى المنتظرون", countText(waitingN?.toLong()), Modifier.weight(1f))
             }
         }
 
