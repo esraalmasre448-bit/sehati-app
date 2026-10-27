@@ -4,9 +4,8 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
-import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -77,13 +76,17 @@ private fun authError(e: Exception): String = when (e) {
 @Composable
 fun Field(
     value: String, onChange: (String) -> Unit, label: String,
-    password: Boolean = false, keyboard: KeyboardType = KeyboardType.Text
+    password: Boolean = false, keyboard: KeyboardType = KeyboardType.Text,
+    icon: ImageVector? = null
 ) {
     var show by remember { mutableStateOf(false) }
     OutlinedTextField(
         value = value, onValueChange = onChange,
         label = { Text(label, color = Muted) },
         singleLine = true,
+        leadingIcon = if (icon != null) {
+            { Icon(icon, contentDescription = null, tint = Muted) }
+        } else null,
         visualTransformation = if (password && !show) PasswordVisualTransformation() else VisualTransformation.None,
         keyboardOptions = KeyboardOptions(keyboardType = if (password) KeyboardType.Password else keyboard),
         trailingIcon = if (password) {
@@ -111,9 +114,10 @@ fun Field(
 fun RedButton(text: String, enabled: Boolean = true, onClick: () -> Unit) {
     val source = remember { MutableInteractionSource() }
     val pressed by source.collectIsPressedAsState()
+    // ضغط خفيف وسريع بدون ارتداد: يعطي إحساس الاستجابة دون أن يلفت النظر
     val pressScale by animateFloatAsState(
-        targetValue = if (pressed) 0.97f else 1f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+        targetValue = if (pressed) 0.98f else 1f,
+        animationSpec = tween(durationMillis = 90, easing = FastOutSlowInEasing),
         label = "pressScale"
     )
     Button(
@@ -147,17 +151,13 @@ fun AuthFlow(onDone: () -> Unit) {
     var resetOk by remember { mutableStateOf(false) }
     var resetBusy by remember { mutableStateOf(false) }
 
+    // ظهور سريع وهادئ للشعار والعنوان عند فتح الشاشة فقط
     var entered by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { entered = true }
-    val logoScale by animateFloatAsState(
-        targetValue = if (entered) 1f else 0.8f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
-        label = "logoScale"
-    )
-    val contentAlpha by animateFloatAsState(
+    val enter by animateFloatAsState(
         targetValue = if (entered) 1f else 0f,
-        animationSpec = tween(durationMillis = 400),
-        label = "contentAlpha"
+        animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing),
+        label = "enter"
     )
 
     Column(
@@ -169,21 +169,20 @@ fun AuthFlow(onDone: () -> Unit) {
             Modifier
                 .size(150.dp)
                 .align(Alignment.CenterHorizontally)
-                .graphicsLayer {
-                    scaleX = logoScale
-                    scaleY = logoScale
-                    alpha = contentAlpha
-                }
+                .graphicsLayer { alpha = enter }
         )
         Text(
             stringResource(R.string.welcome_back),
             fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White,
-            modifier = Modifier.graphicsLayer { alpha = contentAlpha }
+            modifier = Modifier.graphicsLayer { alpha = enter }
         )
         Text(stringResource(R.string.login_sub), color = Muted)
         if (signup) {
-            Field(name, { name = it }, stringResource(R.string.name))
-            Field(phone, { phone = it }, stringResource(R.string.phone), keyboard = KeyboardType.Phone)
+            Field(name, { name = it }, stringResource(R.string.name), icon = Icons.Filled.Person)
+            Field(
+                phone, { phone = it }, stringResource(R.string.phone),
+                keyboard = KeyboardType.Phone, icon = Icons.Filled.Phone
+            )
             Text(stringResource(R.string.account_type), color = Muted)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(
@@ -202,8 +201,14 @@ fun AuthFlow(onDone: () -> Unit) {
                 }
             }
         }
-        Field(email, { email = it }, stringResource(R.string.email), keyboard = KeyboardType.Email)
-        Field(pass, { pass = it }, stringResource(R.string.password), password = true)
+        Field(
+            email, { email = it }, stringResource(R.string.email),
+            keyboard = KeyboardType.Email, icon = Icons.Filled.Email
+        )
+        Field(
+            pass, { pass = it }, stringResource(R.string.password),
+            password = true, icon = Icons.Filled.Lock
+        )
         if (!signup) {
             TextButton(onClick = {
                 msg = ""
@@ -298,7 +303,10 @@ fun AuthFlow(onDone: () -> Unit) {
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("اكتب بريدك الإلكتروني وسنرسل لك رابطًا لتعيين كلمة سر جديدة.", color = Muted)
-                    Field(resetEmail, { resetEmail = it; resetMsg = "" }, stringResource(R.string.email), keyboard = KeyboardType.Email)
+                    Field(
+                        resetEmail, { resetEmail = it; resetMsg = "" }, stringResource(R.string.email),
+                        keyboard = KeyboardType.Email, icon = Icons.Filled.Email
+                    )
                     if (resetMsg.isNotEmpty()) Text(resetMsg, color = if (resetOk) Good else Danger)
                     if (resetOk) Text(
                         "افتح الرابط من بريدك، اختر كلمة سر جديدة، ثم ارجع وسجّل دخولك. إن لم تجد الرسالة فابحث في مجلد الرسائل غير المرغوبة (Spam).",
