@@ -69,7 +69,7 @@ private fun authError(e: Exception): String = when (e) {
     is FirebaseNetworkException -> "تحقق من اتصال الإنترنت وحاول مرة أخرى"
     else ->
         if (e.message?.contains("API key", true) == true)
-            "تعذر الاتصال بالخدمة (رمز: API_KEY). ثبّت آخر نسخة من التطبيق"
+            "تعذر الاتصال بالخدمة الآن. حاولي مرة أخرى بعد قليل، وإذا استمر الأمر حدّثي التطبيق"
         else "تعذر إتمام العملية، حاول مرة أخرى"
 }
 
