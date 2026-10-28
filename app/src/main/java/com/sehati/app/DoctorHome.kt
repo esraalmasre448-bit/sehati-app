@@ -23,13 +23,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FieldValue
 import java.util.Date
+
+private val DTeal = Color(0xFF2DD4BF)
 
 /** الصفحة الرئيسية للطبيب. الصفحات الفرعية تُفتح داخلها بحالة محلية. */
 @Composable
@@ -104,7 +105,7 @@ private fun DoctorHomeContent(
     }
 
     val shownName = docName.ifBlank { name }
-    val countText: (Long?) -> String = { n -> if (failed) "غير متاح" else n?.toString() ?: "..." }
+    val countText: (Long?) -> String = { n -> if (failed) "—" else n?.toString() ?: "..." }
     val isOn = available == true
     val statusText = when (available) {
         true -> "متاح لاستقبال المرضى"
@@ -117,7 +118,7 @@ private fun DoctorHomeContent(
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp)
+        verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
         // الرأس
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -135,17 +136,17 @@ private fun DoctorHomeContent(
             }
         }
 
-        // بطاقة الهوية والتوافر والإحصائيات
+        // بطاقة الهوية والتوافر
         Column(
             Modifier
                 .fillMaxWidth()
-                .background(Brush.verticalGradient(listOf(BCard, BBg)), RoundedCornerShape(20.dp))
-                .border(1.dp, BLine, RoundedCornerShape(20.dp))
-                .padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .background(BCard, RoundedCornerShape(22.dp))
+                .border(1.dp, BLine, RoundedCornerShape(22.dp))
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                DoctorAvatar(photo, shownName.ifBlank { "د" }, 72.dp)
+                DoctorAvatar(photo, shownName.ifBlank { "د" }, 68.dp)
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     Text(
                         shownName.ifBlank { "أهلاً بك" },
@@ -153,7 +154,7 @@ private fun DoctorHomeContent(
                         maxLines = 1, overflow = TextOverflow.Ellipsis
                     )
                     if (specialty.isNotBlank()) {
-                        Text(specialty, color = BRed, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                        Text(specialty, color = DTeal, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                     }
                     val place = listOf(clinic, city).filter { it.isNotBlank() }.joinToString(" - ")
                     if (place.isNotBlank()) {
@@ -166,8 +167,8 @@ private fun DoctorHomeContent(
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .background(BBg, RoundedCornerShape(14.dp))
-                    .border(1.dp, BLine, RoundedCornerShape(14.dp))
+                    .background(BBg, RoundedCornerShape(16.dp))
+                    .border(1.dp, BLine, RoundedCornerShape(16.dp))
                     .padding(horizontal = 14.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -197,24 +198,31 @@ private fun DoctorHomeContent(
                 Text("أكملي ملفك المهني أولاً لتتمكني من تغيير حالة التوافر", color = BMuted, fontSize = 12.sp)
             }
             if (toggleMsg.isNotEmpty()) Text(toggleMsg, color = BDanger, fontSize = 12.sp)
-
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                DoctorStat("مواعيد اليوم", countText(todayN?.toLong()), Icons.Filled.CalendarMonth, Modifier.weight(1f))
-                DoctorStat("المرضى المنتظرون", countText(waiting), Icons.Filled.Schedule, Modifier.weight(1f))
-            }
         }
 
-        // الأدوات
+        // البطاقات الكبيرة الملوّنة: كل نوع بلونه
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             DoctorSectionTitle("الأدوات")
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                ToolTile(Icons.Filled.CalendarMonth, "المواعيد", "عرض وإدارة المواعيد", true, Modifier.weight(1f)) { onGo("dash") }
-                ToolTile(Icons.Filled.Group, "المرضى", "قائمة المرضى وملفاتهم", false, Modifier.weight(1f)) { onPatients() }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                ToolTile(Icons.Filled.Inbox, "الطلبات الجديدة", "آخر 24 ساعة: ${newN ?: "..."}", false, Modifier.weight(1f)) { onGo("dash") }
-                ToolTile(Icons.Filled.ManageAccounts, "إعدادات الحساب", "الملف الشخصي والتخصص", false, Modifier.weight(1f)) { onTab(3) }
-            }
+            DoctorBigCard(
+                Icons.Filled.CalendarMonth, "المواعيد", "مواعيد اليوم: عرض وإدارة",
+                countText(todayN?.toLong()),
+                Brush.linearGradient(listOf(Color(0xFF14B8A6), Color(0xFF0F766E)))
+            ) { onGo("dash") }
+            DoctorBigCard(
+                Icons.Filled.Schedule, "المرضى المنتظرون", "في الدور الآن",
+                countText(waiting),
+                Brush.linearGradient(listOf(Color(0xFFF59E0B), Color(0xFFB45309)))
+            ) { onGo("dash") }
+            DoctorBigCard(
+                Icons.Filled.Inbox, "الطلبات الجديدة", "حجوزات آخر 24 ساعة",
+                newN?.toString() ?: "...",
+                Brush.linearGradient(listOf(Color(0xFF8B5CF6), Color(0xFF6D28D9)))
+            ) { onGo("dash") }
+            DoctorBigCard(
+                Icons.Filled.Group, "المرضى", "قائمة المرضى وملفاتهم",
+                null,
+                Brush.linearGradient(listOf(Color(0xFFF43F5E), Color(0xFFBE123C)))
+            ) { onPatients() }
         }
 
         // الخدمات
@@ -222,6 +230,7 @@ private fun DoctorHomeContent(
             DoctorSectionTitle("الخدمات")
             ServiceRow(Icons.Filled.Badge, "ملفي المهني") { onGo("profile") }
             ServiceRow(Icons.Filled.Settings, "إعدادات العيادة (الدوام والموقع)") { onGo("settings") }
+            ServiceRow(Icons.Filled.ManageAccounts, "إعدادات الحساب") { onTab(3) }
             ServiceRow(Icons.Filled.Autorenew, "تجديد الاشتراك والتواصل مع الإدارة") { onGo("renew") }
             ServiceRow(Icons.Filled.Chat, "الرسائل") { onGo("messages") }
         }
@@ -233,59 +242,36 @@ private fun DoctorSectionTitle(text: String) {
     Text(text, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
 }
 
+/** بطاقة كبيرة بتدرج لوني: أيقونة، عنوان، نص صغير، ورقم أو سهم. */
 @Composable
-private fun DoctorStat(label: String, value: String, icon: ImageVector, modifier: Modifier) {
-    Row(
-        modifier
-            .background(BCard, RoundedCornerShape(14.dp))
-            .border(1.dp, BLine, RoundedCornerShape(14.dp))
-            .padding(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        Box(
-            Modifier.size(36.dp).background(BRed.copy(alpha = 0.16f), CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(icon, null, tint = BRed, modifier = Modifier.size(18.dp))
-        }
-        Column(Modifier.weight(1f)) {
-            Text(
-                value, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(label, color = BMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-    }
-}
-
-@Composable
-private fun ToolTile(
-    icon: ImageVector, title: String, sub: String,
-    highlighted: Boolean, modifier: Modifier, onClick: () -> Unit
+private fun DoctorBigCard(
+    icon: ImageVector, title: String, sub: String, value: String?,
+    brush: Brush, onClick: () -> Unit
 ) {
-    val fg = if (highlighted) BOnAccent else Color.White
-    val fgSub = if (highlighted) BOnAccent.copy(alpha = 0.85f) else BMuted
-    Column(
-        modifier
-            .height(122.dp)
-            .background(if (highlighted) BRed else BCard, RoundedCornerShape(18.dp))
-            .border(1.dp, if (highlighted) BRed else BLine, RoundedCornerShape(18.dp))
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .height(96.dp)
+            .background(brush, RoundedCornerShape(22.dp))
             .clickable { onClick() }
-            .padding(14.dp),
-        verticalArrangement = Arrangement.SpaceBetween
+            .padding(horizontal = 18.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         Box(
-            Modifier
-                .size(38.dp)
-                .background(if (highlighted) BOnAccent.copy(alpha = 0.18f) else BRed.copy(alpha = 0.16f), CircleShape),
+            Modifier.size(46.dp).background(Color.White.copy(alpha = 0.22f), CircleShape),
             contentAlignment = Alignment.Center
         ) {
-            Icon(icon, null, tint = if (highlighted) BOnAccent else BRed, modifier = Modifier.size(20.dp))
+            Icon(icon, null, tint = Color.White, modifier = Modifier.size(24.dp))
         }
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(title, color = fg, fontWeight = FontWeight.Bold, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(sub, color = fgSub, fontSize = 11.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(sub, color = Color.White.copy(alpha = 0.88f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        if (value != null) {
+            Text(value, color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+        } else {
+            Icon(Icons.Filled.ChevronLeft, null, tint = Color.White)
         }
     }
 }
@@ -303,10 +289,10 @@ private fun ServiceRow(icon: ImageVector, title: String, onClick: () -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Box(
-            Modifier.size(38.dp).background(BRed.copy(alpha = 0.16f), CircleShape),
+            Modifier.size(38.dp).background(DTeal.copy(alpha = 0.16f), CircleShape),
             contentAlignment = Alignment.Center
         ) {
-            Icon(icon, null, tint = BRed, modifier = Modifier.size(20.dp))
+            Icon(icon, null, tint = DTeal, modifier = Modifier.size(20.dp))
         }
         Text(title, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, modifier = Modifier.weight(1f))
         Icon(Icons.Filled.ChevronLeft, null, tint = BMuted)
@@ -368,12 +354,12 @@ fun DoctorPatientsScreen(onBack: () -> Unit) {
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Box(
-                            Modifier.size(44.dp).background(BRed.copy(alpha = 0.16f), CircleShape),
+                            Modifier.size(44.dp).background(DTeal.copy(alpha = 0.16f), CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
                                 pname.trim().take(1).ifBlank { "؟" },
-                                color = BRed, fontWeight = FontWeight.Bold, fontSize = 17.sp
+                                color = DTeal, fontWeight = FontWeight.Bold, fontSize = 17.sp
                             )
                         }
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
