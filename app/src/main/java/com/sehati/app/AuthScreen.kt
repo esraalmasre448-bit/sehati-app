@@ -67,10 +67,7 @@ private fun authError(e: Exception): String = when (e) {
     is FirebaseAuthInvalidCredentialsException -> "البريد أو كلمة السر غير صحيحة"
     is FirebaseAuthUserCollisionException -> "هذا البريد مسجّل مسبقًا، سجّل دخولك"
     is FirebaseNetworkException -> "تحقق من اتصال الإنترنت وحاول مرة أخرى"
-    else ->
-        if (e.message?.contains("API key", true) == true)
-            "تعذر الاتصال بالخدمة الآن. حاولي مرة أخرى بعد قليل، وإذا استمر الأمر حدّثي التطبيق"
-        else "تعذر إتمام العملية، حاول مرة أخرى"
+    else -> "تعذر الاتصال بالخدمة الآن. حاولي مرة أخرى بعد قليل، وإذا استمر الأمر حدّثي التطبيق"
 }
 
 @Composable
@@ -239,7 +236,24 @@ fun AuthFlow(onDone: () -> Unit) {
                                 "name" to name.trim(), "phone" to phone.trim(), "email" to e,
                                 "accountType" to type, "createdAt" to FieldValue.serverTimestamp()
                             )
-                        ).addOnSuccessListener { busy = false; onDone() }
+                        ).addOnSuccessListener {
+                            if (type == "doctor" || type == "clinic") {
+                                // شهر مجاني عند أول تسجيل، وبعده يُطلب الاشتراك تلقائياً
+                                val end = java.util.Calendar.getInstance()
+                                    .apply { add(java.util.Calendar.DAY_OF_YEAR, 30) }.time
+                                db.collection("subscriptions").document(u.uid).set(
+                                    mapOf(
+                                        "uid" to u.uid, "status" to "ACTIVE", "trial" to true,
+                                        "paymentMethod" to "Trial",
+                                        "startedAt" to FieldValue.serverTimestamp(),
+                                        "expiresAt" to com.google.firebase.Timestamp(end)
+                                    )
+                                ).addOnCompleteListener { busy = false; onDone() }
+                            } else {
+                                busy = false
+                                onDone()
+                            }
+                        }
                             .addOnFailureListener {
                                 u.delete().addOnCompleteListener {
                                     auth.signOut()
