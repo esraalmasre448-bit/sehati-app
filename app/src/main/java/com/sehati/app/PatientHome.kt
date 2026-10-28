@@ -39,6 +39,16 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+// ألوان هذه الشاشة: الأساس من ألوان التطبيق، والتمييز بألوان خاصة بها
+private val PTeal = Color(0xFF2DD4BF)
+private val PCoral = Color(0xFFFF6B57)
+private val PAmber = Color(0xFFFBBF24)
+private val PViolet = Color(0xFFA78BFA)
+private val PRose = Color(0xFFFB7185)
+private val PSky = Color(0xFF38BDF8)
+
+private val SPEC_COLORS = listOf(PTeal, PViolet, PAmber, PRose, PSky)
+
 /** تخصصات الرئيسية للمريض (9 + أخرى). */
 private val PATIENT_SPECS: List<Spec> = listOf(
     "أعصاب", "طب الأسنان", "طب العيون", "عظمية ومفاصل", "قلبية",
@@ -62,6 +72,7 @@ fun PatientHome(
     Column(
         Modifier
             .fillMaxSize()
+            .background(BBg)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp, vertical = 12.dp)
             .graphicsLayer {
@@ -75,23 +86,24 @@ fun PatientHome(
             Box(
                 Modifier
                     .size(48.dp)
-                    .background(Brush.linearGradient(listOf(BRed, BDanger)), CircleShape)
+                    .background(PTeal.copy(alpha = 0.18f), CircleShape)
+                    .border(1.dp, PTeal.copy(alpha = 0.5f), CircleShape)
                     .clickable { onTab(3) },
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     name.trim().take(1).uppercase().ifBlank { "؟" },
-                    color = BOnAccent, fontWeight = FontWeight.Bold, fontSize = 19.sp
+                    color = PTeal, fontWeight = FontWeight.Bold, fontSize = 19.sp
                 )
             }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(
-                    if (name.isNotBlank()) "أهلاً، ${name.trim()}" else "أهلاً بك",
-                    fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White,
+                    if (name.isNotBlank()) "مرحباً، ${name.trim()}" else "مرحباً بك",
+                    fontSize = 19.sp, fontWeight = FontWeight.Bold, color = Color.White,
                     maxLines = 1, overflow = TextOverflow.Ellipsis
                 )
-                Text("الطريق إلى صحتي", fontSize = 12.sp, color = BMuted)
+                Text("اهتم بصحتك دائماً", fontSize = 12.sp, color = BMuted)
             }
             Box {
                 IconButton(onClick = { onTab(4) }) {
@@ -106,10 +118,10 @@ fun PatientHome(
             Modifier
                 .fillMaxWidth()
                 .height(54.dp)
-                .background(BCard, RoundedCornerShape(16.dp))
-                .border(1.dp, BLine, RoundedCornerShape(16.dp))
+                .background(BCard, RoundedCornerShape(27.dp))
+                .border(1.dp, BLine, RoundedCornerShape(27.dp))
                 .clickable { onGo("search") }
-                .padding(horizontal = 16.dp),
+                .padding(horizontal = 18.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
@@ -117,24 +129,45 @@ fun PatientHome(
             Text("ابحث عن طبيب أو عيادة...", color = BMuted, fontSize = 14.sp)
         }
 
-        // الإجراءات السريعة
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            PHQuick(Icons.Filled.Emergency, "الطوارئ", BDanger, Modifier.weight(1f)) { onGo("emergency") }
-            PHQuick(Icons.Filled.LocalHospital, "العيادات", BRed, Modifier.weight(1f)) { onGo("search:@clinics") }
-            PHQuick(Icons.Filled.MedicalServices, "الأطباء", BRed, Modifier.weight(1f)) { onGo("search:@doctors") }
+        // زرّان كبيران: الطوارئ والحجز
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            PHBigAction(
+                Icons.Filled.Emergency, "طوارئ", "خدمات عاجلة",
+                Brush.linearGradient(listOf(Color(0xFFFF6B57), Color(0xFFE5484D))),
+                Modifier.weight(1f)
+            ) { onGo("emergency") }
+            PHBigAction(
+                Icons.Filled.CalendarMonth, "حجز موعد", "احجز الآن",
+                Brush.linearGradient(listOf(Color(0xFF14B8A6), Color(0xFF0F766E))),
+                Modifier.weight(1f)
+            ) { onGo("search:@doctors") }
+        }
+
+        // العيادات والأطباء (بقيت كما كانت)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            PHChip(Icons.Filled.LocalHospital, "العيادات", Modifier.weight(1f)) { onGo("search:@clinics") }
+            PHChip(Icons.Filled.MedicalServices, "الأطباء", Modifier.weight(1f)) { onGo("search:@doctors") }
         }
 
         // التخصصات
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            PHSectionTitle("التخصصات")
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                PHSectionTitle("التخصصات")
+                Spacer(Modifier.weight(1f))
+                TextButton(onClick = { onGo("specs") }) {
+                    Text("عرض الكل", color = PTeal, fontWeight = FontWeight.SemiBold)
+                }
+            }
             Row(
                 Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                PATIENT_SPECS.forEach { sp ->
-                    PHSpec(sp.icon, sp.name, Modifier.width(76.dp)) { onGo("search:" + sp.name) }
+                PATIENT_SPECS.forEachIndexed { i, sp ->
+                    PHSpec(sp.icon, sp.name, SPEC_COLORS[i % SPEC_COLORS.size], Modifier.width(76.dp)) {
+                        onGo("search:" + sp.name)
+                    }
                 }
-                PHSpec(Icons.Filled.MoreHoriz, "أخرى", Modifier.width(76.dp), accent = true) { onGo("specs") }
+                PHSpec(Icons.Filled.MoreHoriz, "أخرى", BMuted, Modifier.width(76.dp)) { onGo("specs") }
             }
         }
 
@@ -143,7 +176,9 @@ fun PatientHome(
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 PHSectionTitle("أطباء وعيادات")
                 Spacer(Modifier.weight(1f))
-                TextButton(onClick = { onGo("search:@doctors") }) { Text("عرض الكل", color = BRed, fontWeight = FontWeight.SemiBold) }
+                TextButton(onClick = { onGo("search:@doctors") }) {
+                    Text("عرض الكل", color = PTeal, fontWeight = FontWeight.SemiBold)
+                }
             }
             PatientDoctorList(onOpen)
         }
@@ -162,36 +197,57 @@ fun PatientHome(
 
 @Composable
 private fun PHSectionTitle(text: String) {
-    Text(text, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+    Text(text, color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
 }
 
-/** زر إجراء سريع: بطاقة بأيقونة ملوّنة ونص واضح. */
+/** زر كبير بتدرج لوني: أيقونة وعنوان ونص صغير. */
 @Composable
-private fun PHQuick(icon: ImageVector, text: String, tint: Color, modifier: Modifier, onClick: () -> Unit) {
+private fun PHBigAction(
+    icon: ImageVector, title: String, sub: String, brush: Brush,
+    modifier: Modifier, onClick: () -> Unit
+) {
     Column(
         modifier
-            .height(100.dp)
-            .background(BCard, RoundedCornerShape(18.dp))
-            .border(1.dp, BLine, RoundedCornerShape(18.dp))
+            .height(120.dp)
+            .background(brush, RoundedCornerShape(24.dp))
             .clickable { onClick() }
-            .padding(10.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+            .padding(16.dp),
+        verticalArrangement = Arrangement.SpaceBetween
     ) {
         Box(
-            Modifier.size(40.dp).background(tint.copy(alpha = 0.16f), CircleShape),
+            Modifier.size(40.dp).background(Color.White.copy(alpha = 0.22f), CircleShape),
             contentAlignment = Alignment.Center
         ) {
-            Icon(icon, null, tint = tint, modifier = Modifier.size(22.dp))
+            Icon(icon, null, tint = Color.White, modifier = Modifier.size(22.dp))
         }
-        Spacer(Modifier.height(8.dp))
-        Text(text, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, textAlign = TextAlign.Center)
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(title, color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+            Text(sub, color = Color.White.copy(alpha = 0.88f), fontSize = 12.sp)
+        }
     }
 }
 
-/** دائرة تخصص: أيقونة داخل دائرة وعنوان تحتها. */
 @Composable
-private fun PHSpec(icon: ImageVector, label: String, modifier: Modifier, accent: Boolean = false, onClick: () -> Unit) {
+private fun PHChip(icon: ImageVector, text: String, modifier: Modifier, onClick: () -> Unit) {
+    Row(
+        modifier
+            .height(48.dp)
+            .background(BCard, RoundedCornerShape(24.dp))
+            .border(1.dp, BLine, RoundedCornerShape(24.dp))
+            .clickable { onClick() }
+            .padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center
+    ) {
+        Icon(icon, null, tint = PTeal, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(text, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+    }
+}
+
+/** دائرة تخصص: خلفية شفافة بلون التمييز وأيقونة بنفس اللون. */
+@Composable
+private fun PHSpec(icon: ImageVector, label: String, accent: Color, modifier: Modifier, onClick: () -> Unit) {
     Column(
         modifier.clickable { onClick() }.padding(vertical = 2.dp),
         horizontalAlignment = Alignment.CenterHorizontally
@@ -199,11 +255,11 @@ private fun PHSpec(icon: ImageVector, label: String, modifier: Modifier, accent:
         Box(
             Modifier
                 .size(60.dp)
-                .background(BCard, CircleShape)
-                .border(1.dp, if (accent) BRed else BLine, CircleShape),
+                .background(accent.copy(alpha = 0.16f), CircleShape)
+                .border(1.dp, accent.copy(alpha = 0.35f), CircleShape),
             contentAlignment = Alignment.Center
         ) {
-            Icon(icon, null, tint = if (accent) BRed else Color.White, modifier = Modifier.size(26.dp))
+            Icon(icon, null, tint = accent, modifier = Modifier.size(26.dp))
         }
         Spacer(Modifier.height(6.dp))
         Text(
@@ -213,23 +269,22 @@ private fun PHSpec(icon: ImageVector, label: String, modifier: Modifier, accent:
     }
 }
 
-/** بطاقة اختصار: أيقونة صغيرة مع عنوان، بنفس أسلوب باقي البطاقات. */
 @Composable
 private fun PHShortcut(icon: ImageVector, title: String, modifier: Modifier, onClick: () -> Unit) {
     Row(
         modifier
-            .background(BCard, RoundedCornerShape(16.dp))
-            .border(1.dp, BLine, RoundedCornerShape(16.dp))
+            .background(BCard, RoundedCornerShape(20.dp))
+            .border(1.dp, BLine, RoundedCornerShape(20.dp))
             .clickable { onClick() }
             .padding(horizontal = 14.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Box(
-            Modifier.size(38.dp).background(BRed.copy(alpha = 0.16f), CircleShape),
+            Modifier.size(38.dp).background(PTeal.copy(alpha = 0.16f), CircleShape),
             contentAlignment = Alignment.Center
         ) {
-            Icon(icon, null, tint = BRed, modifier = Modifier.size(20.dp))
+            Icon(icon, null, tint = PTeal, modifier = Modifier.size(20.dp))
         }
         Text(title, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, modifier = Modifier.weight(1f))
         Icon(Icons.Filled.ChevronLeft, null, tint = BMuted)
@@ -272,9 +327,9 @@ private fun PatientDoctorList(onOpen: (Map<String, Any?>) -> Unit) {
         OutlinedButton(
             onClick = { permLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION) },
             modifier = Modifier.fillMaxWidth().height(50.dp),
-            shape = RoundedCornerShape(14.dp)
+            shape = RoundedCornerShape(25.dp)
         ) {
-            Icon(Icons.Filled.LocationOn, null, tint = BRed, modifier = Modifier.size(18.dp))
+            Icon(Icons.Filled.LocationOn, null, tint = PTeal, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))
             Text("فعّل الموقع لعرض الأقرب إليك", color = Color.White, fontWeight = FontWeight.SemiBold)
         }
@@ -313,8 +368,8 @@ private fun DoctorListCard(d: Map<String, Any?>, km: Double?, onOpen: (Map<Strin
         Modifier
             .fillMaxWidth()
             .graphicsLayer { scaleX = pressScale; scaleY = pressScale }
-            .background(BCard, RoundedCornerShape(18.dp))
-            .border(1.dp, BLine, RoundedCornerShape(18.dp))
+            .background(BCard, RoundedCornerShape(22.dp))
+            .border(1.dp, BLine, RoundedCornerShape(22.dp))
             .clickable(interactionSource = source, indication = LocalIndication.current) { onOpen(d) }
             .padding(14.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -327,7 +382,7 @@ private fun DoctorListCard(d: Map<String, Any?>, km: Double?, onOpen: (Map<Strin
                 fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White,
                 maxLines = 1, overflow = TextOverflow.Ellipsis
             )
-            Text("${d["specialty"] ?: ""}", color = BRed, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            Text("${d["specialty"] ?: ""}", color = PTeal, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
             val c = "${d["clinicName"] ?: ""}"
             if (c.isNotBlank()) Text(c, color = Color.White, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -342,9 +397,9 @@ private fun DoctorListCard(d: Map<String, Any?>, km: Double?, onOpen: (Map<Strin
         if (km != null) {
             Box(
                 Modifier
-                    .background(BBg, RoundedCornerShape(10.dp))
-                    .border(1.dp, BLine, RoundedCornerShape(10.dp))
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                    .background(BBg, RoundedCornerShape(12.dp))
+                    .border(1.dp, BLine, RoundedCornerShape(12.dp))
+                    .padding(horizontal = 10.dp, vertical = 5.dp)
             ) {
                 Text("%.1f كم".format(km), color = BMuted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
             }
