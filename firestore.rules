@@ -90,7 +90,19 @@ service cloud.firestore {
 
     match /subscriptions/{id} {
       allow read: if signedIn() && (request.auth.uid == id || isAdmin());
-      allow write: if isAdmin();
+      // شهر تجريبي مرة واحدة فقط للطبيب أو العيادة لحسابه هو
+      allow create: if isAdmin() || (
+        signedIn() && request.auth.uid == id
+        && userType() in ['doctor','clinic']
+        && request.resource.data.keys().hasOnly(['uid','status','trial','paymentMethod','startedAt','expiresAt'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.status == 'ACTIVE'
+        && request.resource.data.trial == true
+        && request.resource.data.paymentMethod == 'Trial'
+        && request.resource.data.startedAt == request.time
+        && request.resource.data.expiresAt > request.time
+        && request.resource.data.expiresAt <= request.time + duration.value(31, 'd'));
+      allow update, delete: if isAdmin();
     }
 
     match /subscriptionHistory/{id} {
@@ -205,6 +217,7 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/appointments/$(request.resource.data.appointmentId)).data.patientId == request.resource.data.patientId;
 
       allow update: if false;
+      // يحذفها الطبيب أو المريض (المريض يحتاجها عند حذف حسابه)
       allow delete: if signedIn() && (resource.data.patientId == request.auth.uid
         || resource.data.doctorId == request.auth.uid);
     }
@@ -250,6 +263,7 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // slots: يستخدمها مسار الحجز القديم في Booking.kt (يحذف الفتحة عند إلغاء الموعد)، فأبقينا القاعدة كما هي
     match /slots/{id} {
       allow read, create, update: if false;
       allow delete: if signedIn();
