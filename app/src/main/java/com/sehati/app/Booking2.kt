@@ -154,9 +154,10 @@ fun DoctorDashboardContent(onBack: (() -> Unit)? = null) {
     val uid = bAuth.currentUser?.uid ?: ""
     val st = subState(uid)
     val active = st == "active"
-    val days = remember { (0..6).map { i -> Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, i) } } }
+    var wd by remember { mutableStateOf((1..7).toSet()) }
+    val days = remember(wd) { workDayCalendars(wd) }
     var idx by remember { mutableIntStateOf(0) }
-    val date = dateKey(days[idx])
+    val date = dateKey(days[idx.coerceIn(0, days.size - 1)])
     var items by remember { mutableStateOf(listOf<Map<String, Any?>>()) }
     var current by remember { mutableLongStateOf(0L) }
     var last by remember { mutableLongStateOf(0L) }
@@ -172,7 +173,11 @@ fun DoctorDashboardContent(onBack: (() -> Unit)? = null) {
 
     LaunchedEffect(uid) {
         if (uid.isNotEmpty()) {
-            bDb.collection("doctors").document(uid).get().addOnSuccessListener { myName = it.getString("name") ?: "" }
+            bDb.collection("doctors").document(uid).get().addOnSuccessListener {
+                myName = it.getString("name") ?: ""
+                wd = workDaysOf(it.data)
+                idx = 0
+            }
         }
     }
     DisposableEffect(uid) {
@@ -219,7 +224,7 @@ fun DoctorDashboardContent(onBack: (() -> Unit)? = null) {
                 item { RedButton("تجديد الاشتراك والتواصل مع الإدارة") { renew = true } }
             }
         }
-        item { DayChips(days, idx) { idx = it } }
+        item { DayChips(days, idx.coerceIn(0, days.size - 1)) { idx = it } }
         item {
             Column(
                 Modifier.fillMaxWidth().background(BCard, RoundedCornerShape(14.dp))
