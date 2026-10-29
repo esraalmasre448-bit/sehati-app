@@ -120,7 +120,7 @@ private fun bookByQueue(
 fun QueueBookingScreen(d: Map<String, Any?>, onBack: () -> Unit, onDone: () -> Unit) {
     val ctx = LocalContext.current
     val doctorId = d["id"] as String
-    val days = remember { (0..6).map { i -> Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, i) } } }
+    val days = remember(d) { workDayCalendars(workDaysOf(d)) }
     var dayIdx by remember { mutableIntStateOf(0) }
     var last by remember { mutableLongStateOf(0L) }
     var current by remember { mutableLongStateOf(0L) }
@@ -130,7 +130,7 @@ fun QueueBookingScreen(d: Map<String, Any?>, onBack: () -> Unit, onDone: () -> U
     var done by remember { mutableStateOf(false) }
     var resultText by remember { mutableStateOf("") }
     val date = dateKey(days[dayIdx])
-    val isToday = dayIdx == 0
+    val isToday = date == todayKey()
     val startMin = (qNum(d["startHour"]) ?: 9) * 60
     val endMin = (qNum(d["endHour"]) ?: 17) * 60
     val step = (qNum(d["slotMinutes"]) ?: 30).coerceAtLeast(10)
@@ -170,6 +170,7 @@ fun QueueBookingScreen(d: Map<String, Any?>, onBack: () -> Unit, onDone: () -> U
             ) { Text("مواعيدي", color = Color.White) }
         } else {
             Text("اختر اليوم", color = BMuted)
+            if (hasWorkDays(d)) Text("أيام دوام الطبيب: " + workDaysLabel(workDaysOf(d)), color = BGreen, fontSize = 13.sp)
             DayChips(days, dayIdx) { dayIdx = it }
             Column(
                 Modifier.fillMaxWidth().background(BCard, RoundedCornerShape(14.dp))
