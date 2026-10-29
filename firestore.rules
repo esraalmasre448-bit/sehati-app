@@ -24,7 +24,7 @@ service cloud.firestore {
     }
     function docKeys() {
       return ['uid','name','specialty','clinicName','city','address','phone','hours','fee','updatedAt',
-              'startHour','endHour','slotMinutes','bio','lat','lng','mapLink','locationUpdatedAt','photo','emergency','emergencyPhone','hospitalName','hospitalHours','available','availableUpdatedAt'];
+              'startHour','endHour','slotMinutes','bio','lat','lng','mapLink','locationUpdatedAt','photo','emergency','emergencyPhone','hospitalName','hospitalHours','available','availableUpdatedAt','workDays'];
     }
     function photoOk() {
       return !('photo' in request.resource.data)
