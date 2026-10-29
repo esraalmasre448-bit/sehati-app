@@ -209,7 +209,7 @@ fun DayChips(days: List<Calendar>, idx: Int, onSelect: (Int) -> Unit) {
         days.forEachIndexed { i, c ->
             FilterChip(
                 selected = idx == i, onClick = { onSelect(i) },
-                label = { Text(if (i == 0) "اليوم" else fmt.format(c.time)) }
+                label = { Text(if (dateKey(c) == todayKey()) "اليوم" else fmt.format(c.time)) }
             )
         }
     }
@@ -252,6 +252,7 @@ fun DoctorDetailFull(d: Map<String, Any?>, onBack: () -> Unit, onBook: () -> Uni
             "ساعات استقبال الحجوزات بالعيادة",
             "${slotLabel((num(d["startHour"]) ?: 9) * 60)} - ${slotLabel((num(d["endHour"]) ?: 17) * 60)}"
         )
+        if (hasWorkDays(d)) BInfo("أيام الدوام", workDaysLabel(workDaysOf(d)))
         BInfo("أيام وساعات الدوام بالعيادة", d["hours"])
         BInfo("المشفى", d["hospitalName"])
         BInfo("أيام وساعات الدوام بالمشفى", d["hospitalHours"])
@@ -283,7 +284,7 @@ fun DoctorDetailFull(d: Map<String, Any?>, onBack: () -> Unit, onBook: () -> Uni
 fun BookingScreen(d: Map<String, Any?>, onBack: () -> Unit, onDone: () -> Unit) {
     val ctx = LocalContext.current
     val doctorId = d["id"] as String
-    val days = remember { (0..6).map { i -> Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, i) } } }
+    val days = remember(d) { workDayCalendars(workDaysOf(d)) }
     var dayIdx by remember { mutableIntStateOf(0) }
     var taken by remember { mutableStateOf(setOf<Int>()) }
     var selected by remember { mutableStateOf<Int?>(null) }
@@ -327,6 +328,7 @@ fun BookingScreen(d: Map<String, Any?>, onBack: () -> Unit, onDone: () -> Unit) 
             ) { Text("مواعيدي", color = Color.White) }
         } else {
             Text("اختر اليوم", color = BMuted)
+            if (hasWorkDays(d)) Text("أيام دوام الطبيب: " + workDaysLabel(workDaysOf(d)), color = BGreen, fontSize = 13.sp)
             DayChips(days, dayIdx) { dayIdx = it }
             Text("اختر الوقت", color = BMuted)
             if (slots.isEmpty()) Text("لا توجد أوقات متاحة", color = BMuted)
@@ -336,7 +338,7 @@ fun BookingScreen(d: Map<String, Any?>, onBack: () -> Unit, onDone: () -> Unit) 
                         FilterChip(
                             selected = selected == s,
                             onClick = { selected = s },
-                            enabled = s !in taken && !(dayIdx == 0 && s <= nowMin),
+                            enabled = s !in taken && !(date == todayKey() && s <= nowMin),
                             label = { Text(slotLabel(s)) }
                         )
                     }
