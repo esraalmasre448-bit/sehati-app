@@ -8,6 +8,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
@@ -30,6 +31,7 @@ fun ClinicSettingsScreen(onBack: () -> Unit) {
     var startH by remember { mutableStateOf("9") }
     var endH by remember { mutableStateOf("17") }
     var step by remember { mutableIntStateOf(30) }
+    var wdays by remember { mutableStateOf((1..7).toSet()) }
     var bio by remember { mutableStateOf("") }
     var locText by remember { mutableStateOf("") }
     var msg by remember { mutableStateOf("") }
@@ -42,6 +44,7 @@ fun ClinicSettingsScreen(onBack: () -> Unit) {
                 startH = (d.getLong("startHour") ?: 9L).toString()
                 endH = (d.getLong("endHour") ?: 17L).toString()
                 step = (d.getLong("slotMinutes") ?: 30L).toInt()
+                wdays = workDaysOf(d.data)
                 bio = d.getString("bio") ?: ""
                 val la = d.getDouble("lat")
                 val ln = d.getDouble("lng")
@@ -79,6 +82,16 @@ fun ClinicSettingsScreen(onBack: () -> Unit) {
         Text("ساعات استقبال الحجوزات (بنظام 24 ساعة)", color = BMuted)
         Field(startH, { startH = it }, "بداية الدوام (مثل 9)", keyboard = KeyboardType.Number)
         Field(endH, { endH = it }, "نهاية الدوام (مثل 17)", keyboard = KeyboardType.Number)
+        Text("أيام الدوام (المريض يشوف هالأيام بس عند الحجز)", color = BMuted)
+        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            WEEK_DAYS.forEach { (n, label) ->
+                FilterChip(
+                    selected = n in wdays,
+                    onClick = { wdays = if (n in wdays) wdays - n else wdays + n },
+                    label = { Text(label) }
+                )
+            }
+        }
         Text("مدة كل حجز بالدقائق", color = BMuted)
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             listOf(15, 20, 30, 45, 60).forEach { m ->
@@ -106,8 +119,14 @@ fun ClinicSettingsScreen(onBack: () -> Unit) {
                 msg = "تأكد من ساعات الدوام: البداية أقل من النهاية، من 0 إلى 24"
                 return@RedButton
             }
+            if (wdays.isEmpty()) {
+                ok = false
+                msg = "اختر يوم دوام واحد على الأقل"
+                return@RedButton
+            }
             val data = mutableMapOf<String, Any>(
                 "startHour" to sh, "endHour" to eh, "slotMinutes" to step,
+                "workDays" to wdays.sorted(),
                 "bio" to bio.trim(),
                 "locationUpdatedAt" to FieldValue.serverTimestamp()
             )
