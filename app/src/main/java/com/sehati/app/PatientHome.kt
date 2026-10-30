@@ -148,7 +148,7 @@ private fun PatientDoctorList(onOpen: (Map<String, Any?>) -> Unit) {
     var locMsg by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
-        bDb.collection("doctors").orderBy("name").limit(50).get()
+        bDb.collection("doctors").whereEqualTo("approved", true).orderBy("name").limit(50).get()
             .addOnSuccessListener { s ->
                 failed = false
                 docs = s.documents.map { it.data.orEmpty() + ("id" to it.id) }
