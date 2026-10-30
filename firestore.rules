@@ -224,7 +224,7 @@ service cloud.firestore {
 
     match /conversations/{id} {
       allow read: if signedIn() && (resource.data.patientId == request.auth.uid
-        || resource.data.doctorId == request.auth.uid || isAdmin());
+        || resource.data.doctorId == request.auth.uid);
 
       allow create: if signedIn()
         && request.resource.data.patientId == request.auth.uid
@@ -247,8 +247,7 @@ service cloud.firestore {
       allow read: if signedIn() && (
         resource.data.senderId == request.auth.uid
         || get(/databases/$(database)/documents/conversations/$(resource.data.convId)).data.patientId == request.auth.uid
-        || get(/databases/$(database)/documents/conversations/$(resource.data.convId)).data.doctorId == request.auth.uid
-        || isAdmin());
+        || get(/databases/$(database)/documents/conversations/$(resource.data.convId)).data.doctorId == request.auth.uid);
 
       allow create: if signedIn()
         && request.resource.data.keys().hasOnly(['convId','senderId','text','createdAt'])
