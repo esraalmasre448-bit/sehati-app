@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - security/privacy-hardening-2026-10
+      - feature/prescriptions-specialty-ui
 env:
   KS_PASS: ${{ secrets.KS_PASS }}
 jobs:
