@@ -232,6 +232,7 @@ private fun DoctorHomeContent(
             ServiceRow(Icons.Filled.Settings, "إعدادات العيادة (الدوام والموقع)") { onGo("settings") }
             ServiceRow(Icons.Filled.ManageAccounts, "إعدادات الحساب") { onTab(3) }
             ServiceRow(Icons.Filled.Autorenew, "تجديد الاشتراك والتواصل مع الإدارة") { onGo("renew") }
+            ServiceRow(Icons.Filled.Description, "الوصفات الطبية") { onGo("prescriptions") }
             ServiceRow(Icons.Filled.Chat, "الرسائل") { onGo("messages") }
         }
     }
