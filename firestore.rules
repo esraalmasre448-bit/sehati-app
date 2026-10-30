@@ -78,7 +78,7 @@ service cloud.firestore {
     }
 
     match /doctors/{id} {
-      allow read: if signedIn();
+      allow read: if signedIn() && (resource.data.approved == true || request.auth.uid == id || isAdmin());
       allow create: if signedIn() && request.auth.uid == id
         && userType() in ['doctor','clinic']
         && request.resource.data.keys().hasOnly(docKeys())
