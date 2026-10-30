@@ -281,7 +281,7 @@ fun DoctorSearchScreen(onBack: () -> Unit, onOpen: (Map<String, Any?>) -> Unit, 
         val fOk = maxV == null || (feeV != null && feeV <= maxV)
         val hasClinic = "${d["clinicName"] ?: ""}".isNotBlank()
         val tOk = tab == 0 || (tab == 1 && !hasClinic) || (tab == 2 && hasClinic)
-        return qOk && sOk && cOk && fOk && tOk
+        return d["approved"] == true && qOk && sOk && cOk && fOk && tOk
     }
     val pool = if (filtersOn) (found.values.toList() + items).distinctBy { it["id"] as String } else items
     val shown = pool.filter { ok(it) }
