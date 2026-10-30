@@ -154,6 +154,7 @@ fun App() {
         screen == "admin" -> AdminGate(onBack = { screen = "main" })
         screen == "renew" -> RenewalScreen(onBack = { screen = "main" })
         screen == "prescriptions" -> DoctorPrescriptionsScreen(onBack = { screen = "main" })
+        screen == "patient_prescriptions" -> PatientPrescriptionsScreen(onBack = { screen = "main" })
         screen == "emergency" -> EmergencyScreen(onBack = { screen = "main" })
         screen == "privacy" -> PrivacyScreen(onBack = { screen = "main" })
         screen == "messages" -> MessagesScreen(
