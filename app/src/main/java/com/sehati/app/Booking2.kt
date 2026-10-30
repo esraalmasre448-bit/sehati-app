@@ -81,7 +81,7 @@ private fun QueueCard(a: Map<String, Any?>) {
     }
     Column(
         Modifier.fillMaxWidth().background(BCard, RoundedCornerShape(14.dp))
-            .border(1.dp, if (current == number) BGreen else BLine, RoundedCornerShape(14.dp))
+            .border(1.dp, if (!pending && current == number) BGreen else BLine, RoundedCornerShape(14.dp))
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
