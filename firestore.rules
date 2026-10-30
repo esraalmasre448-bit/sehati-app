@@ -118,7 +118,7 @@ service cloud.firestore {
       allow create: if signedIn()
         && request.resource.data.keys().hasOnly(apptKeys())
         && request.resource.data.patientId == request.auth.uid
-        && request.resource.data.status == 'CONFIRMED'
+        && request.resource.data.status == 'PENDING'
         && request.resource.data.doctorId is string
         && validDate(request.resource.data.date)
         && request.resource.data.number is int
@@ -135,11 +135,11 @@ service cloud.firestore {
       allow update: if signedIn() && (
         (resource.data.patientId == request.auth.uid
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
-          && resource.data.status == 'CONFIRMED'
+          && resource.data.status in ['PENDING','CONFIRMED']
           && request.resource.data.status == 'CANCELLED')
         || (resource.data.patientId == request.auth.uid
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','patientName','patientPhone','note'])
-          && resource.data.status == 'CONFIRMED'
+          && resource.data.status in ['PENDING','CONFIRMED']
           && request.resource.data.status == 'CANCELLED'
           && anonymized())
         || (resource.data.patientId == request.auth.uid
@@ -147,12 +147,16 @@ service cloud.firestore {
           && anonymized())
         || (resource.data.doctorId == request.auth.uid && subActive(request.auth.uid)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+          && resource.data.status == 'PENDING'
+          && request.resource.data.status in ['CONFIRMED','CANCELLED'])
+        || (resource.data.doctorId == request.auth.uid && subActive(request.auth.uid)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
           && resource.data.status == 'CONFIRMED'
           && request.resource.data.status in ['DONE','CANCELLED'])
         || (resource.data.patientId == request.auth.uid
           && resource.data.status == 'CANCELLED'
           && request.resource.data.keys().hasOnly(apptKeys())
-          && request.resource.data.status == 'CONFIRMED'
+          && request.resource.data.status == 'PENDING'
           && request.resource.data.patientId == request.auth.uid
           && request.resource.data.doctorId == resource.data.doctorId
           && request.resource.data.date == resource.data.date
@@ -179,7 +183,8 @@ service cloud.firestore {
         && !exists(aPath(request.resource.data.doctorId, request.resource.data.date, request.auth.uid))
         && existsAfter(aPath(request.resource.data.doctorId, request.resource.data.date, request.auth.uid))
         && getAfter(aPath(request.resource.data.doctorId, request.resource.data.date, request.auth.uid)).data.number == 1
-        && getAfter(aPath(request.resource.data.doctorId, request.resource.data.date, request.auth.uid)).data.patientId == request.auth.uid;
+        && getAfter(aPath(request.resource.data.doctorId, request.resource.data.date, request.auth.uid)).data.patientId == request.auth.uid
+        && getAfter(aPath(request.resource.data.doctorId, request.resource.data.date, request.auth.uid)).data.status == 'PENDING';
 
       allow update: if signedIn() && (
         (request.auth.uid == resource.data.doctorId && subActive(request.auth.uid)
@@ -191,7 +196,7 @@ service cloud.firestore {
           && subActive(resource.data.doctorId)
           && existsAfter(aPath(resource.data.doctorId, resource.data.date, request.auth.uid))
           && getAfter(aPath(resource.data.doctorId, resource.data.date, request.auth.uid)).data.number == request.resource.data.last
-          && getAfter(aPath(resource.data.doctorId, resource.data.date, request.auth.uid)).data.status == 'CONFIRMED'
+          && getAfter(aPath(resource.data.doctorId, resource.data.date, request.auth.uid)).data.status == 'PENDING'
           && (!exists(aPath(resource.data.doctorId, resource.data.date, request.auth.uid))
               || get(aPath(resource.data.doctorId, resource.data.date, request.auth.uid)).data.status == 'CANCELLED')));
 
