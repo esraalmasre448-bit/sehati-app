@@ -242,9 +242,9 @@ private fun PHSpec(sp: Spec, color: Color, modifier: Modifier, onClick: () -> Un
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
-            Modifier.size(64.dp).background(color.copy(alpha = 0.14f), CircleShape).border(1.dp, color.copy(alpha = 0.55f), CircleShape),
+            Modifier.size(76.dp).background(color.copy(alpha = 0.14f), CircleShape).border(1.5.dp, color.copy(alpha = 0.72f), CircleShape),
             contentAlignment = Alignment.Center
-        ) { SpecImage(sp, 42.dp) }
+        ) { SpecImage(sp, 50.dp) }
         Spacer(Modifier.height(6.dp))
         Text(sp.name, color = Color.White, fontSize = 11.sp, textAlign = TextAlign.Center, maxLines = 2)
     }
