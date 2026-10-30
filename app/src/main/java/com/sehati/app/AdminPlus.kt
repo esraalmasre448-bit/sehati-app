@@ -141,7 +141,6 @@ private fun AdminRail(
         RailItem(Icons.Filled.BarChart, "الإحصائيات", page == "stats") { onSelect("stats") }
         RailItem(Icons.Filled.Settings, "الإدارة", page == "pay") { onSelect("pay") }
         RailItem(Icons.Filled.Notifications, "الإشعارات", page == "notifs") { onSelect("notifs") }
-        RailItem(Icons.Filled.PhoneAndroid, "التجربة", page == "db") { onSelect("db") }
         RailItem(Icons.Filled.Person, "المطوّر", page == "dev") { onSelect("dev") }
         Spacer(Modifier.height(10.dp))
         Box(Modifier.clickable { onSelect("dev") }) {
@@ -234,48 +233,27 @@ private fun AdminHome(name: String, photo: String?, onPage: (String) -> Unit) {
             AdminTile(Icons.Filled.Code, "كود التطبيق", "عرض صفحة المستودع", AccPurple, Modifier.weight(1f)) {
                 openUrl(ctx, GITHUB_URL)
             }
-            AdminTile(Icons.Filled.Storage, "قاعدة البيانات", "إدارة البيانات (Firebase)", AccAmber, Modifier.weight(1f)) {
+            AdminTile(Icons.Filled.Storage, "قاعدة البيانات", "Firebase (البيانات والقواعد)", AccAmber, Modifier.weight(1f)) {
                 openUrl(ctx, FIREBASE_URL)
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            AdminTile(Icons.Filled.Group, "الاشتراكات والحسابات", "تفعيل وتجديد وسجل الاشتراكات", AccPurple, Modifier.weight(1f)) {
+                onPage("subs")
+            }
             AdminTile(Icons.Filled.BarChart, "إحصائيات التطبيق", "المستخدمين - الحجوزات", AccBlue, Modifier.weight(1f)) {
                 onPage("stats")
             }
-            AdminTile(Icons.Filled.PhoneAndroid, "تجربة التطبيق", "اختبار الاتصال", BGreen, Modifier.weight(1f)) {
-                onPage("db")
-            }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            AdminTile(Icons.Filled.Shield, "أمان التطبيق", "قواعد Firebase", BRed, Modifier.weight(1f)) {
-                openUrl(ctx, FIREBASE_URL)
-            }
-            AdminTile(Icons.Filled.Cloud, "السحابية", "Firebase", AccBlue, Modifier.weight(1f)) {
-                openUrl(ctx, FIREBASE_URL)
-            }
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            AdminTile(Icons.Filled.Group, "المستخدمين", "إدارة الحسابات", AccPurple, Modifier.weight(1f)) {
-                onPage("subs")
-            }
             AdminTile(Icons.Filled.Notifications, "الإشعارات", "داخل التطبيق", AccAmber, Modifier.weight(1f)) {
                 onPage("notifs")
             }
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            AdminTile(Icons.Filled.Description, "سجلات النظام", "سجل الاشتراكات", BMuted, Modifier.weight(1f)) {
-                onPage("subs")
-            }
-            AdminTile(Icons.Filled.Settings, "إعدادات عامة", "معلومات التواصل", BGreen, Modifier.weight(1f)) {
+            AdminTile(Icons.Filled.Settings, "إعدادات عامة", "الدفع ومعلومات التواصل", BGreen, Modifier.weight(1f)) {
                 onPage("pay")
             }
         }
 
-        OutlinedButton(
-            onClick = { onPage("pay") },
-            shape = RoundedCornerShape(14.dp),
-            modifier = Modifier.fillMaxWidth().height(50.dp)
-        ) { Text("إدارة التطبيق والإعدادات", color = Color.White) }
         OutlinedButton(
             onClick = { onPage("dev") },
             shape = RoundedCornerShape(14.dp),
@@ -390,7 +368,9 @@ private fun AdminTile(
             Text(sub, color = BMuted, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
-}/** إعدادات المطوّر: الاسم وصورة الملف. */
+}
+
+/** إعدادات المطوّر: الاسم وصورة الملف. */
 @Composable
 fun DevSettingsScreen(onBack: () -> Unit) {
     val ctx = LocalContext.current
@@ -465,106 +445,4 @@ fun DevSettingsScreen(onBack: () -> Unit) {
     }
 }
 
-/** تجربة التطبيق: اختبار الاتصال الفعلي بقاعدة البيانات من هذا الجهاز. */
-@Composable
-fun DbTestScreen(onBack: () -> Unit) {
-    Column(
-        Modifier.fillMaxSize().background(BBg).padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        TextButton(onClick = onBack) { Text("رجوع", color = BRed) }
-        Text("تجربة التطبيق", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White)
-        Text("اختبار الاتصال بقاعدة البيانات من هذا الجهاز.", color = BMuted)
-        DbStatusCard()
-    }
-}
-
-/** إشعارات الحساب الحالي. */
-@Composable
-fun AdminNotifsScreen(onBack: () -> Unit) {
-    val uid = bAuth.currentUser?.uid ?: ""
-    val ns = rememberNotifs(uid, "")
-    Column(
-        Modifier.fillMaxSize().background(BBg).padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        TextButton(onClick = onBack) { Text("رجوع", color = BRed) }
-        Text("الإشعارات", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White)
-        Box(Modifier.weight(1f).fillMaxWidth()) {
-            NotifTab(ns.items, emptySet())
-        }
-    }
-}
-
-@Composable
-private fun CountBox(label: String, value: Long?, modifier: Modifier = Modifier, tint: Color = BCard) {
-    Column(
-        modifier.background(tint, RoundedCornerShape(14.dp))
-            .border(1.dp, BLine, RoundedCornerShape(14.dp)).padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        Text(label, color = BMuted, fontSize = 14.sp)
-        Text(value?.toString() ?: "...", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
-    }
-}
-
-@Composable
-fun AdminStatsScreen(onBack: () -> Unit) {
-    var patients by remember { mutableStateOf<Long?>(null) }
-    var doctors by remember { mutableStateOf<Long?>(null) }
-    var clinics by remember { mutableStateOf<Long?>(null) }
-    var profiles by remember { mutableStateOf<Long?>(null) }
-    var appts by remember { mutableStateOf<Long?>(null) }
-    var apptsToday by remember { mutableStateOf<Long?>(null) }
-    var error by remember { mutableStateOf("") }
-    var tick by remember { mutableIntStateOf(0) }
-
-    LaunchedEffect(tick) {
-        error = ""
-        fun cnt(q: Query, set: (Long) -> Unit) {
-            q.count().get(AggregateSource.SERVER)
-                .addOnSuccessListener { set(it.count) }
-                .addOnFailureListener { error = "تعذر جلب الإحصائيات. تأكد أنك مسجّل دخول بحساب المطوّر." }
-        }
-        val users = bDb.collection("users")
-        cnt(users.whereEqualTo("accountType", "patient")) { patients = it }
-        cnt(users.whereEqualTo("accountType", "doctor")) { doctors = it }
-        cnt(users.whereEqualTo("accountType", "clinic")) { clinics = it }
-        cnt(bDb.collection("doctors")) { profiles = it }
-        cnt(bDb.collection("appointments")) { appts = it }
-        cnt(bDb.collection("appointments").whereEqualTo("date", todayKey())) { apptsToday = it }
-    }
-
-    val total = if (patients != null && doctors != null && clinics != null)
-        (patients ?: 0L) + (doctors ?: 0L) + (clinics ?: 0L) else null
-
-    Column(
-        Modifier.fillMaxSize().background(BBg).padding(20.dp).verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        TextButton(onClick = onBack) { Text("رجوع", color = BRed) }
-        Text("إحصائيات المستخدمين", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White)
-        if (error.isNotEmpty()) Text(error, color = BDanger)
-        CountBox("إجمالي الحسابات", total, Modifier.fillMaxWidth(), Color(0xFF3A4660))
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            CountBox("مرضى", patients, Modifier.weight(1f), Color(0xFF0F6B4B))
-            CountBox("أطباء", doctors, Modifier.weight(1f), Color(0xFF1F4FB8))
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            CountBox("عيادات", clinics, Modifier.weight(1f), Color(0xFF5B2FA8))
-            CountBox("ملفات مهنية مكتملة", profiles, Modifier.weight(1f))
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            CountBox("كل الحجوزات", appts, Modifier.weight(1f))
-            CountBox("حجوزات اليوم", apptsToday, Modifier.weight(1f))
-        }
-        OutlinedButton(
-            onClick = {
-                patients = null; doctors = null; clinics = null
-                profiles = null; appts = null; apptsToday = null
-                tick++
-            },
-            modifier = Modifier.fillMaxWidth().height(48.dp)
-        ) { Text("تحديث", color = Color.White) }
-    }
-}
+/** تجربة التطبيق: اختبار الاتصال الفعلي بقاعدة البيانا
