@@ -182,7 +182,7 @@ private fun DoctorRow(
             Text("المعرّف: ${u["id"]}", color = AMuted, fontSize = 10.sp)
             Text(label, color = color, fontSize = 14.sp, fontWeight = FontWeight.Bold)
             if (detail.isNotEmpty()) Text(detail, color = color, fontSize = 11.sp)
-            Text(if (approved) "الملف معتمد" else "بانتظار اعتماد الملف", color = if (approved) AGreen else AccAmber, fontSize = 11.sp)
+            Text(if (approved) "الملف معتمد" else "بانتظار اعتماد الملف", color = if (approved) AGreen else Color(0xFFFFC857), fontSize = 11.sp)
         }
         Text(
             specialty.ifBlank { "—" }, Modifier.weight(0.9f),
