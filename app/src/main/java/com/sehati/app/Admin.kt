@@ -152,6 +152,7 @@ private fun TableHeader() {
 @Composable
 private fun DoctorRow(
     u: Map<String, Any?>, sub: Map<String, Any?>?, specialty: String,
+    approved: Boolean, onToggleApproval: () -> Unit,
     onGrant: () -> Unit, onCancel: () -> Unit
 ) {
     val st = statusOf(sub)
@@ -181,12 +182,18 @@ private fun DoctorRow(
             Text("المعرّف: ${u["id"]}", color = AMuted, fontSize = 10.sp)
             Text(label, color = color, fontSize = 14.sp, fontWeight = FontWeight.Bold)
             if (detail.isNotEmpty()) Text(detail, color = color, fontSize = 11.sp)
+            Text(if (approved) "الملف معتمد" else "بانتظار اعتماد الملف", color = if (approved) AGreen else AccAmber, fontSize = 11.sp)
         }
         Text(
             specialty.ifBlank { "—" }, Modifier.weight(0.9f),
             color = Color.White, fontSize = 14.sp
         )
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            OutlinedButton(
+                onClick = onToggleApproval,
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) { Text(if (approved) "إلغاء الاعتماد" else "اعتماد الملف", fontSize = 12.sp) }
             Button(
                 onClick = onGrant,
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
@@ -220,10 +227,12 @@ private fun HistoryCard(h: Map<String, Any?>) {
 
 @Composable
 private fun AdminPanel(onBack: () -> Unit) {
+    val adminUid = aAuth.currentUser?.uid ?: ""
     var tab by remember { mutableIntStateOf(0) }
     var users by remember { mutableStateOf(listOf<Map<String, Any?>>()) }
     var subs by remember { mutableStateOf(mapOf<String, Map<String, Any?>>()) }
     var specs by remember { mutableStateOf(mapOf<String, String>()) }
+    var approvals by remember { mutableStateOf(mapOf<String, Boolean>()) }
     var history by remember { mutableStateOf(listOf<Map<String, Any?>>()) }
     var error by remember { mutableStateOf("") }
     var info by remember { mutableStateOf("") }
@@ -251,7 +260,10 @@ private fun AdminPanel(onBack: () -> Unit) {
                 if (e == null) history = s?.documents?.map { it.data.orEmpty() + ("id" to it.id) }.orEmpty()
             }
         val r4 = aDb.collection("doctors").limit(500).addSnapshotListener { s, e ->
-            if (e == null) specs = s?.documents?.associate { it.id to (it.getString("specialty") ?: "") }.orEmpty()
+            if (e == null) {
+                specs = s?.documents?.associate { it.id to (it.getString("specialty") ?: "") }.orEmpty()
+                approvals = s?.documents?.associate { it.id to (it.getBoolean("approved") == true) }.orEmpty()
+            }
         }
         onDispose { r1.remove(); r2.remove(); r3.remove(); r4.remove() }
     }
@@ -337,7 +349,22 @@ private fun AdminPanel(onBack: () -> Unit) {
             items(shown, key = { it["id"] as String }) { u ->
                 val id = u["id"] as String
                 DoctorRow(
-                    u, subs[id], specs[id].orEmpty(),
+                    u, subs[id], specs[id].orEmpty(), approvals[id] == true,
+                    onToggleApproval = {
+                        val next = approvals[id] != true
+                        aDb.collection("doctors").document(id).update(
+                            mapOf(
+                                "approved" to next,
+                                "approvedBy" to adminUid,
+                                "approvedAt" to FieldValue.serverTimestamp()
+                            )
+                        ).addOnSuccessListener {
+                            info = if (next) "تم اعتماد الملف المهني" else "تم إلغاء اعتماد الملف المهني"
+                            error = ""
+                        }.addOnFailureListener {
+                            error = "تعذر تحديث الاعتماد. تحقق من صلاحيات الإدارة والإنترنت"
+                        }
+                    },
                     onGrant = { grantUser = u },
                     onCancel = { cancelUser = u }
                 )
