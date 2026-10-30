@@ -140,7 +140,7 @@ fun SpecCircle(sp: Spec, modifier: Modifier, onClick: () -> Unit) {
         Box(
             Modifier.size(56.dp).background(BCard, CircleShape).border(1.dp, BRed, CircleShape),
             contentAlignment = Alignment.Center
-        ) { Icon(sp.icon, null, tint = Color.White, modifier = Modifier.size(26.dp)) }
+        ) { SpecImage(sp, 34.dp) }
         Spacer(Modifier.height(6.dp))
         Text(sp.name, color = Color.White, fontSize = 12.sp, textAlign = TextAlign.Center, maxLines = 2)
     }
