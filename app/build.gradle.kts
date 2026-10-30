@@ -27,7 +27,10 @@ android {
                 signingConfig = signingConfigs.getByName("fixed")
             }
         }
-        release { isMinifyEnabled = false }
+        release {
+            isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("fixed")
+        }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
