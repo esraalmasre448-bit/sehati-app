@@ -152,7 +152,7 @@ private fun TableHeader() {
 @Composable
 private fun DoctorRow(
     u: Map<String, Any?>, sub: Map<String, Any?>?, specialty: String,
-    approved: Boolean, onToggleApproval: () -> Unit,
+    approved: Boolean, profileExists: Boolean, onToggleApproval: () -> Unit,
     onGrant: () -> Unit, onCancel: () -> Unit
 ) {
     val st = statusOf(sub)
@@ -191,9 +191,17 @@ private fun DoctorRow(
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             OutlinedButton(
                 onClick = onToggleApproval,
+                enabled = profileExists,
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
                 modifier = Modifier.fillMaxWidth()
-            ) { Text(if (approved) "إلغاء الاعتماد" else "اعتماد الملف", fontSize = 12.sp) }
+            ) { Text(
+                when {
+                    !profileExists -> "بانتظار الملف"
+                    approved -> "إلغاء الاعتماد"
+                    else -> "اعتماد الملف"
+                },
+                fontSize = 12.sp
+            ) }
             Button(
                 onClick = onGrant,
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
@@ -236,6 +244,7 @@ private fun AdminPanel(onBack: () -> Unit) {
     var subs by remember { mutableStateOf(mapOf<String, Map<String, Any?>>()) }
     var specs by remember { mutableStateOf(mapOf<String, String>()) }
     var approvals by remember { mutableStateOf(mapOf<String, Boolean>()) }
+    var profileExists by remember { mutableStateOf(emptySet<String>()) }
     var history by remember { mutableStateOf(listOf<Map<String, Any?>>()) }
     var error by remember { mutableStateOf("") }
     var info by remember { mutableStateOf("") }
@@ -266,6 +275,7 @@ private fun AdminPanel(onBack: () -> Unit) {
             if (e == null) {
                 specs = s?.documents?.associate { it.id to (it.getString("specialty") ?: "") }.orEmpty()
                 approvals = s?.documents?.associate { it.id to (it.getBoolean("approved") == true) }.orEmpty()
+                profileExists = s?.documents?.map { it.id }?.toSet().orEmpty()
             }
         }
         val r5 = aDb.collection("users").whereEqualTo("accountType", "patient").limit(1000)
@@ -406,6 +416,7 @@ private fun AdminPanel(onBack: () -> Unit) {
                 val id = u["id"] as String
                 DoctorRow(
                     u, subs[id], specs[id].orEmpty(), approvals[id] == true,
+                    profileExists = id in profileExists,
                     onToggleApproval = {
                         val next = approvals[id] != true
                         aDb.collection("doctors").document(id).update(
