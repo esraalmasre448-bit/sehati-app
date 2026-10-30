@@ -77,7 +77,7 @@ jobs:
         run: rm -f app/sehati.keystore
       - name: Prepare direct APK
         continue-on-error: true
-        run: cp app/build/outputs/apk/debug/*.apk sehati.apk
+        run: cp app/build/outputs/apk/release/*.apk sehati-release.apk
       - name: Upload direct APK (no zip)
         continue-on-error: true
         uses: actions/upload-artifact@v7
@@ -87,5 +87,5 @@ jobs:
           archive: false
       - uses: actions/upload-artifact@v4
         with:
-          name: sehati-apk
-          path: app/build/outputs/apk/debug/*.apk
+          name: sehati-release-apk
+          path: app/build/outputs/apk/release/*.apk
