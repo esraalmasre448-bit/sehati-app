@@ -78,7 +78,7 @@ service cloud.firestore {
     }
 
     match /doctors/{id} {
-      allow read: if signedIn();
+      allow read: if signedIn() && (resource.data.approved == true || request.auth.uid == id || isAdmin());
       allow create: if signedIn() && request.auth.uid == id
         && userType() in ['doctor','clinic']
         && request.resource.data.keys().hasOnly(docKeys())
@@ -117,7 +117,7 @@ service cloud.firestore {
     match /appointments/{id} {
       allow read: if signedIn() && (resource == null
         || resource.data.patientId == request.auth.uid
-        || resource.data.doctorId == request.auth.uid || isAdmin());
+        || resource.data.doctorId == request.auth.uid);
 
       allow create: if signedIn()
         && request.resource.data.keys().hasOnly(apptKeys())
@@ -224,7 +224,13 @@ service cloud.firestore {
         && request.resource.data.appointmentId is string
         && exists(/databases/$(database)/documents/appointments/$(request.resource.data.appointmentId))
         && get(/databases/$(database)/documents/appointments/$(request.resource.data.appointmentId)).data.doctorId == request.auth.uid
-        && get(/databases/$(database)/documents/appointments/$(request.resource.data.appointmentId)).data.patientId == request.resource.data.patientId;
+        && get(/databases/$(database)/documents/appointments/$(request.resource.data.appointmentId)).data.patientId == request.resource.data.patientId
+        && get(/databases/$(database)/documents/appointments/$(request.resource.data.appointmentId)).data.status in ['CONFIRMED','DONE']
+        && request.resource.data.doctorName is string
+        && request.resource.data.doctorName.size() <= 120
+        && request.resource.data.patientName is string
+        && request.resource.data.patientName.size() <= 120
+        && request.resource.data.createdAt == request.time;
 
       allow update: if false;
       // يحذفها الطبيب أو المريض (المريض يحتاجها عند حذف حسابه)
@@ -275,7 +281,12 @@ service cloud.firestore {
     // slots: يستخدمها مسار الحجز القديم في Booking.kt (يحذف الفتحة عند إلغاء الموعد)، فأبقينا القاعدة كما هي
     match /slots/{id} {
       allow read, create, update: if false;
-      allow delete: if signedIn();
+      // الحذف محصور بالمريض صاحب الفتحة أو الطبيب المرتبط بها أو الإدارة.
+      allow delete: if signedIn() && (
+        resource.data.patientId == request.auth.uid
+        || resource.data.doctorId == request.auth.uid
+        || isAdmin()
+      );
     }
   }
 }

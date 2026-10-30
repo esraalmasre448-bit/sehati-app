@@ -132,6 +132,7 @@ fun PatientHome(
             Tile(Icons.Filled.Person, stringResource(R.string.my_turn), false, Modifier.weight(1f)) { onGo("queue") }
             Tile(Icons.Filled.LocationOn, stringResource(R.string.way_to_clinic), false, Modifier.weight(1f)) { onGo("route") }
         }
+        Tile(Icons.Filled.Description, "وصفاتي الطبية", false, Modifier.fillMaxWidth()) { onGo("patient_prescriptions") }
         Tile(Icons.Filled.Email, "الرسائل", false, Modifier.fillMaxWidth()) { onGo("messages") }
     }
 }
@@ -147,7 +148,7 @@ private fun PatientDoctorList(onOpen: (Map<String, Any?>) -> Unit) {
     var locMsg by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
-        bDb.collection("doctors").orderBy("name").limit(50).get()
+        bDb.collection("doctors").whereEqualTo("approved", true).orderBy("name").limit(50).get()
             .addOnSuccessListener { s ->
                 failed = false
                 docs = s.documents.map { it.data.orEmpty() + ("id" to it.id) }
@@ -242,9 +243,9 @@ private fun PHSpec(sp: Spec, color: Color, modifier: Modifier, onClick: () -> Un
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
-            Modifier.size(64.dp).background(color.copy(alpha = 0.14f), CircleShape).border(1.dp, color.copy(alpha = 0.55f), CircleShape),
+            Modifier.size(76.dp).background(color.copy(alpha = 0.14f), CircleShape).border(1.5.dp, color.copy(alpha = 0.72f), CircleShape),
             contentAlignment = Alignment.Center
-        ) { SpecImage(sp, 42.dp) }
+        ) { SpecImage(sp, 50.dp) }
         Spacer(Modifier.height(6.dp))
         Text(sp.name, color = Color.White, fontSize = 11.sp, textAlign = TextAlign.Center, maxLines = 2)
     }

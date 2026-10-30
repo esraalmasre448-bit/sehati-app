@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - security/privacy-hardening-2026-10
+      - feature/prescriptions-specialty-ui
 env:
   KS_PASS: ${{ secrets.KS_PASS }}
 jobs:
@@ -63,28 +64,28 @@ jobs:
               f.write(raw)
           print("google-services.json validated (content not shown)")
           PYEOF
-      - run: gradle assembleDebug
+      - run: gradle assembleDebug assembleRelease
       - name: Print APK signing certificate fingerprint (public, no secrets)
         run: |
           set -o pipefail
           APKSIGNER=$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner 2>/dev/null | sort -V | tail -1)
           if [ -z "$APKSIGNER" ]; then echo "::warning::apksigner not found; signing fingerprint was NOT verified"; exit 0; fi
-          "$APKSIGNER" verify --print-certs app/build/outputs/apk/debug/*.apk | grep "SHA-256 digest" \
+          "$APKSIGNER" verify --print-certs app/build/outputs/apk/release/*.apk | grep "SHA-256 digest" \
             || { echo "::error::Could not read the APK signing certificate"; exit 1; }
       - name: Remove signing key from runner
         if: always()
         run: rm -f app/sehati.keystore
       - name: Prepare direct APK
         continue-on-error: true
-        run: cp app/build/outputs/apk/debug/*.apk sehati.apk
+        run: cp app/build/outputs/apk/release/*.apk sehati-release.apk
       - name: Upload direct APK (no zip)
         continue-on-error: true
         uses: actions/upload-artifact@v7
         with:
-          name: sehati-apk-direct
-          path: sehati.apk
+          name: sehati-release-apk-direct
+          path: sehati-release.apk
           archive: false
       - uses: actions/upload-artifact@v4
         with:
-          name: sehati-apk
-          path: app/build/outputs/apk/debug/*.apk
+          name: sehati-release-apk
+          path: app/build/outputs/apk/release/*.apk

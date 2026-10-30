@@ -158,10 +158,13 @@ private fun book(
 }
 
 fun setStatus(id: String, status: String, freeSlot: Boolean, onDone: (Boolean) -> Unit) {
-    val batch = bDb.batch()
-    batch.update(bDb.collection("appointments").document(id), "status", status)
-    if (freeSlot) batch.delete(bDb.collection("slots").document(id))
-    batch.commit().addOnSuccessListener { onDone(true) }.addOnFailureListener { onDone(false) }
+    // الحجوزات الحالية تعمل بنظام الدور ولا تنشئ مستند slots.
+    // حذف slot غير موجود كان يرفض عملية إلغاء/رفض الموعد بسبب قواعد Firestore.
+    // نحدّث حالة الموعد فقط؛ لا نلمس مستندات slots من هذا المسار.
+    bDb.collection("appointments").document(id)
+        .update("status", status)
+        .addOnSuccessListener { onDone(true) }
+        .addOnFailureListener { onDone(false) }
 }
 
 @Composable
