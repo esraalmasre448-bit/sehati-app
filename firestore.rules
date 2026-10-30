@@ -10,6 +10,10 @@ service cloud.firestore {
       let s = get(/databases/$(database)/documents/subscriptions/$(uid)).data;
       return s.status == 'ACTIVE' && s.expiresAt > request.time;
     }
+    function doctorApproved(uid) {
+      return exists(/databases/$(database)/documents/doctors/$(uid))
+        && get(/databases/$(database)/documents/doctors/$(uid)).data.approved == true;
+    }
     function userType() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.accountType;
     }
@@ -126,6 +130,7 @@ service cloud.firestore {
         && request.resource.data.note.size() <= 300
         && id == request.resource.data.doctorId + '_' + request.resource.data.date + '_' + request.auth.uid
         && subActive(request.resource.data.doctorId)
+        && doctorApproved(request.resource.data.doctorId)
         && getAfter(qPath(request.resource.data.doctorId, request.resource.data.date)).data.last == request.resource.data.number
         && ((!exists(qPath(request.resource.data.doctorId, request.resource.data.date))
               && request.resource.data.number == 1)
