@@ -117,7 +117,7 @@ service cloud.firestore {
     match /appointments/{id} {
       allow read: if signedIn() && (resource == null
         || resource.data.patientId == request.auth.uid
-        || resource.data.doctorId == request.auth.uid || isAdmin());
+        || resource.data.doctorId == request.auth.uid);
 
       allow create: if signedIn()
         && request.resource.data.keys().hasOnly(apptKeys())
