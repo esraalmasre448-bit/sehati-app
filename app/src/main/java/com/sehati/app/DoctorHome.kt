@@ -30,7 +30,7 @@ import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FieldValue
 import java.util.Date
 
-private val DTeal = Color(0xFF2DD4BF)
+private val DTeal = Color(0xFFE5171F)
 
 /** الصفحة الرئيسية للطبيب. الصفحات الفرعية تُفتح داخلها بحالة محلية. */
 @Composable
