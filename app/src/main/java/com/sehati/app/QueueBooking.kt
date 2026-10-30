@@ -58,7 +58,7 @@ private fun bookByQueue(
                 if (st == "CONFIRMED") {
                     return@runTransaction "EXIST|${a.getLong("number") ?: 0L}|${a.getString("time") ?: ""}"
                 }
-                if (st == "PENDING") return@runTransaction "PENDING_EXIST"
+                if (st == "PENDING") return@runTransaction "PENDING_EXIST|${a.getLong("number") ?: 0L}|${a.getString("time") ?: ""}"
                 if (st != "CANCELLED") return@runTransaction "BLOCKED"
             }
             val last = if (q.exists()) (q.getLong("last") ?: 0L) else 0L
@@ -94,14 +94,14 @@ private fun bookByQueue(
             when (p[0]) {
                 "FULL" -> onResult(false, "الأدوار ممتلئة لهذا اليوم، اختر يومًا آخر")
                 "BLOCKED" -> onResult(false, "لديك موعد سابق عند هذا الطبيب بهذا اليوم، اختر يومًا آخر")
-                "PENDING_EXIST" -> onResult(true, "طلبك السابق بانتظار موافقة الطبيب")
+                "PENDING_EXIST" -> onResult(true, "طلبك السابق بانتظار موافقة الطبيب. رقم الدور: ${p.getOrElse(1) { "" }} — الوقت التقديري: ${p.getOrElse(2) { "" }}")
                 "EXIST" -> onResult(
                     true,
                     "لديك حجز مسبق عند هذا الطبيب بهذا اليوم. رقمك: ${p.getOrElse(1) { "" }} — الوقت التقريبي: ${p.getOrElse(2) { "" }}"
                 )
                 else -> onResult(
                     true,
-                    "تم إرسال طلب الحجز للطبيب. سيصبح موعدك مؤكداً بعد موافقته. رقم الدور والوقت تقديريان حتى الموافقة."
+                    "تم إرسال طلب الحجز للطبيب. سيصبح موعدك مؤكداً بعد موافقته. رقم الدور المبدئي: ${p.getOrElse(1) { "" }} — الوقت التقديري: ${p.getOrElse(2) { "" }} بتاريخ $date"
                 )
             }
         }.addOnFailureListener { e ->
