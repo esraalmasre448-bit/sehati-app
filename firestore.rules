@@ -244,7 +244,6 @@ service cloud.firestore {
       allow read: if signedIn() && (
         resource.data.patientId == request.auth.uid
         || resource.data.doctorId == request.auth.uid
-        || isAdmin()
       );
 
       allow create: if signedIn()
