@@ -9,6 +9,7 @@ on:
       - security/privacy-hardening-2026-10
       - security/firestore-rules-fix-2026-10-31
       - security/firestore-rules-fix-verified-2026-10-31
+      - work/reference-redesign-2026-10-31
       - main
 env:
   KS_PASS: ${{ secrets.KS_PASS }}
