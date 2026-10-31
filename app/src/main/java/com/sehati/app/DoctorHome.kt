@@ -226,7 +226,7 @@ private fun DoctorHomeContent(
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 DoctorServiceCard(Icons.Filled.Chat, "الرسائل", Modifier.weight(1f)) { onGo("messages") }
-                DoctorServiceCard(Icons.Filled.People, "قائمة المرضى", Modifier.weight(1f)) { onPatients() }
+                DoctorServiceCard(Icons.Filled.Group, "قائمة المرضى", Modifier.weight(1f)) { onPatients() }
             }
         }
     }
