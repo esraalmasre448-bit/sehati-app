@@ -153,112 +153,43 @@ fun AuthFlow(onDone: () -> Unit) {
     var resetOk by remember { mutableStateOf(false) }
     var resetBusy by remember { mutableStateOf(false) }
     var seniorMode by remember { mutableStateOf(false) }
-    var awaitingEmailVerification by remember { mutableStateOf(auth.currentUser != null && auth.currentUser?.isEmailVerified == false && auth.currentUser?.phoneNumber.isNullOrBlank()) }
-
-    fun finishVerifiedAccount(user: com.google.firebase.auth.FirebaseUser) {
+        fun finishAccountSetup(user: com.google.firebase.auth.FirebaseUser) {
         busy = true
-        user.reload().addOnSuccessListener {
-            val current = auth.currentUser
-            if (current == null || current.isEmailVerified != true) {
-                busy = false
-                awaitingEmailVerification = true
-                msg = "لم يتم تأكيد البريد بعد. افتح رابط التحقق الذي وصلك ثم اضغط متابعة."
-                return@addOnSuccessListener
-            }
-            current.getIdToken(true).addOnSuccessListener {
-                db.collection("users").document(current.uid).update("emailVerified", true)
-                    .addOnSuccessListener {
-                        db.collection("users").document(current.uid).get()
-                            .addOnSuccessListener { profile ->
-                                val accountType = profile.getString("accountType") ?: "patient"
-                                if (accountType == "doctor" || accountType == "clinic") {
-                                    val ref = db.collection("subscriptions").document(current.uid)
-                                    ref.get().addOnSuccessListener { existing ->
-                                        if (existing.exists()) {
-                                            busy = false
-                                            awaitingEmailVerification = false
-                                            onDone()
-                                        } else {
-                                            val endDate = java.util.Calendar.getInstance()
-                                                .apply { add(java.util.Calendar.DAY_OF_YEAR, 30) }.time
-                                            ref.set(mapOf(
-                                                "uid" to current.uid, "status" to "ACTIVE", "trial" to true,
-                                                "paymentMethod" to "Trial",
-                                                "startedAt" to FieldValue.serverTimestamp(),
-                                                "expiresAt" to com.google.firebase.Timestamp(endDate)
-                                            )).addOnSuccessListener {
-                                                busy = false
-                                                awaitingEmailVerification = false
-                                                onDone()
-                                            }.addOnFailureListener {
-                                                busy = false
-                                                msg = "تم التحقق من البريد، لكن تعذر تجهيز ملف الاشتراك. حاول مجدداً."
-                                            }
-                                        }
-                                    }.addOnFailureListener {
-                                        busy = false
-                                        msg = errGeneric
-                                    }
-                                } else {
-                                    busy = false
-                                    awaitingEmailVerification = false
-                                    onDone()
-                                }
-                            }.addOnFailureListener {
-                                busy = false
-                                msg = errGeneric
-                            }
-                    }.addOnFailureListener {
-                        busy = false
-                        msg = "تم التحقق من البريد، لكن تعذر تحديث ملف الحساب. أعد المحاولة."
-                    }
-            }.addOnFailureListener {
-                busy = false
-                msg = "تعذر تحديث جلسة الحساب. تحقق من الإنترنت وحاول مجدداً."
-            }
-        }.addOnFailureListener {
-            busy = false
-            msg = "تعذر تحديث حالة الحساب. تحقق من الإنترنت وحاول مجدداً."
-        }
-    }
-
-    fun startEmailVerification(user: com.google.firebase.auth.FirebaseUser, createProfile: Boolean) {
-        busy = true
-        user.sendEmailVerification()
+        val profile = mapOf(
+            "name" to name.trim(),
+            "phone" to phone.trim(),
+            "email" to (user.email ?: email.trim()),
+            "accountType" to type,
+            "createdAt" to FieldValue.serverTimestamp(),
+            "emailVerified" to false
+        )
+        db.collection("users").document(user.uid).set(profile)
             .addOnSuccessListener {
-                val e = user.email ?: email.trim()
-                if (!createProfile) {
-                    busy = false
-                    awaitingEmailVerification = true
-                    msg = "أرسلنا رابط تأكيد إلى $e. افتحه ثم ارجع إلى التطبيق واضغط متابعة."
-                    return@addOnSuccessListener
-                }
-                val profile = mapOf(
-                    "name" to name.trim(),
-                    "phone" to phone.trim(),
-                    "email" to e,
-                    "accountType" to type,
-                    "createdAt" to FieldValue.serverTimestamp(),
-                    "emailVerified" to false
-                )
-                db.collection("users").document(user.uid).set(profile)
-                    .addOnSuccessListener {
+                if (type == "doctor" || type == "clinic") {
+                    val endDate = java.util.Calendar.getInstance()
+                        .apply { add(java.util.Calendar.DAY_OF_YEAR, 30) }.time
+                    db.collection("subscriptions").document(user.uid).set(mapOf(
+                        "uid" to user.uid,
+                        "status" to "ACTIVE",
+                        "trial" to true,
+                        "paymentMethod" to "Trial",
+                        "startedAt" to FieldValue.serverTimestamp(),
+                        "expiresAt" to com.google.firebase.Timestamp(endDate)
+                    )).addOnSuccessListener {
                         busy = false
-                        signup = false
-                        awaitingEmailVerification = true
-                        msg = "أرسلنا رابط تأكيد إلى $e. افتحه خلال أقرب وقت ثم ارجع للتطبيق."
+                        onDone()
                     }.addOnFailureListener {
                         busy = false
-                        signup = false
-                        awaitingEmailVerification = true
-                        msg = "أرسلنا رابط التأكيد، لكن تعذر حفظ ملف المستخدم. لم نحذف حسابك؛ يلزم إصلاح قواعد Firestore أو الاتصال."
+                        msg = "تم إنشاء الحساب، لكن تعذر تجهيز ملف الاشتراك التجريبي. سجّل الدخول مجدداً أو تواصل مع الدعم."
                     }
+                } else {
+                    busy = false
+                    onDone()
+                }
             }
-            .addOnFailureListener { error ->
+            .addOnFailureListener {
                 busy = false
-                signup = false
-                awaitingEmailVerification = true
-                msg = error.message ?: "تعذر إرسال رابط التحقق. تحقق من اتصالك وحاول مجدداً."
+                msg = "تم إنشاء حساب الدخول، لكن تعذر حفظ ملف المستخدم. لا تحاول إنشاء حساب جديد بنفس البريد؛ يلزم إصلاح ملف الحساب."
             }
     }
 
@@ -296,36 +227,6 @@ fun AuthFlow(onDone: () -> Unit) {
             modifier = Modifier.graphicsLayer { alpha = enter }
         )
         Text(stringResource(R.string.login_sub), color = Muted)
-        if (awaitingEmailVerification) {
-            val pendingEmail = auth.currentUser?.email ?: email
-            Text("تأكيد البريد الإلكتروني", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-            Text("أرسلنا رابط تأكيد إلى $pendingEmail. افتح الرابط من بريدك الإلكتروني، ثم ارجع إلى التطبيق واضغط متابعة.", color = Muted)
-            Text("إذا لم تجد الرسالة، افحص مجلد Spam أو الرسائل غير المرغوبة.", color = Muted, fontSize = 13.sp)
-            if (msg.isNotEmpty()) Text(msg, color = if (msg.contains("أرسلنا")) Good else Danger)
-            RedButton("تحققت من بريدي، متابعة", enabled = !busy) {
-                val current = auth.currentUser
-                if (current == null) {
-                    awaitingEmailVerification = false
-                    msg = "سجّل الدخول بالبريد وكلمة المرور للمتابعة."
-                } else {
-                    finishVerifiedAccount(current)
-                }
-            }
-            OutlinedButton(
-                enabled = !busy,
-                onClick = { auth.currentUser?.let { startEmailVerification(it, false) } },
-                modifier = Modifier.fillMaxWidth().height(50.dp)
-            ) { Text("إعادة إرسال رمز التحقق", color = Color.White) }
-            TextButton(onClick = {
-                auth.signOut()
-                awaitingEmailVerification = false
-                signup = false
-                email = ""
-                pass = ""
-                confirmPass = ""
-                msg = ""
-            }) { Text("استخدام حساب آخر", color = Red) }
-        } else {
         if (signup) {
             Field(name, { name = it }, stringResource(R.string.name), icon = Icons.Filled.Person)
             Field(
@@ -336,7 +237,7 @@ fun AuthFlow(onDone: () -> Unit) {
                 confirmPass, { confirmPass = it }, "تأكيد كلمة السر",
                 password = true, icon = Icons.Filled.Lock
             )
-            Text("سيتم تأكيد الحساب عبر رابط يصل إلى بريدك الإلكتروني.", color = Muted, fontSize = 13.sp)
+            
             Text(stringResource(R.string.account_type), color = Muted)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(
@@ -374,7 +275,7 @@ fun AuthFlow(onDone: () -> Unit) {
         }
         if (msg.isNotEmpty()) Text(msg, color = Danger)
         RedButton(
-            text = if (!signup) stringResource(R.string.login) else "إنشاء الحساب وإرسال رابط التحقق",
+            text = if (!signup) stringResource(R.string.login) else "إنشاء الحساب",
             enabled = !busy
         ) {
             msg = ""
@@ -401,7 +302,7 @@ fun AuthFlow(onDone: () -> Unit) {
                                 busy = false
                                 msg = errGeneric
                             } else {
-                                startEmailVerification(user, true)
+                                finishAccountSetup(user)
                             }
                         }.addOnFailureListener {
                             busy = false
@@ -415,8 +316,6 @@ fun AuthFlow(onDone: () -> Unit) {
                         if (user == null) {
                             busy = false
                             msg = errGeneric
-                        } else if (!user.isEmailVerified && user.phoneNumber.isNullOrBlank()) {
-                            startEmailVerification(user, false)
                         } else {
                             db.collection("users").document(user.uid).get()
                                 .addOnSuccessListener { profile ->
