@@ -245,23 +245,19 @@ fun AuthFlow(onDone: () -> Unit) {
                     awaitingEmailVerification = true
                     msg = "أرسلنا رابط التحقق إلى $e. افتح بريدك واضغط الرابط لإكمال إنشاء الحساب."
                 }.addOnFailureListener {
-                    user.delete().addOnCompleteListener {
-                        auth.signOut()
-                        busy = false
-                        msg = "تعذر حفظ الحساب. تحقق من اتصال الإنترنت وحاول مجددًا."
-                    }
+                    // لا نحذف حساب Firebase عند فشل حفظ ملف Firestore؛ حذف الحساب هنا
+                    // كان يجعل المستخدم يفقد إمكانية تسجيل الدخول نهائياً.
+                    busy = false
+                    signup = false
+                    awaitingEmailVerification = true
+                    msg = "تم إنشاء الحساب وإرسال رابط التحقق، لكن تعذر حفظ ملف المستخدم. لا تحذف الحساب؛ تحقق من قواعد Firestore والاتصال ثم أعد المحاولة."
                 }
         }.addOnFailureListener { error ->
-            if (createProfile) {
-                user.delete().addOnCompleteListener {
-                    auth.signOut()
-                    busy = false
-                    msg = authError(error)
-                }
-            } else {
-                busy = false
-                msg = authError(error)
-            }
+            // فشل إرسال البريد لا يعني أن الحساب غير صالح. نُبقي الحساب ونسمح بإعادة الإرسال.
+            busy = false
+            signup = false
+            awaitingEmailVerification = true
+            msg = authError(error)
         }
     }
 
@@ -422,11 +418,10 @@ fun AuthFlow(onDone: () -> Unit) {
                                         busy = false
                                         msg = errGeneric
                                     } else {
-                                        user.delete().addOnCompleteListener {
-                                            auth.signOut()
-                                            busy = false
-                                            msg = "الحساب لا يحتوي على ملف مستخدم صالح. أنشئ حسابًا جديدًا."
-                                        }
+                                        // لا نحذف حساب Authentication لمجرد غياب ملف Firestore.
+                                        auth.signOut()
+                                        busy = false
+                                        msg = "بيانات الدخول صحيحة، لكن ملف الحساب غير موجود في قاعدة البيانات. لم نحذف حسابك؛ يلزم إصلاح ملف users لهذا الحساب."
                                     }
                                 }.addOnFailureListener {
                                     auth.signOut()
