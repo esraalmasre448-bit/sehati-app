@@ -43,6 +43,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
@@ -218,7 +219,7 @@ fun AuthFlow(onDone: () -> Unit) {
     )
 
     CompositionLocalProvider(
-        LocalDensity provides LocalDensity.current.copy(fontScale = if (seniorMode) 1.22f else 1f)
+        LocalDensity provides Density(density = LocalDensity.current.density, fontScale = if (seniorMode) 1.22f else 1f)
     ) {
     Column(
         Modifier.fillMaxSize().background(Bg).padding(if (seniorMode) 18.dp else 24.dp).verticalScroll(rememberScrollState()),
