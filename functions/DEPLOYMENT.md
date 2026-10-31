@@ -1,26 +1,27 @@
-# Email OTP deployment
+# Email verification on Firebase Spark
 
-The Android client now calls two Firebase callable functions:
-- `requestEmailVerificationCode`
-- `verifyEmailVerificationCode`
+The Android app uses Firebase Authentication's built-in email verification link:
+- Account creation calls `FirebaseUser.sendEmailVerification()`.
+- The user opens the link received by email, returns to the app, and taps **"تحققت من بريدي، متابعة"**.
+- The app reloads the Firebase user, confirms `isEmailVerified`, refreshes the ID token, and updates the existing Firestore user profile.
+- The existing account-type handling and doctor/clinic trial subscription setup are preserved.
 
-The functions generate a six-digit code on the server, store only an HMAC digest in a private Firestore collection, expire it after 10 minutes, limit resend to once per minute and five sends per rolling 24-hour window, and allow at most five verification attempts. The code is never written to app logs or returned to the client.
+This flow does not require Cloud Functions, SMTP credentials, Secret Manager, or a Blaze billing account. Firebase Authentication sends the action email using the project's configured email templates and authorized domains.
 
-## Required setup before production use
+## Firebase Console checklist
 
-1. The Firebase project must use the Blaze plan to deploy Cloud Functions. Blaze requires a linked Cloud Billing account and can incur charges. Configure a budget alert and a Cloud Run spend cap before deployment. The Functions no-cost quota does not remove the requirement for Blaze.
-2. Configure an SMTP account that is permitted to send transactional email. Do not put SMTP credentials in Android, GitHub source files, Firestore, or this chat.
-3. Install Node.js 20 and the Firebase CLI, authenticate, and select the same Firebase project used by the Android app.
-4. From the repository root, set these Firebase Secret Manager values using the CLI (the CLI prompts for each value):
-   - `firebase functions:secrets:set SMTP_HOST`
-   - `firebase functions:secrets:set SMTP_PORT` (normally 587 for STARTTLS or 465 for implicit TLS)
-   - `firebase functions:secrets:set SMTP_USER`
-   - `firebase functions:secrets:set SMTP_PASS`
-   - `firebase functions:secrets:set SMTP_FROM` (verified sender address, e.g. Sehati <no-reply@example.com>)
-   - `firebase functions:secrets:set OTP_HMAC_SECRET` (a randomly generated secret of at least 32 bytes; keep it private)
-5. Deploy with `firebase deploy --only functions`.
-6. Build and install the Android APK, then test with a real inbox: signup, wrong code, expired code, resend cooldown, correct code, logout/login, and password reset.
+1. Open Authentication → Sign-in method and ensure Email/Password is enabled.
+2. Open Authentication → Templates → Email address verification and review the sender/name and message.
+3. Open Authentication → Settings → Authorized domains and ensure the app's Firebase project's default hosted action domain is present.
+4. Build and install the APK, then test with a real inbox:
+   - register a new patient account;
+   - confirm the verification link opens and verifies the same Firebase project;
+   - return to the app and tap **"تحققت من بريدي، متابعة"**;
+   - confirm the user profile is updated and the app opens;
+   - repeat with doctor and clinic accounts and verify the existing trial-subscription behavior;
+   - sign out and sign in again;
+   - test password reset.
 
-## Important
+## Legacy code
 
-The code and Android integration are committed, but the functions are not deployed from this repository change. They cannot send email until SMTP secrets are configured and the functions are deployed. Never share SMTP passwords or the HMAC secret in chat. If the Firebase project must remain on the Spark plan with no billing account, Firebase Cloud Functions cannot be deployed; choose a different backend host before enabling this flow.
+The `functions/` directory contains the previous six-digit OTP prototype. It is not called by the Android app and must not be deployed for this Spark-plan configuration. It can be removed in a later cleanup after the link-based flow has been tested end-to-end.
