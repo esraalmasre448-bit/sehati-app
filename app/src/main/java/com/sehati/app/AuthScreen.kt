@@ -166,7 +166,7 @@ fun AuthFlow(onDone: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Icon(Icons.Filled.MarkEmailRead, contentDescription = null, tint = Red, modifier = Modifier.size(64.dp))
+            Icon(Icons.Filled.Email, contentDescription = null, tint = Red, modifier = Modifier.size(64.dp))
             Spacer(Modifier.height(18.dp))
             Text("تحقق من بريدك الإلكتروني", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(10.dp))
