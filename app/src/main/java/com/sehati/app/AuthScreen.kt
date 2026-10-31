@@ -3,6 +3,8 @@ package com.sehati.app
 import android.os.Bundle
 import android.app.Activity
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.runtime.CompositionLocalProvider
 import com.google.firebase.auth.PhoneAuthCredential
 import com.google.firebase.auth.PhoneAuthOptions
 import com.google.firebase.auth.PhoneAuthProvider
@@ -153,6 +155,7 @@ fun AuthFlow(onDone: () -> Unit) {
     var resetMsg by remember { mutableStateOf("") }
     var resetOk by remember { mutableStateOf(false) }
     var resetBusy by remember { mutableStateOf(false) }
+    var seniorMode by remember { mutableStateOf(false) }
     var verificationId by remember { mutableStateOf<String?>(null) }
     var otp by remember { mutableStateOf("") }
     var otpSent by remember { mutableStateOf(false) }
@@ -214,10 +217,18 @@ fun AuthFlow(onDone: () -> Unit) {
         label = "enter"
     )
 
-    Column(
-        Modifier.fillMaxSize().background(Bg).padding(24.dp).verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+    CompositionLocalProvider(
+        LocalDensity provides LocalDensity.current.copy(fontScale = if (seniorMode) 1.22f else 1f)
     ) {
+    Column(
+        Modifier.fillMaxSize().background(Bg).padding(if (seniorMode) 18.dp else 24.dp).verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(if (seniorMode) 16.dp else 12.dp)
+    ) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text("وضع كبار السن", color = Color.White, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.weight(1f))
+            Switch(checked = seniorMode, onCheckedChange = { seniorMode = it })
+        }
         Image(
             painterResource(R.drawable.ic_launcher), null,
             Modifier
@@ -388,6 +399,7 @@ fun AuthFlow(onDone: () -> Unit) {
                 color = Color.White, fontSize = 16.sp
             )
         }
+    }
     }
 
     if (showReset) {
