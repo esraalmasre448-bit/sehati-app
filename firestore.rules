@@ -10,6 +10,10 @@ service cloud.firestore {
       let s = get(/databases/$(database)/documents/subscriptions/$(uid)).data;
       return s.status == 'ACTIVE' && s.expiresAt > request.time;
     }
+    function doctorApproved(uid) {
+      return exists(/databases/$(database)/documents/doctors/$(uid))
+        && get(/databases/$(database)/documents/doctors/$(uid)).data.approved == true;
+    }
     function userType() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.accountType;
     }
@@ -77,7 +81,7 @@ service cloud.firestore {
     }
 
     match /doctors/{id} {
-      allow read: if signedIn();
+      allow read: if signedIn() && (request.auth.uid == id || isAdmin() || resource.data.approved == true);
       allow create: if signedIn() && request.auth.uid == id
         && userType() in ['doctor','clinic']
         && request.resource.data.keys().hasOnly(docKeys())
@@ -133,6 +137,7 @@ service cloud.firestore {
         && request.resource.data.note.size() <= 300
         && id == request.resource.data.doctorId + '_' + request.resource.data.date + '_' + request.auth.uid
         && subActive(request.resource.data.doctorId)
+        && doctorApproved(request.resource.data.doctorId)
         && getAfter(qPath(request.resource.data.doctorId, request.resource.data.date)).data.last == request.resource.data.number
         && ((!exists(qPath(request.resource.data.doctorId, request.resource.data.date))
               && request.resource.data.number == 1)
@@ -171,7 +176,8 @@ service cloud.firestore {
               || (request.resource.data.slotId is string
                 && existsAfter(slotPath(request.resource.data.slotId))
                 && getAfter(slotPath(request.resource.data.slotId)).data.appointmentId == id))
-          && subActive(resource.data.doctorId)));
+          && subActive(resource.data.doctorId)
+          && doctorApproved(resource.data.doctorId)));
 
       allow delete: if false;
     }
@@ -187,6 +193,7 @@ service cloud.firestore {
         && request.resource.data.last == 1
         && request.resource.data.current == 0
         && subActive(request.resource.data.doctorId)
+        && doctorApproved(request.resource.data.doctorId)
         && !exists(aPath(request.resource.data.doctorId, request.resource.data.date, request.auth.uid))
         && existsAfter(aPath(request.resource.data.doctorId, request.resource.data.date, request.auth.uid))
         && getAfter(aPath(request.resource.data.doctorId, request.resource.data.date, request.auth.uid)).data.number == 1
@@ -194,12 +201,14 @@ service cloud.firestore {
 
       allow update: if signedIn() && (
         (request.auth.uid == resource.data.doctorId && subActive(request.auth.uid)
+          && doctorApproved(request.auth.uid)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['current'])
           && request.resource.data.current == resource.data.current + 1
           && request.resource.data.current <= resource.data.last)
         || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['last'])
           && request.resource.data.last == resource.data.last + 1
           && subActive(resource.data.doctorId)
+          && doctorApproved(resource.data.doctorId)
           && existsAfter(aPath(resource.data.doctorId, resource.data.date, request.auth.uid))
           && getAfter(aPath(resource.data.doctorId, resource.data.date, request.auth.uid)).data.number == request.resource.data.last
           && getAfter(aPath(resource.data.doctorId, resource.data.date, request.auth.uid)).data.status == 'CONFIRMED'
@@ -216,6 +225,7 @@ service cloud.firestore {
       allow create: if signedIn()
         && userType() in ['doctor','clinic']
         && subActive(request.auth.uid)
+        && doctorApproved(request.auth.uid)
         && request.resource.data.keys().hasOnly(['doctorId','doctorName','patientId','patientName','appointmentId','kind','text','createdAt'])
         && request.resource.data.doctorId == request.auth.uid
         && request.resource.data.kind in ['rx','lab']
@@ -286,6 +296,7 @@ service cloud.firestore {
         && id == request.resource.data.doctorId + '_' + request.resource.data.date + '_' + string(request.resource.data.slot)
         && request.resource.data.appointmentId == request.resource.data.doctorId + '_' + request.resource.data.date + '_' + request.auth.uid
         && subActive(request.resource.data.doctorId)
+        && doctorApproved(request.resource.data.doctorId)
         && existsAfter(aPath(request.resource.data.doctorId, request.resource.data.date, request.auth.uid))
         && getAfter(aPath(request.resource.data.doctorId, request.resource.data.date, request.auth.uid)).data.slotId == id
         && getAfter(aPath(request.resource.data.doctorId, request.resource.data.date, request.auth.uid)).data.patientId == request.auth.uid;
