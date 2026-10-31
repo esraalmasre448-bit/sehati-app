@@ -93,7 +93,9 @@ service cloud.firestore {
         (request.auth.uid == id && userType() in ['doctor','clinic']
           && resource.data.uid == id
           && request.resource.data.uid == id
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(docKeys())
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(docKeys().concat(['phone','emergencyPhone']))
+          && !('phone' in request.resource.data)
+          && !('emergencyPhone' in request.resource.data)
           && photoOk())
         || (isAdmin()
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['approved','approvedBy','approvedAt'])));
