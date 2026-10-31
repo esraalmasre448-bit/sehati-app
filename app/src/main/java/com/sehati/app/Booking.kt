@@ -105,66 +105,76 @@ private fun book(
 ) {
     val me = bAuth.currentUser
     if (me == null) { onResult(false, "سجّل الدخول أولًا"); return }
-    val doctorId = d["id"] as String
-    val id = "${doctorId}_${date}_$slot"
-    val slotRef = bDb.collection("slots").document(id)
-    val apptRef = bDb.collection("appointments").document(id)
+    val doctorId = d["id"] as? String
+    if (doctorId.isNullOrBlank()) { onResult(false, "بيانات الطبيب غير مكتملة"); return }
+    val appointmentId = "${doctorId}_${date}_${me.uid}"
+    val slotId = "${doctorId}_${date}_$slot"
+    val slotRef = bDb.collection("slots").document(slotId)
+    val apptRef = bDb.collection("appointments").document(appointmentId)
     val queueRef = bDb.collection("queues").document("${doctorId}_$date")
     bDb.collection("users").document(me.uid).get().addOnSuccessListener { u ->
         val pName = u.getString("name") ?: ""
         val pPhone = u.getString("phone") ?: ""
         bDb.runTransaction<Long> { tx ->
-            if (tx.get(slotRef).exists()) return@runTransaction -1L
+            val heldSlot = tx.get(slotRef)
+            val existingAppointment = tx.get(apptRef)
             val q = tx.get(queueRef)
-            val number: Long
+            if (heldSlot.exists()) return@runTransaction -1L
+            if (existingAppointment.exists() && existingAppointment.getString("status") != "CANCELLED") {
+                return@runTransaction -2L
+            }
+            val number = if (q.exists()) (q.getLong("last") ?: 0L) + 1L else 1L
             if (q.exists()) {
-                number = (q.getLong("last") ?: 0L) + 1L
                 tx.update(queueRef, "last", number)
             } else {
-                number = 1L
-                tx.set(
-                    queueRef,
-                    mapOf("doctorId" to doctorId, "date" to date, "last" to 1L, "current" to 0L)
-                )
+                tx.set(queueRef, mapOf("doctorId" to doctorId, "date" to date, "last" to 1L, "current" to 0L))
             }
-            tx.set(
-                slotRef,
-                mapOf("doctorId" to doctorId, "date" to date, "slot" to slot, "patientId" to me.uid)
-            )
-            tx.set(
-                apptRef,
-                mapOf(
-                    "patientId" to me.uid, "patientName" to pName, "patientPhone" to pPhone,
-                    "doctorId" to doctorId,
-                    "doctorName" to (d["name"]?.toString() ?: ""),
-                    "specialty" to (d["specialty"]?.toString() ?: ""),
-                    "clinicName" to (d["clinicName"]?.toString() ?: ""),
-                    "address" to (d["address"]?.toString() ?: ""),
-                    "city" to (d["city"]?.toString() ?: ""),
-                    "date" to date, "slot" to slot, "time" to slotLabel(slot),
-                    "number" to number, "status" to "CONFIRMED", "note" to note,
-                    "createdAt" to FieldValue.serverTimestamp()
-                )
-            )
+            tx.set(slotRef, mapOf(
+                "doctorId" to doctorId, "date" to date, "slot" to slot, "appointmentId" to appointmentId
+            ))
+            tx.set(apptRef, mapOf(
+                "patientId" to me.uid, "patientName" to pName, "patientPhone" to pPhone,
+                "doctorId" to doctorId,
+                "doctorName" to (d["name"]?.toString() ?: ""),
+                "specialty" to (d["specialty"]?.toString() ?: ""),
+                "clinicName" to (d["clinicName"]?.toString() ?: ""),
+                "address" to (d["address"]?.toString() ?: ""),
+                "city" to (d["city"]?.toString() ?: ""),
+                "date" to date, "slot" to slot, "slotId" to slotId,
+                "time" to slotLabel(slot), "number" to number,
+                "status" to "CONFIRMED", "note" to note,
+                "createdAt" to FieldValue.serverTimestamp()
+            ))
             number
         }.addOnSuccessListener { n ->
-            if (n < 0) onResult(false, "هذا الموعد انحجز للتو، اختر وقتًا آخر")
-            else onResult(true, "تم حجز موعدك الساعة ${slotLabel(slot)} بتاريخ $date. رقمك بالدور: $n")
+            when (n) {
+                -1L -> onResult(false, "هذا الموعد انحجز للتو، اختر وقتًا آخر")
+                -2L -> onResult(false, "لديك حجز مسبق عند هذا الطبيب بهذا اليوم")
+                else -> onResult(true, "تم حجز موعدك الساعة ${slotLabel(slot)} بتاريخ $date. رقمك بالدور: $n")
+            }
         }.addOnFailureListener {
             onResult(false, "تعذر الحجز. تحقق من الإنترنت، أو أن الطبيب غير متاح للحجز حاليًا")
         }
     }.addOnFailureListener { onResult(false, "تعذر تحميل بياناتك، تحقق من الإنترنت") }
 }
 
-@Suppress("UNUSED_PARAMETER")
 fun setStatus(id: String, status: String, freeSlot: Boolean, onDone: (Boolean) -> Unit) {
-    // لا نحذف وثيقة slots هنا: مسار الحجز القديم معطّل بقاعدة create،
-    // والحذف كان يُفشل الإلغاء كله إذا لم تكن الوثيقة موجودة.
-    // الإلغاء يحدّث حالة الموعد فقط.
-    bDb.collection("appointments").document(id)
-        .update("status", status)
-        .addOnSuccessListener { onDone(true) }
-        .addOnFailureListener { onDone(false) }
+    val appointmentRef = bDb.collection("appointments").document(id)
+    appointmentRef.get().addOnSuccessListener { appointment ->
+        if (!appointment.exists()) { onDone(false); return@addOnSuccessListener }
+        val batch = bDb.batch()
+        batch.update(appointmentRef, "status", status)
+        val slotId = appointment.getString("slotId")
+        if (freeSlot && status == "CANCELLED" && !slotId.isNullOrBlank()) {
+            val slotRef = bDb.collection("slots").document(slotId)
+            slotRef.get().addOnSuccessListener { slot ->
+                if (slot.exists()) batch.delete(slotRef)
+                batch.commit().addOnSuccessListener { onDone(true) }.addOnFailureListener { onDone(false) }
+            }.addOnFailureListener { onDone(false) }
+        } else {
+            batch.commit().addOnSuccessListener { onDone(true) }.addOnFailureListener { onDone(false) }
+        }
+    }.addOnFailureListener { onDone(false) }
 }
 
 @Composable
