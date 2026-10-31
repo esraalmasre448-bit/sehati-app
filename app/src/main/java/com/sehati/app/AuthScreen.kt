@@ -51,7 +51,6 @@ import com.google.firebase.auth.FirebaseAuthUserCollisionException
 import com.google.firebase.auth.FirebaseAuthWeakPasswordException
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.functions.FirebaseFunctions
 import kotlinx.coroutines.delay
 
 private val Bg = Color(0xFF0B1220)
@@ -65,7 +64,6 @@ private val Muted = Color(0xFF9AA7BD)
 
 private val auth get() = FirebaseAuth.getInstance()
 private val db get() = FirebaseFirestore.getInstance()
-private val functions get() = FirebaseFunctions.getInstance("europe-west1")
 
 private fun authError(e: Exception): String = when (e) {
     is FirebaseAuthWeakPasswordException -> "كلمة السر ضعيفة، استخدم 6 أحرف على الأقل"
