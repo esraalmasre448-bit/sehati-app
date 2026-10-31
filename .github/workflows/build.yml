@@ -68,10 +68,11 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
-      - name: Validate Firestore rules with the emulator
+      - name: Test Firestore security rules with the emulator
         run: |
           npm install --global firebase-tools
-          firebase emulators:exec --only firestore --project demo-sehati "echo 'Firestore rules compiled successfully'"
+          npm install
+          firebase emulators:exec --only firestore --project demo-sehati "npm run test:rules"
       - name: Restore Java 17 for Android build
         uses: actions/setup-java@v4
         with:
