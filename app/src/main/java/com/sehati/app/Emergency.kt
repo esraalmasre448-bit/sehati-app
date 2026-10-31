@@ -26,7 +26,7 @@ fun EmergencyScreen(onBack: () -> Unit) {
     var msg by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
-        bDb.collection("doctors").whereEqualTo("emergency", true).limit(50).get()
+        bDb.collection("doctors").whereEqualTo("approved", true).whereEqualTo("emergency", true).limit(50).get()
             .addOnSuccessListener { s ->
                 items = s.documents.map { it.data.orEmpty() + ("id" to it.id) }
                 loaded = true
