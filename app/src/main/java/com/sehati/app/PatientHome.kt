@@ -18,6 +18,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -39,8 +40,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 private val PH_COLORS = listOf(
-    Color(0xFF2EC4B6), Color(0xFFFF6B6B), Color(0xFFFFB02E),
-    Color(0xFF8E7CFF), Color(0xFFFF5C8A), Color(0xFF4CC9F0)
+    Color(0xFFE5171F), Color(0xFF6EA8FE), Color(0xFFFF6B8A),
+    Color(0xFF8E9DB8), Color(0xFFE6A15C), Color(0xFF7C9DCE)
 )
 
 @Composable
@@ -150,6 +151,7 @@ private fun PatientDoctorList(onOpen: (Map<String, Any?>) -> Unit) {
             .addOnSuccessListener { s ->
                 failed = false
                 docs = s.documents.map { it.data.orEmpty() + ("id" to it.id) }
+                    .filter { it["approved"] == true }
             }
             .addOnFailureListener { failed = true }
     }
@@ -183,7 +185,10 @@ private fun PatientDoctorList(onOpen: (Map<String, Any?>) -> Unit) {
         list.isEmpty() -> Text("لا يوجد أطباء أو عيادات مسجلة بعد", color = BMuted)
         else -> {
             val shown = if (from == null) list else list.sortedBy { distanceKm(it, from) ?: Double.MAX_VALUE }
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 shown.take(20).forEach { d ->
                     val km = from?.let { distanceKm(d, it) }
                     DoctorListCard(d, km, onOpen)
@@ -204,30 +209,29 @@ private fun DoctorListCard(d: Map<String, Any?>, km: Double?, onOpen: (Map<Strin
         label = "cardPress"
     )
 
-    Row(
-        Modifier.fillMaxWidth()
+    Column(
+        Modifier.width(154.dp)
             .graphicsLayer { scaleX = pressScale; scaleY = pressScale }
-            .background(BCard, RoundedCornerShape(14.dp))
-            .border(1.dp, BLine, RoundedCornerShape(14.dp))
+            .background(BCard, RoundedCornerShape(16.dp))
+            .border(1.dp, BLine, RoundedCornerShape(16.dp))
             .clickable(interactionSource = source, indication = LocalIndication.current) { onOpen(d) }
-            .padding(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+            .padding(10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(5.dp)
     ) {
-        DoctorAvatar(d["photo"]?.toString(), "${d["name"] ?: ""}", 56.dp)
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Text("${d["name"]}", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
-            Text("${d["specialty"] ?: ""}", color = BRed, fontSize = 13.sp)
-            val c = "${d["clinicName"] ?: ""}"
-            if (c.isNotBlank()) Text(c, color = Color.White, fontSize = 12.sp)
-            Text("${d["city"] ?: ""}", color = BMuted, fontSize = 12.sp)
-            when (d["available"]) {
-                true -> Text("متاح الآن", color = BGreen, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                false -> Text("غير متاح حالياً", color = BMuted, fontSize = 12.sp)
-                else -> {}
+        Box {
+            DoctorAvatar(d["photo"]?.toString(), "${d["name"] ?: ""}", 76.dp)
+            if (d["available"] == true) {
+                Text("متاح", Modifier.align(Alignment.TopEnd)
+                    .background(BGreen, RoundedCornerShape(10.dp)).padding(horizontal = 7.dp, vertical = 2.dp),
+                    color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
             }
         }
-        if (km != null) Text("%.1f كم".format(km), color = BMuted, fontSize = 12.sp)
+        Text("${d["name"] ?: "مقدم خدمة"}", fontSize = 13.sp, fontWeight = FontWeight.Bold,
+            color = Color.White, maxLines = 1)
+        Text("${d["specialty"] ?: d["clinicName"] ?: ""}", color = BMuted, fontSize = 11.sp, maxLines = 1)
+        Text("${d["city"] ?: ""}", color = BMuted, fontSize = 10.sp, maxLines = 1)
+        if (km != null) Text("%.1f كم".format(km), color = BMuted, fontSize = 10.sp)
     }
 }
 

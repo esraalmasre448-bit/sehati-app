@@ -43,7 +43,10 @@ fun openConversation(
     val uid = bAuth.currentUser?.uid
     if (uid.isNullOrEmpty()) { onError("سجّلي الدخول أولاً"); return }
     bDb.collection("appointments")
-        .whereEqualTo("patientId", uid).whereEqualTo("doctorId", doctorId).limit(1).get()
+        .whereEqualTo("patientId", uid)
+        .whereEqualTo("doctorId", doctorId)
+        .whereIn("status", listOf("PENDING", "CONFIRMED", "DONE"))
+        .limit(1).get()
         .addOnSuccessListener { s ->
             val appt = s.documents.firstOrNull()
             if (appt == null) {

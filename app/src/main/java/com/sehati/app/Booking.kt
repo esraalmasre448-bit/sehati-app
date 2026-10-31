@@ -93,6 +93,7 @@ fun parseLatLng(s: String): Pair<Double, Double>? {
 }
 
 fun statusLabel(s: Any?): Pair<String, Color> = when (s) {
+    "PENDING" -> "بانتظار موافقة الطبيب" to Color(0xFFFFC857)
     "CONFIRMED" -> "مؤكد" to BGreen
     "DONE" -> "منتهي" to BMuted
     "CANCELLED" -> "ملغى" to BDanger
@@ -423,14 +424,16 @@ fun MyAppointmentsContent(onFind: () -> Unit, onBack: (() -> Unit)? = null) {
                 notes.filter { it["appointmentId"] == a["id"] }
                     .sortedBy { (it["createdAt"] as? com.google.firebase.Timestamp)?.seconds ?: 0L }
                     .forEach { NoteBox(it, null) }
-                if (a["status"] == "CONFIRMED") {
+                if (a["status"] == "CONFIRMED" || a["status"] == "PENDING") {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(
-                            onClick = { routeToDoctor(ctx, a["doctorId"].toString()) { msg = it } },
-                            colors = ButtonDefaults.buttonColors(containerColor = BRed, contentColor = BOnAccent)
-                        ) { Text("الطريق إلى العيادة") }
+                        if (a["status"] == "CONFIRMED") {
+                            Button(
+                                onClick = { routeToDoctor(ctx, a["doctorId"].toString()) { msg = it } },
+                                colors = ButtonDefaults.buttonColors(containerColor = BRed, contentColor = BOnAccent)
+                            ) { Text("الطريق إلى العيادة") }
+                        }
                         OutlinedButton(onClick = { cancelId = a["id"] as String }) {
-                            Text("إلغاء الموعد", color = Color.White)
+                            Text(if (a["status"] == "PENDING") "سحب الطلب" else "إلغاء الموعد", color = Color.White)
                         }
                     }
                 }

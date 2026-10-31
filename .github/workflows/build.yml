@@ -1,5 +1,9 @@
 name: Build APK
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - security/privacy-hardening-2026-10
 env:
   KS_PASS: ${{ secrets.KS_PASS }}
 jobs:
@@ -59,6 +63,21 @@ jobs:
               f.write(raw)
           print("google-services.json validated (content not shown)")
           PYEOF
+      - name: Set up Java 21 for Firebase Emulator
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Test Firestore security rules with the emulator
+        run: |
+          npm install --global firebase-tools
+          npm install
+          firebase emulators:exec --only firestore --project demo-sehati "npm run test:rules"
+      - name: Restore Java 17 for Android build
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
       - run: gradle assembleDebug
       - name: Print APK signing certificate fingerprint (public, no secrets)
         run: |

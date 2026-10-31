@@ -152,6 +152,7 @@ private fun TableHeader() {
 @Composable
 private fun DoctorRow(
     u: Map<String, Any?>, sub: Map<String, Any?>?, specialty: String,
+    approved: Boolean, profileExists: Boolean, onToggleApproval: () -> Unit,
     onGrant: () -> Unit, onCancel: () -> Unit
 ) {
     val st = statusOf(sub)
@@ -181,12 +182,26 @@ private fun DoctorRow(
             Text("المعرّف: ${u["id"]}", color = AMuted, fontSize = 10.sp)
             Text(label, color = color, fontSize = 14.sp, fontWeight = FontWeight.Bold)
             if (detail.isNotEmpty()) Text(detail, color = color, fontSize = 11.sp)
+            Text(if (approved) "الملف معتمد" else "بانتظار اعتماد الملف", color = if (approved) AGreen else Color(0xFFFFC857), fontSize = 11.sp)
         }
         Text(
             specialty.ifBlank { "—" }, Modifier.weight(0.9f),
             color = Color.White, fontSize = 14.sp
         )
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            OutlinedButton(
+                onClick = onToggleApproval,
+                enabled = profileExists,
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) { Text(
+                when {
+                    !profileExists -> "بانتظار الملف"
+                    approved -> "إلغاء الاعتماد"
+                    else -> "اعتماد الملف"
+                },
+                fontSize = 12.sp
+            ) }
             Button(
                 onClick = onGrant,
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
@@ -220,10 +235,16 @@ private fun HistoryCard(h: Map<String, Any?>) {
 
 @Composable
 private fun AdminPanel(onBack: () -> Unit) {
+    val adminUid = aAuth.currentUser?.uid ?: ""
     var tab by remember { mutableIntStateOf(0) }
     var users by remember { mutableStateOf(listOf<Map<String, Any?>>()) }
+    var patientCount by remember { mutableIntStateOf(0) }
+    var bookingCount by remember { mutableIntStateOf(0) }
+    var systemStatus by remember { mutableStateOf("جارٍ التحقق من الاتصال") }
     var subs by remember { mutableStateOf(mapOf<String, Map<String, Any?>>()) }
     var specs by remember { mutableStateOf(mapOf<String, String>()) }
+    var approvals by remember { mutableStateOf(mapOf<String, Boolean>()) }
+    var profileExists by remember { mutableStateOf(emptySet<String>()) }
     var history by remember { mutableStateOf(listOf<Map<String, Any?>>()) }
     var error by remember { mutableStateOf("") }
     var info by remember { mutableStateOf("") }
@@ -251,9 +272,21 @@ private fun AdminPanel(onBack: () -> Unit) {
                 if (e == null) history = s?.documents?.map { it.data.orEmpty() + ("id" to it.id) }.orEmpty()
             }
         val r4 = aDb.collection("doctors").limit(500).addSnapshotListener { s, e ->
-            if (e == null) specs = s?.documents?.associate { it.id to (it.getString("specialty") ?: "") }.orEmpty()
+            if (e == null) {
+                specs = s?.documents?.associate { it.id to (it.getString("specialty") ?: "") }.orEmpty()
+                approvals = s?.documents?.associate { it.id to (it.getBoolean("approved") == true) }.orEmpty()
+                profileExists = s?.documents?.map { it.id }?.toSet().orEmpty()
+            }
         }
-        onDispose { r1.remove(); r2.remove(); r3.remove(); r4.remove() }
+        val r5 = aDb.collection("users").whereEqualTo("accountType", "patient").limit(1000)
+            .addSnapshotListener { s, e -> if (e == null) patientCount = s?.size() ?: 0 }
+        val r6 = aDb.collection("appointments").limit(1000).addSnapshotListener { s, e ->
+            if (e == null) {
+                bookingCount = s?.size() ?: 0
+                systemStatus = "متصل بقاعدة البيانات"
+            } else systemStatus = "تعذر تحديث بعض بيانات لوحة المطوّر"
+        }
+        onDispose { r1.remove(); r2.remove(); r3.remove(); r4.remove(); r5.remove(); r6.remove() }
     }
 
     LaunchedEffect(subs, users) {
@@ -288,35 +321,80 @@ private fun AdminPanel(onBack: () -> Unit) {
         contentPadding = PaddingValues(vertical = 16.dp)
     ) {
         item { TextButton(onClick = onBack) { Text("رجوع", color = ARed) } }
-        item { Text("لوحة الاشتراكات", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White) }
+        item {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("لوحة المطوّر", fontSize = 23.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    Text("إدارة ومتابعة الطريق إلى صحتي", color = AMuted, fontSize = 12.sp)
+                }
+                Surface(color = ACard, shape = RoundedCornerShape(20.dp), border = androidx.compose.foundation.BorderStroke(1.dp, ALine)) {
+                    Text("ADMIN", Modifier.padding(horizontal = 12.dp, vertical = 7.dp), color = ARed, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
         if (error.isNotEmpty()) item { Text(error, color = ADanger) }
         if (info.isNotEmpty()) item { Text(info, color = AGreen) }
         item {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                StatBox("الأطباء", doctors, Modifier.weight(1f))
-                StatBox("العيادات", clinics, Modifier.weight(1f))
-            }
-        }
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                StatBox("اشتراكات فعالة", activeN, Modifier.weight(1f))
-                StatBox("اشتراكات منتهية", expiredN, Modifier.weight(1f))
-            }
-        }
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                StatBox("تنتهي خلال 7 أيام", soonN, Modifier.weight(1f))
-                StatBox("عمليات التجديد", renewals, Modifier.weight(1f))
-            }
-        }
-        item { StatBox("عمليات الدفع النقدي المسجلة (آخر 100 عملية)", cashN, Modifier.fillMaxWidth()) }
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(selected = tab == 0, onClick = { tab = 0 }, label = { Text("الأطباء والعيادات") })
-                FilterChip(selected = tab == 1, onClick = { tab = 1 }, label = { Text("سجل الاشتراكات") })
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                FilterChip(selected = tab == 0, onClick = { tab = 0 }, label = { Text("نظرة عامة") })
+                FilterChip(selected = tab == 1, onClick = { tab = 1 }, label = { Text("الحسابات") })
+                FilterChip(selected = tab == 2, onClick = { tab = 2 }, label = { Text("الاشتراكات") })
+                FilterChip(selected = tab == 3, onClick = { tab = 3 }, label = { Text("مراقبة") })
             }
         }
         if (tab == 0) {
+            item { Text("ملخص المنظومة", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold) }
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    StatBox("الأطباء", doctors, Modifier.weight(1f))
+                    StatBox("العيادات", clinics, Modifier.weight(1f))
+                }
+            }
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    StatBox("المرضى المسجلون*", patientCount, Modifier.weight(1f))
+                    StatBox("الحجوزات المحمّلة*", bookingCount, Modifier.weight(1f))
+                }
+            }
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    StatBox("اشتراكات فعالة", activeN, Modifier.weight(1f))
+                    StatBox("اشتراكات منتهية", expiredN, Modifier.weight(1f))
+                }
+            }
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    StatBox("تنتهي خلال 7 أيام", soonN, Modifier.weight(1f))
+                    StatBox("عمليات التجديد", renewals, Modifier.weight(1f))
+                }
+            }
+            item { StatBox("عمليات الدفع المسجلة (آخر 100 عملية)", cashN, Modifier.fillMaxWidth()) }
+            item { Text("* الأعداد محدودة بأول 1000 سجل محمّل، وليست إحصاءً شاملاً عند تجاوز الحد.", color = AMuted, fontSize = 11.sp) }
+            item {
+                Row(Modifier.fillMaxWidth().background(ACard, RoundedCornerShape(14.dp))
+                    .border(1.dp, ALine, RoundedCornerShape(14.dp)).padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(9.dp).background(if (systemStatus.startsWith("متصل")) AGreen else ARed, RoundedCornerShape(50)))
+                    Spacer(Modifier.width(9.dp))
+                    Column {
+                        Text("حالة الاتصال", color = Color.White, fontWeight = FontWeight.Bold)
+                        Text(systemStatus, color = AMuted, fontSize = 12.sp)
+                    }
+                }
+            }
+        } else if (tab == 3) {
+            item { Text("مراقبة النظام", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold) }
+            item {
+                Column(Modifier.fillMaxWidth().background(ACard, RoundedCornerShape(16.dp))
+                    .border(1.dp, ALine, RoundedCornerShape(16.dp)).padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("اتصال Firestore", color = Color.White, fontWeight = FontWeight.Bold)
+                    Text(systemStatus, color = if (systemStatus.startsWith("متصل")) AGreen else ADanger)
+                    Text("اللوحة تعرض مؤشرات تشغيلية فقط، ولا تعرض محتوى الرسائل أو الوصفات الطبية.", color = AMuted, fontSize = 12.sp)
+                    Text("لا يوجد حالياً سجل مركزي لأخطاء التطبيق وأحداث الأمان؛ لن نعرض تنبيهات أو أرقاماً غير متوفرة.", color = AMuted, fontSize = 12.sp)
+                }
+            }
+        } else if (tab == 1) {
             item {
                 OutlinedTextField(
                     value = query,
@@ -337,12 +415,28 @@ private fun AdminPanel(onBack: () -> Unit) {
             items(shown, key = { it["id"] as String }) { u ->
                 val id = u["id"] as String
                 DoctorRow(
-                    u, subs[id], specs[id].orEmpty(),
+                    u, subs[id], specs[id].orEmpty(), approvals[id] == true,
+                    profileExists = id in profileExists,
+                    onToggleApproval = {
+                        val next = approvals[id] != true
+                        aDb.collection("doctors").document(id).update(
+                            mapOf(
+                                "approved" to next,
+                                "approvedBy" to adminUid,
+                                "approvedAt" to FieldValue.serverTimestamp()
+                            )
+                        ).addOnSuccessListener {
+                            info = if (next) "تم اعتماد الملف المهني" else "تم إلغاء اعتماد الملف المهني"
+                            error = ""
+                        }.addOnFailureListener {
+                            error = "تعذر تحديث الاعتماد. تحقق من صلاحيات الإدارة والإنترنت"
+                        }
+                    },
                     onGrant = { grantUser = u },
                     onCancel = { cancelUser = u }
                 )
             }
-        } else {
+        } else if (tab == 2) {
             if (history.isEmpty()) item { Text("لا توجد عمليات بعد", color = AMuted) }
             items(history, key = { it["id"] as String }) { h -> HistoryCard(h) }
         }
