@@ -63,10 +63,20 @@ jobs:
               f.write(raw)
           print("google-services.json validated (content not shown)")
           PYEOF
+      - name: Set up Java 21 for Firebase Emulator
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
       - name: Validate Firestore rules with the emulator
         run: |
           npm install --global firebase-tools
           firebase emulators:exec --only firestore --project demo-sehati "echo 'Firestore rules compiled successfully'"
+      - name: Restore Java 17 for Android build
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
       - run: gradle assembleDebug
       - name: Print APK signing certificate fingerprint (public, no secrets)
         run: |
