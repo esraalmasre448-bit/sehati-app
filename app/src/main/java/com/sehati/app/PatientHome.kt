@@ -109,15 +109,19 @@ fun PatientHome(
         }
 
         Text("التخصصات الأكثر طلباً", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-        val cells: List<Spec?> = COMMON_SPECIALTIES + listOf<Spec?>(null)
-        cells.chunked(4).forEachIndexed { r, row ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        // شبكة مختصرة من 9 تخصصات أساسية + «أخرى»؛ بقية التخصصات متاحة من شاشة الكل.
+        val cells: List<Spec?> = listOf(
+            "أعصاب", "طب الأسنان", "طب العيون", "عظمية ومفاصل", "قلبية",
+            "طب الأطفال", "نسائية وتوليد", "باطنية", "جلدية"
+        ).mapNotNull { n -> SPECIALTIES.firstOrNull { it.name == n } } + listOf<Spec?>(null)
+        cells.chunked(5).forEachIndexed { r, row ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 row.forEachIndexed { c, sp ->
-                    val color = PH_COLORS[(r * 4 + c) % PH_COLORS.size]
+                    val color = PH_COLORS[(r * 5 + c) % PH_COLORS.size]
                     if (sp != null) PHSpec(sp, color, Modifier.weight(1f)) { onGo("search:" + sp.name) }
                     else PHAllSpec(Modifier.weight(1f)) { onGo("specs") }
                 }
-                repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
+                repeat(5 - row.size) { Spacer(Modifier.weight(1f)) }
             }
         }
 
@@ -238,15 +242,15 @@ private fun DoctorListCard(d: Map<String, Any?>, km: Double?, onOpen: (Map<Strin
 @Composable
 private fun PHSpec(sp: Spec, color: Color, modifier: Modifier, onClick: () -> Unit) {
     Column(
-        modifier.clickable { onClick() }.padding(vertical = 4.dp),
+        modifier.clickable { onClick() }.padding(vertical = 2.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
-            Modifier.size(64.dp).background(color.copy(alpha = 0.14f), CircleShape).border(1.dp, color.copy(alpha = 0.55f), CircleShape),
+            Modifier.size(48.dp).background(color.copy(alpha = 0.14f), CircleShape).border(1.dp, color.copy(alpha = 0.55f), CircleShape),
             contentAlignment = Alignment.Center
-        ) { SpecImage(sp, 42.dp) }
+        ) { SpecImage(sp, 30.dp) }
         Spacer(Modifier.height(6.dp))
-        Text(sp.name, color = Color.White, fontSize = 11.sp, textAlign = TextAlign.Center, maxLines = 2)
+        Text(sp.name, color = Color.White, fontSize = 10.sp, textAlign = TextAlign.Center, maxLines = 2)
     }
 }
 
@@ -257,7 +261,7 @@ private fun PHAllSpec(modifier: Modifier, onClick: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
-            Modifier.size(64.dp).background(BRed.copy(alpha = 0.16f), CircleShape).border(1.dp, BRed, CircleShape),
+            Modifier.size(48.dp).background(BRed.copy(alpha = 0.16f), CircleShape).border(1.dp, BRed, CircleShape),
             contentAlignment = Alignment.Center
         ) { Icon(Icons.Filled.GridView, null, tint = Color.White, modifier = Modifier.size(30.dp)) }
         Spacer(Modifier.height(6.dp))
