@@ -39,8 +39,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 private val PH_COLORS = listOf(
-    Color(0xFF2EC4B6), Color(0xFFFF6B6B), Color(0xFFFFB02E),
-    Color(0xFF8E7CFF), Color(0xFFFF5C8A), Color(0xFF4CC9F0)
+    Color(0xFFE5171F), Color(0xFFFF6B73), Color(0xFFB7C3D8),
+    Color(0xFF6E8FCB), Color(0xFFFF9A9E), Color(0xFF8C9BB5)
 )
 
 @Composable
