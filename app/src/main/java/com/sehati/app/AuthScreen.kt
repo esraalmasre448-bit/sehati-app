@@ -255,11 +255,11 @@ fun AuthFlow(onDone: () -> Unit) {
                             }
                         }
                             .addOnFailureListener {
-                                u.delete().addOnCompleteListener {
-                                    auth.signOut()
-                                    busy = false
-                                    msg = errGeneric
-                                }
+                                // لا نحذف حساب Firebase تلقائياً عند تعثر إنشاء ملف Firestore؛
+                                // قد يكون الحساب قد أُنشئ بالفعل ويجب الحفاظ على UID وإتاحة استكماله.
+                                auth.signOut()
+                                busy = false
+                                msg = "تم إنشاء حساب الدخول لكن تعذر حفظ الملف الشخصي. حاول تسجيل الدخول لاحقاً أو تواصل مع الدعم؛ لم نحذف حسابك." 
                             }
                     }.addOnFailureListener { busy = false; msg = authError(it) }
                 } else {
@@ -275,11 +275,11 @@ fun AuthFlow(onDone: () -> Unit) {
                                     busy = false
                                     msg = errGeneric
                                 } else {
-                                    u.delete().addOnCompleteListener {
-                                        auth.signOut()
-                                        busy = false
-                                        msg = "كان الحساب ناقصًا وتم حذفه. أنشئ حسابًا جديدًا بنفس الإيميل"
-                                    }
+                                    // غياب وثيقة Firestore لا يثبت أن حساب Auth غير صالح.
+                                    // لا نحذف حساباً قائماً تلقائياً؛ نحافظ على UID والبيانات المرتبطة به.
+                                    auth.signOut()
+                                    busy = false
+                                    msg = "تعذر العثور على ملف الحساب. لم نحذف حسابك؛ تواصل مع الدعم لاستعادة الملف بأمان."
                                 }
                             }
                             .addOnFailureListener {
