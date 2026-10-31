@@ -201,7 +201,7 @@ fun DoctorSearchScreen(onBack: () -> Unit, onOpen: (Map<String, Any?>) -> Unit, 
     fun loadPage() {
         if (loading || !more) return
         loading = true
-        var q: Query = fDb.collection("doctors").orderBy("name").limit(40)
+        var q: Query = fDb.collection("doctors").whereEqualTo("approved", true).orderBy("name").limit(40)
         val l = last
         if (l != null) q = q.startAfter(l)
         q.get().addOnSuccessListener { s ->
@@ -239,26 +239,26 @@ fun DoctorSearchScreen(onBack: () -> Unit, onOpen: (Map<String, Any?>) -> Unit, 
             found = found + s.documents.associate { it.id to (it.data.orEmpty() + ("id" to it.id)) }
         }
         if (q.isNotEmpty()) {
-            jobs.add { done -> col.orderBy("name").startAt(q).endAt(q + "").limit(30).get()
+            jobs.add { done -> col.whereEqualTo("approved", true).orderBy("name").startAt(q).endAt(q + "").limit(30).get()
                 .addOnSuccessListener { add(it); done() }.addOnFailureListener { done() } }
-            jobs.add { done -> col.whereEqualTo("city", q).limit(30).get()
+            jobs.add { done -> col.whereEqualTo("approved", true).whereEqualTo("city", q).limit(30).get()
                 .addOnSuccessListener { add(it); done() }.addOnFailureListener { done() } }
             val sp = matchSpecialty(q)
             if (sp != null) {
-                jobs.add { done -> col.whereIn("specialty", specVariants(sp)).limit(50).get()
+                jobs.add { done -> col.whereEqualTo("approved", true).whereIn("specialty", specVariants(sp)).limit(50).get()
                     .addOnSuccessListener { add(it); done() }.addOnFailureListener { done() } }
             } else {
-                jobs.add { done -> col.whereEqualTo("specialty", q).limit(30).get()
+                jobs.add { done -> col.whereEqualTo("approved", true).whereEqualTo("specialty", q).limit(30).get()
                     .addOnSuccessListener { add(it); done() }.addOnFailureListener { done() } }
             }
         }
         if (fs.isNotEmpty()) {
             val sp = matchSpecialty(fs)
-            if (sp != null) jobs.add { done -> col.whereIn("specialty", specVariants(sp)).limit(50).get()
+            if (sp != null) jobs.add { done -> col.whereEqualTo("approved", true).whereIn("specialty", specVariants(sp)).limit(50).get()
                 .addOnSuccessListener { add(it); done() }.addOnFailureListener { done() } }
         }
         if (fc.isNotEmpty()) {
-            jobs.add { done -> col.whereEqualTo("city", fc).limit(50).get()
+            jobs.add { done -> col.whereEqualTo("approved", true).whereEqualTo("city", fc).limit(50).get()
                 .addOnSuccessListener { add(it); done() }.addOnFailureListener { done() } }
         }
         if (jobs.isEmpty()) { searching = false; return@LaunchedEffect }
