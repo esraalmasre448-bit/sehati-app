@@ -116,23 +116,40 @@ exports.verifyEmailVerificationCode = onCall({
   const snap = await ref.get();
   if (!snap.exists) throw new HttpsError("not-found", "لا يوجد رمز فعال. اطلب إرسال رمز جديد.");
 
-  const data = snap.data();
-  if (data.expiresAt.toMillis() <= Date.now()) {
-    await ref.delete();
+  const expected = digest(uid, code, OTP_HMAC_SECRET.value());
+  const outcome = await db.runTransaction(async (tx) => {
+    const current = await tx.get(ref);
+    if (!current.exists) return "missing";
+    const data = current.data();
+    if (data.expiresAt.toMillis() <= Date.now()) {
+      tx.delete(ref);
+      return "expired";
+    }
+    if ((data.attempts || 0) >= MAX_ATTEMPTS) {
+      tx.delete(ref);
+      return "locked";
+    }
+    if (!safeEqual(data.codeHash, expected)) {
+      tx.update(ref, { attempts: (data.attempts || 0) + 1 });
+      return "wrong";
+    }
+    tx.delete(ref);
+    return "valid";
+  });
+
+  if (outcome === "missing") {
+    throw new HttpsError("not-found", "لا يوجد رمز فعال. اطلب رمزاً جديداً.");
+  }
+  if (outcome === "expired") {
     throw new HttpsError("deadline-exceeded", "انتهت صلاحية الرمز. اطلب رمزاً جديداً.");
   }
-  if ((data.attempts || 0) >= MAX_ATTEMPTS) {
-    await ref.delete();
+  if (outcome === "locked") {
     throw new HttpsError("resource-exhausted", "تجاوزت عدد المحاولات. اطلب رمزاً جديداً.");
   }
-
-  const expected = digest(uid, code, OTP_HMAC_SECRET.value());
-  if (!safeEqual(data.codeHash, expected)) {
-    await ref.update({ attempts: (data.attempts || 0) + 1 });
+  if (outcome === "wrong") {
     throw new HttpsError("permission-denied", "الرمز غير صحيح. تحقق منه وحاول مجدداً.");
   }
 
   await getAuth().updateUser(uid, { emailVerified: true });
-  await ref.delete();
   return { success: true, verified: true };
 });
