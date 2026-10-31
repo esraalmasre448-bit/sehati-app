@@ -440,6 +440,7 @@ fun MyAppointmentsContent(onFind: () -> Unit, onBack: (() -> Unit)? = null) {
     var loaded by remember { mutableStateOf(false) }
     var msg by remember { mutableStateOf("") }
     var cancelId by remember { mutableStateOf<String?>(null) }
+    var statusFilter by remember { mutableStateOf("ALL") }
     var notes by remember { mutableStateOf(listOf<Map<String, Any?>>()) }
 
     DisposableEffect(uid) {
@@ -468,6 +469,8 @@ fun MyAppointmentsContent(onFind: () -> Unit, onBack: (() -> Unit)? = null) {
         onDispose { reg.remove() }
     }
 
+    val visibleItems = if (statusFilter == "ALL") items else items.filter { it["status"] == statusFilter }
+
     LazyColumn(
         Modifier.fillMaxSize().background(BBg).padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -475,12 +478,35 @@ fun MyAppointmentsContent(onFind: () -> Unit, onBack: (() -> Unit)? = null) {
     ) {
         if (onBack != null) item { TextButton(onClick = onBack) { Text("رجوع", color = BRed) } }
         item { Text("مواعيدي", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White) }
+        item {
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                listOf(
+                    "ALL" to "الكل",
+                    "PENDING" to "قيد الانتظار",
+                    "CONFIRMED" to "مؤكدة",
+                    "DONE" to "مكتملة",
+                    "CANCELLED" to "ملغاة"
+                ).forEach { (key, label) ->
+                    FilterChip(
+                        selected = statusFilter == key,
+                        onClick = { statusFilter = key },
+                        label = { Text(label, maxLines = 1) }
+                    )
+                }
+            }
+        }
         if (msg.isNotEmpty()) item { Text(msg, color = BDanger) }
         if (loaded && items.isEmpty()) {
             item { Text("ما عندك مواعيد بعد.", color = BMuted) }
             item { RedButton("ابحث عن طبيب واحجز موعد", onClick = onFind) }
         }
-        items(items, key = { it["id"] as String }) { a ->
+        if (loaded && items.isNotEmpty() && visibleItems.isEmpty()) {
+            item { Text("لا توجد مواعيد ضمن هذا التصنيف.", color = BMuted) }
+        }
+        items(visibleItems, key = { it["id"] as String }) { a ->
             val (label, color) = statusLabel(a["status"])
             Column(
                 Modifier.fillMaxWidth().background(BCard, RoundedCornerShape(14.dp))
