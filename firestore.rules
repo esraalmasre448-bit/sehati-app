@@ -68,12 +68,18 @@ service cloud.firestore {
     match /users/{uid} {
       allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
       allow create: if signedIn() && request.auth.uid == uid
-        && request.resource.data.keys().hasOnly(['name','phone','email','accountType','createdAt'])
+        && request.resource.data.keys().hasOnly(['name','phone','email','accountType','createdAt','phoneVerified'])
+        && request.resource.data.phoneVerified == true
+        && request.auth.token.phone_number == request.resource.data.phone
         && request.resource.data.accountType in ['patient','doctor','clinic']
         && request.resource.data.name is string && request.resource.data.name.size() <= 100
         && request.resource.data.phone is string && request.resource.data.phone.size() <= 30;
       allow update: if signedIn() && request.auth.uid == uid
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name','phone']);
+        && (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name'])
+          || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['phone'])
+              && request.auth.token.phone_number == request.resource.data.phone)
+        );
       allow delete: if signedIn() && request.auth.uid == uid;
     }
 

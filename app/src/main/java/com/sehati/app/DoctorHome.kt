@@ -200,29 +200,17 @@ private fun DoctorHomeContent(
             if (toggleMsg.isNotEmpty()) Text(toggleMsg, color = BDanger, fontSize = 12.sp)
         }
 
-        // البطاقات الكبيرة الملوّنة: كل نوع بلونه
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            DoctorSectionTitle("الأدوات")
-            DoctorBigCard(
-                Icons.Filled.CalendarMonth, "المواعيد", "مواعيد اليوم: عرض وإدارة",
-                countText(todayN?.toLong()),
-                Brush.linearGradient(listOf(Color(0xFF14B8A6), Color(0xFF0F766E)))
-            ) { onGo("dash") }
-            DoctorBigCard(
-                Icons.Filled.Schedule, "المرضى المنتظرون", "في الدور الآن",
-                countText(waiting),
-                Brush.linearGradient(listOf(Color(0xFFF59E0B), Color(0xFFB45309)))
-            ) { onGo("dash") }
-            DoctorBigCard(
-                Icons.Filled.Inbox, "الطلبات الجديدة", "حجوزات آخر 24 ساعة",
-                newN?.toString() ?: "...",
-                Brush.linearGradient(listOf(Color(0xFF8B5CF6), Color(0xFF6D28D9)))
-            ) { onGo("dash") }
-            DoctorBigCard(
-                Icons.Filled.Group, "المرضى", "قائمة المرضى وملفاتهم",
-                null,
-                Brush.linearGradient(listOf(Color(0xFFF43F5E), Color(0xFFBE123C)))
-            ) { onPatients() }
+        // لوحة مختصرة بأربع بطاقات كما في التصميم المرجعي
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            DoctorSectionTitle("لوحة العمل")
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                DoctorMetricCard(Icons.Filled.CalendarMonth, "مواعيدي", countText(todayN?.toLong()), Modifier.weight(1f)) { onGo("dash") }
+                DoctorMetricCard(Icons.Filled.Schedule, "بانتظار الدور", countText(waiting), Modifier.weight(1f)) { onGo("dash") }
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                DoctorMetricCard(Icons.Filled.Inbox, "طلبات جديدة", newN?.toString() ?: "...", Modifier.weight(1f)) { onGo("dash") }
+                DoctorMetricCard(Icons.Filled.Group, "المرضى", "عرض القائمة", Modifier.weight(1f)) { onPatients() }
+            }
         }
 
         // الخدمات
@@ -234,6 +222,27 @@ private fun DoctorHomeContent(
             ServiceRow(Icons.Filled.Autorenew, "تجديد الاشتراك والتواصل مع الإدارة") { onGo("renew") }
             ServiceRow(Icons.Filled.Chat, "الرسائل") { onGo("messages") }
         }
+    }
+}
+
+@Composable
+private fun DoctorMetricCard(icon: ImageVector, title: String, value: String, modifier: Modifier, onClick: () -> Unit) {
+    Column(
+        modifier
+            .height(116.dp)
+            .background(BCard, RoundedCornerShape(18.dp))
+            .border(1.dp, BLine, RoundedCornerShape(18.dp))
+            .clickable { onClick() }
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, null, tint = DTeal, modifier = Modifier.size(22.dp))
+            Spacer(Modifier.weight(1f))
+            Icon(Icons.Filled.ChevronLeft, null, tint = BMuted, modifier = Modifier.size(18.dp))
+        }
+        Text(value, color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+        Text(title, color = BMuted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
     }
 }
 

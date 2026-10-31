@@ -307,15 +307,6 @@ fun MainShell(onGo: (String) -> Unit, onOpen: (Map<String, Any?>) -> Unit, onLog
                     label = { Text("الرسائل") }, colors = itemColors)
                 NavigationBarItem(tab == 3, { tab = 3 }, { Icon(Icons.Filled.Person, null) },
                     label = { Text(stringResource(R.string.nav_profile)) }, colors = itemColors)
-                if (isAdmin) {
-                    NavigationBarItem(
-                        selected = false,
-                        onClick = { onGo("admin") },
-                        icon = { Icon(Icons.Filled.Code, null) },
-                        label = { Text("المطوّر") },
-                        colors = itemColors
-                    )
-                }
             }
         }
     ) { pad ->
@@ -325,7 +316,7 @@ fun MainShell(onGo: (String) -> Unit, onOpen: (Map<String, Any?>) -> Unit, onLog
                 1 -> if (type == "doctor" || type == "clinic") DoctorDashboardContent()
                 else MyAppointmentsContent(onFind = { onGo("search") })
                 4 -> NotifTab(ns.items, fresh)
-                else -> ProfileTab(name, email, typeLabel, onLogout, onPrivacy = { onGo("privacy") })
+                else -> ProfileTab(name, email, typeLabel, onLogout, onPrivacy = { onGo("privacy") }, isAdmin = isAdmin, onAdmin = { onGo("admin") })
             }
         }
     }

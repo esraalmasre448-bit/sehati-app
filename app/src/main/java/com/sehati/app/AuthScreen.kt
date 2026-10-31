@@ -1,6 +1,14 @@
 package com.sehati.app
 
 import android.os.Bundle
+import android.app.Activity
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.runtime.CompositionLocalProvider
+import com.google.firebase.auth.PhoneAuthCredential
+import com.google.firebase.auth.PhoneAuthOptions
+import com.google.firebase.auth.PhoneAuthProvider
+import java.util.concurrent.TimeUnit
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -35,6 +43,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
@@ -147,6 +156,58 @@ fun AuthFlow(onDone: () -> Unit) {
     var resetMsg by remember { mutableStateOf("") }
     var resetOk by remember { mutableStateOf(false) }
     var resetBusy by remember { mutableStateOf(false) }
+    var seniorMode by remember { mutableStateOf(false) }
+    var verificationId by remember { mutableStateOf<String?>(null) }
+    var otp by remember { mutableStateOf("") }
+    var otpSent by remember { mutableStateOf(false) }
+    var phoneCredential by remember { mutableStateOf<PhoneAuthCredential?>(null) }
+    val activity = LocalContext.current as? Activity
+
+    fun completeSignup(credential: PhoneAuthCredential) {
+        val e = email.trim()
+        busy = true
+        auth.createUserWithEmailAndPassword(e, pass).addOnSuccessListener { result ->
+            val user = result.user ?: run { busy = false; msg = errGeneric; return@addOnSuccessListener }
+            user.linkWithCredential(credential).addOnSuccessListener {
+                val normalizedPhone = phone.trim()
+                db.collection("users").document(user.uid).set(
+                    mapOf(
+                        "name" to name.trim(), "phone" to normalizedPhone, "phoneVerified" to true,
+                        "email" to e, "accountType" to type,
+                        "createdAt" to FieldValue.serverTimestamp()
+                    )
+                ).addOnSuccessListener {
+                    if (type == "doctor" || type == "clinic") {
+                        val end = java.util.Calendar.getInstance()
+                            .apply { add(java.util.Calendar.DAY_OF_YEAR, 30) }.time
+                        db.collection("subscriptions").document(user.uid).set(
+                            mapOf(
+                                "uid" to user.uid, "status" to "ACTIVE", "trial" to true,
+                                "paymentMethod" to "Trial",
+                                "startedAt" to FieldValue.serverTimestamp(),
+                                "expiresAt" to com.google.firebase.Timestamp(end)
+                            )
+                        ).addOnCompleteListener { busy = false; onDone() }
+                    } else {
+                        busy = false
+                        onDone()
+                    }
+                }.addOnFailureListener {
+                    user.delete().addOnCompleteListener {
+                        auth.signOut()
+                        busy = false
+                        msg = errGeneric
+                    }
+                }
+            }.addOnFailureListener { error ->
+                user.delete().addOnCompleteListener {
+                    auth.signOut()
+                    busy = false
+                    msg = authError(error)
+                }
+            }
+        }.addOnFailureListener { busy = false; msg = authError(it) }
+    }
 
     // ظهور سريع وهادئ للشعار والعنوان عند فتح الشاشة فقط
     var entered by remember { mutableStateOf(false) }
@@ -157,10 +218,18 @@ fun AuthFlow(onDone: () -> Unit) {
         label = "enter"
     )
 
-    Column(
-        Modifier.fillMaxSize().background(Bg).padding(24.dp).verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+    CompositionLocalProvider(
+        LocalDensity provides Density(density = LocalDensity.current.density, fontScale = if (seniorMode) 1.22f else 1f)
     ) {
+    Column(
+        Modifier.fillMaxSize().background(Bg).padding(if (seniorMode) 18.dp else 24.dp).verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(if (seniorMode) 16.dp else 12.dp)
+    ) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text("وضع كبار السن", color = Color.White, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.weight(1f))
+            Switch(checked = seniorMode, onCheckedChange = { seniorMode = it })
+        }
         Image(
             painterResource(R.drawable.ic_launcher), null,
             Modifier
@@ -177,9 +246,16 @@ fun AuthFlow(onDone: () -> Unit) {
         if (signup) {
             Field(name, { name = it }, stringResource(R.string.name), icon = Icons.Filled.Person)
             Field(
-                phone, { phone = it }, stringResource(R.string.phone),
+                phone, { phone = it }, "رقم الهاتف مع رمز الدولة (+963...)",
                 keyboard = KeyboardType.Phone, icon = Icons.Filled.Phone
             )
+            if (otpSent) {
+                Field(otp, { otp = it.filter(Char::isDigit).take(6) }, "رمز التحقق المكوّن من 6 أرقام",
+                    keyboard = KeyboardType.Number, icon = Icons.Filled.MarkEmailRead)
+                Text("أدخل الرمز الذي وصل برسالة SMS إلى $phone", color = Muted, fontSize = 13.sp)
+            } else {
+                Text("سنرسل رمزاً لتأكيد ملكية رقم الهاتف قبل إنشاء الحساب.", color = Muted, fontSize = 13.sp)
+            }
             Text(stringResource(R.string.account_type), color = Muted)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(
@@ -217,7 +293,11 @@ fun AuthFlow(onDone: () -> Unit) {
         }
         if (msg.isNotEmpty()) Text(msg, color = Danger)
         RedButton(
-            text = stringResource(if (signup) R.string.signup_btn else R.string.login),
+            text = if (!signup) stringResource(R.string.login) else when {
+                phoneCredential != null -> "تأكيد الرقم وإنشاء الحساب"
+                otpSent -> "تأكيد الرمز وإنشاء الحساب"
+                else -> "إرسال رمز التحقق"
+            },
             enabled = !busy
         ) {
             msg = ""
@@ -226,43 +306,56 @@ fun AuthFlow(onDone: () -> Unit) {
                 msg = enterBoth
             } else if (signup && name.isBlank()) {
                 msg = enterName
+            } else if (signup && !phone.trim().matches(Regex("^\\+[1-9][0-9]{7,14}$"))) {
+                msg = "اكتب الرقم بالصيغة الدولية، مثال: +963XXXXXXXXX"
             } else {
-                busy = true
                 if (signup) {
-                    auth.createUserWithEmailAndPassword(e, pass).addOnSuccessListener { r ->
-                        val u = r.user!!
-                        db.collection("users").document(u.uid).set(
-                            mapOf(
-                                "name" to name.trim(), "phone" to phone.trim(), "email" to e,
-                                "accountType" to type, "createdAt" to FieldValue.serverTimestamp()
-                            )
-                        ).addOnSuccessListener {
-                            if (type == "doctor" || type == "clinic") {
-                                // شهر مجاني عند أول تسجيل، وبعده يُطلب الاشتراك تلقائياً
-                                val end = java.util.Calendar.getInstance()
-                                    .apply { add(java.util.Calendar.DAY_OF_YEAR, 30) }.time
-                                db.collection("subscriptions").document(u.uid).set(
-                                    mapOf(
-                                        "uid" to u.uid, "status" to "ACTIVE", "trial" to true,
-                                        "paymentMethod" to "Trial",
-                                        "startedAt" to FieldValue.serverTimestamp(),
-                                        "expiresAt" to com.google.firebase.Timestamp(end)
-                                    )
-                                ).addOnCompleteListener { busy = false; onDone() }
-                            } else {
-                                busy = false
-                                onDone()
-                            }
+                    val credential = phoneCredential
+                    if (credential != null) {
+                        completeSignup(credential)
+                    } else if (otpSent) {
+                        val id = verificationId
+                        if (id.isNullOrBlank() || otp.length != 6) {
+                            msg = "أدخل رمز التحقق المكوّن من 6 أرقام"
+                        } else {
+                            busy = true
+                            completeSignup(PhoneAuthProvider.getCredential(id, otp))
                         }
-                            .addOnFailureListener {
-                                u.delete().addOnCompleteListener {
-                                    auth.signOut()
+                    } else {
+                        val currentActivity = activity
+                        if (currentActivity == null) {
+                            msg = "تعذر بدء التحقق على هذا الجهاز"
+                        } else {
+                            busy = true
+                            val callbacks = object : PhoneAuthProvider.OnVerificationStateChangedCallbacks() {
+                                override fun onVerificationCompleted(credential: PhoneAuthCredential) {
+                                    phoneCredential = credential
+                                    otpSent = true
                                     busy = false
-                                    msg = errGeneric
+                                    msg = "تم التحقق تلقائياً من رقم الهاتف. اضغط للمتابعة."
+                                }
+                                override fun onVerificationFailed(error: com.google.firebase.FirebaseException) {
+                                    busy = false
+                                    msg = "تعذر إرسال رمز التحقق: ${error.localizedMessage ?: "تحقق من الرقم وإعدادات Firebase"}"
+                                }
+                                override fun onCodeSent(id: String, token: PhoneAuthProvider.ForceResendingToken) {
+                                    verificationId = id
+                                    otpSent = true
+                                    busy = false
+                                    msg = "أُرسل رمز التحقق. افحص رسائل SMS."
                                 }
                             }
-                    }.addOnFailureListener { busy = false; msg = authError(it) }
+                            val options = PhoneAuthOptions.newBuilder(auth)
+                                .setPhoneNumber(phone.trim())
+                                .setTimeout(60L, TimeUnit.SECONDS)
+                                .setActivity(currentActivity)
+                                .setCallbacks(callbacks)
+                                .build()
+                            PhoneAuthProvider.verifyPhoneNumber(options)
+                        }
+                    }
                 } else {
+                    busy = true
                     auth.signInWithEmailAndPassword(e, pass).addOnSuccessListener { r ->
                         val u = r.user!!
                         db.collection("users").document(u.uid).get()
@@ -307,6 +400,7 @@ fun AuthFlow(onDone: () -> Unit) {
                 color = Color.White, fontSize = 16.sp
             )
         }
+    }
     }
 
     if (showReset) {
