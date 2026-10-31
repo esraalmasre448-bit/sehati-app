@@ -156,11 +156,15 @@ private fun book(
     }.addOnFailureListener { onResult(false, "تعذر تحميل بياناتك، تحقق من الإنترنت") }
 }
 
+@Suppress("UNUSED_PARAMETER")
 fun setStatus(id: String, status: String, freeSlot: Boolean, onDone: (Boolean) -> Unit) {
-    val batch = bDb.batch()
-    batch.update(bDb.collection("appointments").document(id), "status", status)
-    if (freeSlot) batch.delete(bDb.collection("slots").document(id))
-    batch.commit().addOnSuccessListener { onDone(true) }.addOnFailureListener { onDone(false) }
+    // لا نحذف وثيقة slots هنا: مسار الحجز القديم معطّل بقاعدة create،
+    // والحذف كان يُفشل الإلغاء كله إذا لم تكن الوثيقة موجودة.
+    // الإلغاء يحدّث حالة الموعد فقط.
+    bDb.collection("appointments").document(id)
+        .update("status", status)
+        .addOnSuccessListener { onDone(true) }
+        .addOnFailureListener { onDone(false) }
 }
 
 @Composable
