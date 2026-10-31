@@ -147,6 +147,9 @@ fun AuthFlow(onDone: () -> Unit) {
     var resetMsg by remember { mutableStateOf("") }
     var resetOk by remember { mutableStateOf(false) }
     var resetBusy by remember { mutableStateOf(false) }
+    var verificationPending by remember { mutableStateOf(false) }
+    var verificationEmail by remember { mutableStateOf("") }
+    var verificationBusy by remember { mutableStateOf(false) }
 
     // ظهور سريع وهادئ للشعار والعنوان عند فتح الشاشة فقط
     var entered by remember { mutableStateOf(false) }
@@ -156,6 +159,64 @@ fun AuthFlow(onDone: () -> Unit) {
         animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing),
         label = "enter"
     )
+
+    if (verificationPending) {
+        Column(
+            Modifier.fillMaxSize().background(Bg).padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Icon(Icons.Filled.MarkEmailRead, contentDescription = null, tint = Red, modifier = Modifier.size(64.dp))
+            Spacer(Modifier.height(18.dp))
+            Text("تحقق من بريدك الإلكتروني", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(10.dp))
+            Text("أرسلنا رابط التحقق إلى:", color = Muted)
+            Text(verificationEmail, color = Color.White, textAlign = TextAlign.Center, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(12.dp))
+            Text("افتح رسالة Firebase واضغط رابط التحقق، ثم ارجع إلى التطبيق واضغط «تحققت، متابعة». لا يوجد رمز رقمي لإدخاله؛ التحقق يتم عبر الرابط.", color = Muted, textAlign = TextAlign.Center)
+            Spacer(Modifier.height(20.dp))
+            RedButton("تحققت، متابعة", enabled = !verificationBusy) {
+                verificationBusy = true
+                val current = auth.currentUser
+                if (current == null) {
+                    verificationBusy = false
+                    verificationPending = false
+                    msg = "انتهت جلسة التحقق. سجّل الدخول مجدداً بعد فتح رابط البريد."
+                } else {
+                    current.reload().addOnSuccessListener {
+                        val refreshed = auth.currentUser
+                        if (refreshed?.isEmailVerified == true) {
+                            verificationPending = false
+                            verificationBusy = false
+                            onDone()
+                        } else {
+                            verificationBusy = false
+                            msg = "لم يكتمل التحقق بعد. افتح رابط الرسالة أولاً ثم حاول مجدداً."
+                        }
+                    }.addOnFailureListener {
+                        verificationBusy = false
+                        msg = "تعذر التحقق من الحالة. تأكد من الإنترنت وحاول مجدداً."
+                    }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            TextButton(enabled = !verificationBusy, onClick = {
+                verificationBusy = true
+                auth.currentUser?.sendEmailVerification()
+                    ?.addOnSuccessListener { verificationBusy = false; msg = "أعدنا إرسال رابط التحقق إلى بريدك." }
+                    ?.addOnFailureListener { verificationBusy = false; msg = authError(it) }
+                    ?: run { verificationBusy = false; msg = "سجّل الدخول مجدداً لإعادة إرسال رابط التحقق." }
+            }) { Text("إعادة إرسال رابط التحقق", color = Red) }
+            if (msg.isNotEmpty()) Text(msg, color = Danger, textAlign = TextAlign.Center)
+            TextButton(onClick = {
+                auth.signOut()
+                verificationPending = false
+                signup = false
+                msg = ""
+            }) { Text("العودة إلى تسجيل الدخول", color = Muted) }
+        }
+        return
+    }
 
     Column(
         Modifier.fillMaxSize().background(Bg).padding(24.dp).verticalScroll(rememberScrollState()),
@@ -248,10 +309,29 @@ fun AuthFlow(onDone: () -> Unit) {
                                         "startedAt" to FieldValue.serverTimestamp(),
                                         "expiresAt" to com.google.firebase.Timestamp(end)
                                     )
-                                ).addOnCompleteListener { busy = false; onDone() }
+                                ).addOnCompleteListener {
+                                    auth.currentUser?.sendEmailVerification()
+                                        ?.addOnSuccessListener {
+                                            busy = false
+                                            verificationEmail = e
+                                            verificationPending = true
+                                        }
+                                        ?.addOnFailureListener {
+                                            busy = false
+                                            msg = "تم إنشاء الحساب لكن تعذر إرسال رابط التحقق: ${authError(it)}"
+                                        }
+                                }
                             } else {
-                                busy = false
-                                onDone()
+                                auth.currentUser?.sendEmailVerification()
+                                    ?.addOnSuccessListener {
+                                        busy = false
+                                        verificationEmail = e
+                                        verificationPending = true
+                                    }
+                                    ?.addOnFailureListener {
+                                        busy = false
+                                        msg = "تم إنشاء الحساب لكن تعذر إرسال رابط التحقق: ${authError(it)}"
+                                    }
                             }
                         }
                             .addOnFailureListener {
@@ -265,7 +345,18 @@ fun AuthFlow(onDone: () -> Unit) {
                 } else {
                     auth.signInWithEmailAndPassword(e, pass).addOnSuccessListener { r ->
                         val u = r.user!!
-                        db.collection("users").document(u.uid).get()
+                        if (!u.isEmailVerified) {
+                            u.sendEmailVerification()
+                                .addOnSuccessListener {
+                                    busy = false
+                                    verificationEmail = e
+                                    verificationPending = true
+                                }
+                                .addOnFailureListener {
+                                    busy = false
+                                    msg = "حسابك غير موثّق. تعذر إرسال رابط التحقق: ${authError(it)}"
+                                }
+                        } else db.collection("users").document(u.uid).get()
                             .addOnSuccessListener { d ->
                                 if (d.exists()) {
                                     busy = false
