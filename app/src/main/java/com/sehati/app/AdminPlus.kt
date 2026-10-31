@@ -45,9 +45,9 @@ private const val DEV_TAGLINE = "مؤسس ومطوّر الطريق إلى صح�
 private const val GITHUB_URL = "https://github.com/esraalmasre448-bit/sehati-app"
 private const val FIREBASE_URL = "https://console.firebase.google.com/"
 
-private val AccBlue = Color(0xFF3B82F6)
-private val AccPurple = Color(0xFFA78BFA)
-private val AccAmber = Color(0xFFF59E0B)
+private val AccBlue = Color(0xFFE5171F)
+private val AccPurple = Color(0xFF9AA7BD)
+private val AccAmber = Color(0xFFFF6B73)
 
 fun compressFit(ctx: Context, uri: Uri): String? {
     return try {
