@@ -85,13 +85,15 @@ fun DoctorProfileScreen(onBack: () -> Unit) {
                     clinicName = d.getString("clinicName") ?: ""
                     city = d.getString("city") ?: ""
                     address = d.getString("address") ?: ""
-                    phone = d.getString("phone") ?: ""
                     hours = d.getString("hours") ?: ""
                     fee = d.getString("fee") ?: ""
                     photo = d.getString("photo") ?: ""
                     emergency = d.getBoolean("emergency") ?: false
-                    emergencyPhone = d.getString("emergencyPhone") ?: ""
                     hospitalName = d.getString("hospitalName") ?: ""
+                    fDb.collection("doctorPrivate").document(uid).get().addOnSuccessListener { p ->
+                        phone = p.getString("phone") ?: ""
+                        emergencyPhone = p.getString("emergencyPhone") ?: ""
+                    }
                     hospitalHours = d.getString("hospitalHours") ?: ""
                 } else {
                     fDb.collection("users").document(uid).get().addOnSuccessListener { u ->
@@ -161,18 +163,24 @@ fun DoctorProfileScreen(onBack: () -> Unit) {
             }
             busy = true
             msg = ""
-            fDb.collection("doctors").document(uid).set(
-                mapOf(
-                    "uid" to uid, "name" to name.trim(), "specialty" to specialty.trim(),
-                    "clinicName" to clinicName.trim(), "city" to city.trim(),
-                    "address" to address.trim(), "phone" to phone.trim(),
-                    "hours" to hours.trim(), "fee" to fee.trim(), "photo" to photo,
-                    "emergency" to emergency, "emergencyPhone" to emergencyPhone.trim(),
-                    "hospitalName" to hospitalName.trim(), "hospitalHours" to hospitalHours.trim(),
-                    "updatedAt" to FieldValue.serverTimestamp()
-                ),
-                SetOptions.merge()
-            ).addOnSuccessListener {
+            val batch = fDb.batch()
+            val publicRef = fDb.collection("doctors").document(uid)
+            val privateRef = fDb.collection("doctorPrivate").document(uid)
+            batch.set(publicRef, mapOf(
+                "uid" to uid, "name" to name.trim(), "specialty" to specialty.trim(),
+                "clinicName" to clinicName.trim(), "city" to city.trim(),
+                "address" to address.trim(), "phone" to FieldValue.delete(),
+                "hours" to hours.trim(), "fee" to fee.trim(), "photo" to photo,
+                "emergency" to emergency, "emergencyPhone" to FieldValue.delete(),
+                "hospitalName" to hospitalName.trim(), "hospitalHours" to hospitalHours.trim(),
+                "updatedAt" to FieldValue.serverTimestamp()
+            ), SetOptions.merge())
+            batch.set(privateRef, mapOf(
+                "phone" to phone.trim(),
+                "emergencyPhone" to emergencyPhone.trim(),
+                "updatedAt" to FieldValue.serverTimestamp()
+            ), SetOptions.merge())
+            batch.commit().addOnSuccessListener {
                 busy = false; ok = true; msg = "تم حفظ الملف"
             }.addOnFailureListener {
                 busy = false; ok = false
@@ -372,6 +380,14 @@ fun DoctorSearchScreen(onBack: () -> Unit, onOpen: (Map<String, Any?>) -> Unit, 
 
 @Composable
 fun DoctorDetailScreen(d: Map<String, Any?>, onBack: () -> Unit) {
+    var privatePhone by remember(d["id"]) { mutableStateOf("") }
+    LaunchedEffect(d["id"]) {
+        val id = d["id"]?.toString().orEmpty()
+        if (id.isNotBlank()) {
+            fDb.collection("doctorPrivate").document(id).get()
+                .addOnSuccessListener { privatePhone = it.getString("phone").orEmpty() }
+        }
+    }
     Column(
         Modifier.fillMaxSize().background(DBg).padding(20.dp).verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -382,7 +398,7 @@ fun DoctorDetailScreen(d: Map<String, Any?>, onBack: () -> Unit) {
         InfoRow("العيادة", d["clinicName"])
         InfoRow("المدينة", d["city"])
         InfoRow("العنوان", d["address"])
-        InfoRow("رقم التواصل", d["phone"])
+        InfoRow("رقم التواصل", privatePhone)
         InfoRow("ساعات الدوام", d["hours"])
         InfoRow("سعر الكشفية", d["fee"])
     }
