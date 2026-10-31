@@ -78,13 +78,21 @@ service cloud.firestore {
     }
 
     match /doctors/{id} {
-      allow read: if signedIn();
+      allow read: if signedIn()
+        && (
+          resource.data.approved == true
+          || request.auth.uid == id
+          || isAdmin()
+        );
       allow create: if signedIn() && request.auth.uid == id
         && userType() in ['doctor','clinic']
         && request.resource.data.keys().hasOnly(docKeys())
+        && request.resource.data.uid == id
         && photoOk();
       allow update: if signedIn() && (
         (request.auth.uid == id && userType() in ['doctor','clinic']
+          && resource.data.uid == id
+          && request.resource.data.uid == id
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(docKeys())
           && photoOk())
         || (isAdmin()
@@ -115,11 +123,15 @@ service cloud.firestore {
     }
 
     match /appointments/{id} {
-      allow read: if signedIn() && (resource == null
-        || resource.data.patientId == request.auth.uid
-        || resource.data.doctorId == request.auth.uid || isAdmin());
+      allow read: if signedIn()
+        && (
+          resource.data.patientId == request.auth.uid
+          || resource.data.doctorId == request.auth.uid
+          || isAdmin()
+        );
 
       allow create: if signedIn()
+        && userType() == 'patient'
         && request.resource.data.keys().hasOnly(apptKeys())
         && request.resource.data.patientId == request.auth.uid
         && request.resource.data.status == 'PENDING'
@@ -150,26 +162,39 @@ service cloud.firestore {
         || (resource.data.patientId == request.auth.uid
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['patientName','patientPhone','note'])
           && anonymized())
-        || (resource.data.doctorId == request.auth.uid && subActive(request.auth.uid)
+        || (resource.data.doctorId == request.auth.uid
+          && userType() in ['doctor','clinic']
+          && doctorApproved(request.auth.uid)
+          && subActive(request.auth.uid)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
           && resource.data.status == 'PENDING'
           && request.resource.data.status in ['CONFIRMED','CANCELLED'])
-        || (resource.data.doctorId == request.auth.uid && subActive(request.auth.uid)
+        || (resource.data.doctorId == request.auth.uid
+          && userType() in ['doctor','clinic']
+          && doctorApproved(request.auth.uid)
+          && subActive(request.auth.uid)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
           && resource.data.status == 'CONFIRMED'
           && request.resource.data.status in ['DONE','CANCELLED'])
         || (resource.data.patientId == request.auth.uid
+          && userType() == 'patient'
           && resource.data.status == 'CANCELLED'
           && request.resource.data.keys().hasOnly(apptKeys())
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'patientName','patientPhone','doctorName','specialty','clinicName',
+            'address','city','slot','time','number','status','note','createdAt'
+          ])
           && request.resource.data.status == 'PENDING'
           && request.resource.data.patientId == request.auth.uid
           && request.resource.data.doctorId == resource.data.doctorId
           && request.resource.data.date == resource.data.date
           && request.resource.data.number is int
+          && request.resource.data.createdAt == request.time
           && exists(qPath(resource.data.doctorId, resource.data.date))
           && get(qPath(resource.data.doctorId, resource.data.date)).data.last + 1 == request.resource.data.number
           && getAfter(qPath(resource.data.doctorId, resource.data.date)).data.last == request.resource.data.number
-          && subActive(resource.data.doctorId)));
+          && subActive(resource.data.doctorId)
+          && doctorApproved(resource.data.doctorId)));
 
       allow delete: if false;
     }
@@ -178,6 +203,7 @@ service cloud.firestore {
       allow read: if signedIn();
 
       allow create: if signedIn()
+        && userType() == 'patient'
         && request.resource.data.keys().hasOnly(['doctorId','date','last','current'])
         && request.resource.data.doctorId is string
         && validDate(request.resource.data.date)
@@ -185,6 +211,7 @@ service cloud.firestore {
         && request.resource.data.last == 1
         && request.resource.data.current == 0
         && subActive(request.resource.data.doctorId)
+        && doctorApproved(request.resource.data.doctorId)
         && !exists(aPath(request.resource.data.doctorId, request.resource.data.date, request.auth.uid))
         && existsAfter(aPath(request.resource.data.doctorId, request.resource.data.date, request.auth.uid))
         && getAfter(aPath(request.resource.data.doctorId, request.resource.data.date, request.auth.uid)).data.number == 1
@@ -192,13 +219,18 @@ service cloud.firestore {
         && getAfter(aPath(request.resource.data.doctorId, request.resource.data.date, request.auth.uid)).data.status == 'PENDING';
 
       allow update: if signedIn() && (
-        (request.auth.uid == resource.data.doctorId && subActive(request.auth.uid)
+        (request.auth.uid == resource.data.doctorId
+          && userType() in ['doctor','clinic']
+          && doctorApproved(request.auth.uid)
+          && subActive(request.auth.uid)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['current'])
           && request.resource.data.current == resource.data.current + 1
           && request.resource.data.current <= resource.data.last)
-        || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['last'])
+        || (userType() == 'patient'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['last'])
           && request.resource.data.last == resource.data.last + 1
           && subActive(resource.data.doctorId)
+          && doctorApproved(resource.data.doctorId)
           && existsAfter(aPath(resource.data.doctorId, resource.data.date, request.auth.uid))
           && getAfter(aPath(resource.data.doctorId, resource.data.date, request.auth.uid)).data.number == request.resource.data.last
           && getAfter(aPath(resource.data.doctorId, resource.data.date, request.auth.uid)).data.status == 'PENDING'
@@ -209,11 +241,15 @@ service cloud.firestore {
     }
 
     match /prescriptions/{id} {
-      allow read: if signedIn() && (resource.data.patientId == request.auth.uid
-        || resource.data.doctorId == request.auth.uid);
+      allow read: if signedIn() && (
+        resource.data.patientId == request.auth.uid
+        || resource.data.doctorId == request.auth.uid
+        || isAdmin()
+      );
 
       allow create: if signedIn()
         && userType() in ['doctor','clinic']
+        && doctorApproved(request.auth.uid)
         && subActive(request.auth.uid)
         && request.resource.data.keys().hasOnly(['doctorId','doctorName','patientId','patientName','appointmentId','kind','text','createdAt'])
         && request.resource.data.doctorId == request.auth.uid
@@ -224,7 +260,13 @@ service cloud.firestore {
         && request.resource.data.appointmentId is string
         && exists(/databases/$(database)/documents/appointments/$(request.resource.data.appointmentId))
         && get(/databases/$(database)/documents/appointments/$(request.resource.data.appointmentId)).data.doctorId == request.auth.uid
-        && get(/databases/$(database)/documents/appointments/$(request.resource.data.appointmentId)).data.patientId == request.resource.data.patientId;
+        && get(/databases/$(database)/documents/appointments/$(request.resource.data.appointmentId)).data.patientId == request.resource.data.patientId
+        && get(/databases/$(database)/documents/appointments/$(request.resource.data.appointmentId)).data.status in ['CONFIRMED','DONE']
+        && request.resource.data.doctorName is string
+        && request.resource.data.doctorName.size() <= 120
+        && request.resource.data.patientName is string
+        && request.resource.data.patientName.size() <= 120
+        && request.resource.data.createdAt == request.time;
 
       allow update: if false;
       // يحذفها الطبيب أو المريض (المريض يحتاجها عند حذف حسابه)
@@ -237,6 +279,7 @@ service cloud.firestore {
         || resource.data.doctorId == request.auth.uid);
 
       allow create: if signedIn()
+        && userType() == 'patient'
         && request.resource.data.patientId == request.auth.uid
         && request.resource.data.keys().hasOnly(['doctorId','patientId','doctorName','patientName','appointmentId','lastMessage','lastAt','createdAt'])
         && request.resource.data.doctorId is string
@@ -244,20 +287,30 @@ service cloud.firestore {
         && id == request.resource.data.doctorId + '_' + request.resource.data.patientId
         && exists(/databases/$(database)/documents/appointments/$(request.resource.data.appointmentId))
         && get(/databases/$(database)/documents/appointments/$(request.resource.data.appointmentId)).data.patientId == request.auth.uid
-        && get(/databases/$(database)/documents/appointments/$(request.resource.data.appointmentId)).data.doctorId == request.resource.data.doctorId;
+        && get(/databases/$(database)/documents/appointments/$(request.resource.data.appointmentId)).data.doctorId == request.resource.data.doctorId
+        && get(/databases/$(database)/documents/appointments/$(request.resource.data.appointmentId)).data.status in ['PENDING','CONFIRMED','DONE']
+        && doctorApproved(request.resource.data.doctorId)
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.lastAt == request.time;
 
       allow update: if signedIn()
         && (resource.data.patientId == request.auth.uid || resource.data.doctorId == request.auth.uid)
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastMessage','lastAt']);
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastMessage','lastAt'])
+        && request.resource.data.lastMessage is string
+        && request.resource.data.lastMessage.size() <= 1000
+        && request.resource.data.lastAt == request.time;
 
       allow delete: if false;
     }
 
     match /messages/{id} {
-      allow read: if signedIn() && (
-        resource.data.senderId == request.auth.uid
-        || get(/databases/$(database)/documents/conversations/$(resource.data.convId)).data.patientId == request.auth.uid
-        || get(/databases/$(database)/documents/conversations/$(resource.data.convId)).data.doctorId == request.auth.uid);
+      allow read: if signedIn()
+        && exists(/databases/$(database)/documents/conversations/$(resource.data.convId))
+        && (
+          get(/databases/$(database)/documents/conversations/$(resource.data.convId)).data.patientId == request.auth.uid
+          || get(/databases/$(database)/documents/conversations/$(resource.data.convId)).data.doctorId == request.auth.uid
+          || isAdmin()
+        );
 
       allow create: if signedIn()
         && request.resource.data.keys().hasOnly(['convId','senderId','text','createdAt'])
@@ -265,6 +318,7 @@ service cloud.firestore {
         && request.resource.data.text is string
         && request.resource.data.text.size() > 0
         && request.resource.data.text.size() <= 1000
+        && request.resource.data.createdAt == request.time
         && exists(/databases/$(database)/documents/conversations/$(request.resource.data.convId))
         && (get(/databases/$(database)/documents/conversations/$(request.resource.data.convId)).data.patientId == request.auth.uid
           || get(/databases/$(database)/documents/conversations/$(request.resource.data.convId)).data.doctorId == request.auth.uid);
@@ -275,7 +329,11 @@ service cloud.firestore {
     // slots: يستخدمها مسار الحجز القديم في Booking.kt (يحذف الفتحة عند إلغاء الموعد)، فأبقينا القاعدة كما هي
     match /slots/{id} {
       allow read, create, update: if false;
-      allow delete: if signedIn();
+      allow delete: if signedIn() && (
+        resource.data.patientId == request.auth.uid
+        || resource.data.doctorId == request.auth.uid
+        || isAdmin()
+      );
     }
   }
 }
