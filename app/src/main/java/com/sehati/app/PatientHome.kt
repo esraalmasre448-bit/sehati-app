@@ -210,7 +210,7 @@ private fun DoctorListCard(d: Map<String, Any?>, km: Double?, onOpen: (Map<Strin
     )
 
     Column(
-        Modifier.width(154.dp)
+        Modifier.width(170.dp)
             .graphicsLayer { scaleX = pressScale; scaleY = pressScale }
             .background(BCard, RoundedCornerShape(16.dp))
             .border(1.dp, BLine, RoundedCornerShape(16.dp))
@@ -220,17 +220,17 @@ private fun DoctorListCard(d: Map<String, Any?>, km: Double?, onOpen: (Map<Strin
         verticalArrangement = Arrangement.spacedBy(5.dp)
     ) {
         Box {
-            DoctorAvatar(d["photo"]?.toString(), "${d["name"] ?: ""}", 76.dp)
+            DoctorAvatar(d["photo"]?.toString(), "${d["name"] ?: ""}", 84.dp)
             if (d["available"] == true) {
                 Text("متاح", Modifier.align(Alignment.TopEnd)
                     .background(BGreen, RoundedCornerShape(10.dp)).padding(horizontal = 7.dp, vertical = 2.dp),
                     color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
             }
         }
-        Text("${d["name"] ?: "مقدم خدمة"}", fontSize = 13.sp, fontWeight = FontWeight.Bold,
+        Text("${d["name"] ?: "مقدم خدمة"}", fontSize = 14.sp, fontWeight = FontWeight.Bold,
             color = Color.White, maxLines = 1)
-        Text("${d["specialty"] ?: d["clinicName"] ?: ""}", color = BMuted, fontSize = 11.sp, maxLines = 1)
-        Text("${d["city"] ?: ""}", color = BMuted, fontSize = 10.sp, maxLines = 1)
+        Text("${d["specialty"] ?: d["clinicName"] ?: ""}", color = BMuted, fontSize = 12.sp, maxLines = 1)
+        Text("${d["city"] ?: ""}", color = BMuted, fontSize = 11.sp, maxLines = 1)
         if (km != null) Text("%.1f كم".format(km), color = BMuted, fontSize = 10.sp)
     }
 }
