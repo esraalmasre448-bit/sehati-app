@@ -1,7 +1,7 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    function signedIn() { return request.auth != null; }
+    function signedIn() { return request.auth != null && ((('email_verified' in request.auth.token) && request.auth.token.email_verified == true) || (('phone_number' in request.auth.token) && request.auth.token.phone_number != null)); }
     function adminDoc() { return /databases/$(database)/documents/config/admin; }
     function isAdmin() {
       return signedIn() && exists(adminDoc()) && get(adminDoc()).data.uid == request.auth.uid;
@@ -66,11 +66,12 @@ service cloud.firestore {
     }
 
     match /users/{uid} {
-      allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
-      allow create: if signedIn() && request.auth.uid == uid
-        && request.resource.data.keys().hasOnly(['name','phone','email','accountType','createdAt','phoneVerified'])
-        && request.resource.data.phoneVerified == true
-        && request.auth.token.phone_number == request.resource.data.phone
+      allow read: if (request.auth != null && request.auth.uid == uid) || isAdmin();
+      allow create: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['name','phone','email','accountType','createdAt','emailVerified'])
+        && request.resource.data.email == request.auth.token.email
+        && request.auth.token.email_verified == false
+        && request.resource.data.emailVerified == false
         && request.resource.data.accountType in ['patient','doctor','clinic']
         && request.resource.data.name is string && request.resource.data.name.size() <= 100
         && request.resource.data.phone is string && request.resource.data.phone.size() <= 30;
@@ -79,8 +80,11 @@ service cloud.firestore {
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name'])
           || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['phone'])
               && request.auth.token.phone_number == request.resource.data.phone)
+          || (request.auth.token.email_verified == true
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['emailVerified'])
+              && request.resource.data.emailVerified == true)
         );
-      allow delete: if signedIn() && request.auth.uid == uid;
+      allow delete: if request.auth != null && request.auth.uid == uid;
     }
 
     match /doctors/{id} {
