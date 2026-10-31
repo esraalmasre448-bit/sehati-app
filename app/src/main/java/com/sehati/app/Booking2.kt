@@ -306,7 +306,7 @@ fun DoctorDashboardContent(onBack: (() -> Unit)? = null) {
                         OutlinedButton(
                             enabled = active,
                             onClick = {
-                                setStatus(id, "CANCELLED", true) { ok ->
+                                setStatus(id, "CANCELLED", false) { ok ->
                                     msg = if (ok) "تم رفض طلب الحجز" else "تعذر رفض الطلب، تحقق من الإنترنت واشتراكك"
                                 }
                             }
@@ -327,7 +327,7 @@ fun DoctorDashboardContent(onBack: (() -> Unit)? = null) {
                         OutlinedButton(
                             enabled = active,
                             onClick = {
-                                setStatus(id, "CANCELLED", true) { ok ->
+                                setStatus(id, "CANCELLED", false) { ok ->
                                     msg = if (ok) "" else "تعذر الإلغاء، تحقق من الإنترنت واشتراكك"
                                 }
                             }
