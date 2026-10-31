@@ -76,7 +76,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun App() {
     var splash by remember { mutableStateOf(true) }
-    var loggedIn by remember { mutableStateOf(auth.currentUser != null) }
+    var loggedIn by remember { mutableStateOf(auth.currentUser?.let { it.isEmailVerified || !it.phoneNumber.isNullOrBlank() } == true) }
     var screen by remember { mutableStateOf("main") }
     var selected by remember { mutableStateOf<Map<String, Any?>?>(null) }
     var initialQuery by remember { mutableStateOf("") }
@@ -153,6 +153,8 @@ fun App() {
         screen == "dash" -> DoctorDashboardContent(onBack = { screen = "main" })
         screen == "admin" -> AdminGate(onBack = { screen = "main" })
         screen == "renew" -> RenewalScreen(onBack = { screen = "main" })
+        screen == "prescriptions" -> DoctorPrescriptionsScreen(onBack = { screen = "main" })
+        screen == "patient_prescriptions" -> PatientPrescriptionsScreen(onBack = { screen = "main" })
         screen == "emergency" -> EmergencyScreen(onBack = { screen = "main" })
         screen == "privacy" -> PrivacyScreen(onBack = { screen = "main" })
         screen == "messages" -> MessagesScreen(

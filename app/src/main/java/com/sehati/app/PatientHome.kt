@@ -136,6 +136,7 @@ fun PatientHome(
             Tile(Icons.Filled.Person, stringResource(R.string.my_turn), false, Modifier.weight(1f)) { onGo("queue") }
             Tile(Icons.Filled.LocationOn, stringResource(R.string.way_to_clinic), false, Modifier.weight(1f)) { onGo("route") }
         }
+        Tile(Icons.Filled.Description, "وصفاتي الطبية", false, Modifier.fillMaxWidth()) { onGo("patient_prescriptions") }
         Tile(Icons.Filled.Email, "الرسائل", false, Modifier.fillMaxWidth()) { onGo("messages") }
     }
 }
@@ -151,7 +152,7 @@ private fun PatientDoctorList(onOpen: (Map<String, Any?>) -> Unit) {
     var locMsg by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
-        bDb.collection("doctors").orderBy("name").limit(50).get()
+        bDb.collection("doctors").whereEqualTo("approved", true).orderBy("name").limit(50).get()
             .addOnSuccessListener { s ->
                 failed = false
                 docs = s.documents.map { it.data.orEmpty() + ("id" to it.id) }

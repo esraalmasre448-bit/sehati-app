@@ -1,14 +1,9 @@
 package com.sehati.app
 
 import android.os.Bundle
-import android.app.Activity
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.runtime.CompositionLocalProvider
-import com.google.firebase.auth.PhoneAuthCredential
-import com.google.firebase.auth.PhoneAuthOptions
-import com.google.firebase.auth.PhoneAuthProvider
-import java.util.concurrent.TimeUnit
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -157,56 +152,117 @@ fun AuthFlow(onDone: () -> Unit) {
     var resetOk by remember { mutableStateOf(false) }
     var resetBusy by remember { mutableStateOf(false) }
     var seniorMode by remember { mutableStateOf(false) }
-    var verificationId by remember { mutableStateOf<String?>(null) }
-    var otp by remember { mutableStateOf("") }
-    var otpSent by remember { mutableStateOf(false) }
-    var phoneCredential by remember { mutableStateOf<PhoneAuthCredential?>(null) }
-    val activity = LocalContext.current as? Activity
+    var awaitingEmailVerification by remember { mutableStateOf(auth.currentUser != null && auth.currentUser?.isEmailVerified == false && auth.currentUser?.phoneNumber.isNullOrBlank()) }
 
-    fun completeSignup(credential: PhoneAuthCredential) {
-        val e = email.trim()
+    fun finishVerifiedAccount(user: com.google.firebase.auth.FirebaseUser) {
         busy = true
-        auth.createUserWithEmailAndPassword(e, pass).addOnSuccessListener { result ->
-            val user = result.user ?: run { busy = false; msg = errGeneric; return@addOnSuccessListener }
-            user.linkWithCredential(credential).addOnSuccessListener {
-                val normalizedPhone = phone.trim()
-                db.collection("users").document(user.uid).set(
-                    mapOf(
-                        "name" to name.trim(), "phone" to normalizedPhone, "phoneVerified" to true,
-                        "email" to e, "accountType" to type,
-                        "createdAt" to FieldValue.serverTimestamp()
-                    )
-                ).addOnSuccessListener {
-                    if (type == "doctor" || type == "clinic") {
-                        val end = java.util.Calendar.getInstance()
-                            .apply { add(java.util.Calendar.DAY_OF_YEAR, 30) }.time
-                        db.collection("subscriptions").document(user.uid).set(
-                            mapOf(
-                                "uid" to user.uid, "status" to "ACTIVE", "trial" to true,
-                                "paymentMethod" to "Trial",
-                                "startedAt" to FieldValue.serverTimestamp(),
-                                "expiresAt" to com.google.firebase.Timestamp(end)
-                            )
-                        ).addOnCompleteListener { busy = false; onDone() }
-                    } else {
+        user.reload().addOnSuccessListener {
+            val current = auth.currentUser
+            if (current?.isEmailVerified != true) {
+                busy = false
+                msg = "لم نتأكد من التحقق بعد. افتح رسالة البريد واضغط رابط التحقق ثم أعد المحاولة."
+                return@addOnSuccessListener
+            }
+            current.getIdToken(true).addOnSuccessListener {
+                db.collection("users").document(current.uid).update("emailVerified", true)
+                    .addOnSuccessListener {
+                        db.collection("users").document(current.uid).get()
+                            .addOnSuccessListener { profile ->
+                                val accountType = profile.getString("accountType") ?: "patient"
+                                if (accountType == "doctor" || accountType == "clinic") {
+                                    val ref = db.collection("subscriptions").document(current.uid)
+                                    ref.get().addOnSuccessListener { existing ->
+                                        if (existing.exists()) {
+                                            busy = false
+                                            awaitingEmailVerification = false
+                                            onDone()
+                                        } else {
+                                            val end = java.util.Calendar.getInstance()
+                                                .apply { add(java.util.Calendar.DAY_OF_YEAR, 30) }.time
+                                            ref.set(mapOf(
+                                                "uid" to current.uid, "status" to "ACTIVE", "trial" to true,
+                                                "paymentMethod" to "Trial",
+                                                "startedAt" to FieldValue.serverTimestamp(),
+                                                "expiresAt" to com.google.firebase.Timestamp(end)
+                                            )).addOnSuccessListener {
+                                                busy = false
+                                                awaitingEmailVerification = false
+                                                onDone()
+                                            }.addOnFailureListener {
+                                                busy = false
+                                                msg = "تم التحقق من البريد، لكن تعذر تجهيز ملف الاشتراك. حاول مجددًا."
+                                            }
+                                        }
+                                    }.addOnFailureListener {
+                                        busy = false
+                                        msg = errGeneric
+                                    }
+                                } else {
+                                    busy = false
+                                    awaitingEmailVerification = false
+                                    onDone()
+                                }
+                            }.addOnFailureListener {
+                                busy = false
+                                msg = errGeneric
+                            }
+                    }.addOnFailureListener {
                         busy = false
-                        onDone()
+                        msg = "تم التحقق من البريد، لكن تعذر تحديث ملف الحساب. أعد المحاولة."
                     }
+            }.addOnFailureListener {
+                busy = false
+                msg = "تعذر تحديث حالة التحقق. تحقق من الإنترنت وحاول مجددًا."
+            }
+        }.addOnFailureListener {
+            busy = false
+            msg = "تعذر تحديث حالة الحساب. تحقق من الإنترنت وحاول مجددًا."
+        }
+    }
+
+    fun startEmailVerification(user: com.google.firebase.auth.FirebaseUser, createProfile: Boolean) {
+        busy = true
+        user.sendEmailVerification().addOnSuccessListener {
+            if (!createProfile) {
+                busy = false
+                awaitingEmailVerification = true
+                msg = "أُعيد إرسال رابط التحقق إلى ${user.email ?: email}. افحص البريد الوارد والرسائل غير المرغوبة."
+                return@addOnSuccessListener
+            }
+            val e = user.email ?: email.trim()
+            val profile = mapOf(
+                "name" to name.trim(),
+                "phone" to phone.trim(),
+                "email" to e,
+                "accountType" to type,
+                "createdAt" to FieldValue.serverTimestamp(),
+                "emailVerified" to false
+            )
+            db.collection("users").document(user.uid).set(profile)
+                .addOnSuccessListener {
+                    busy = false
+                    signup = false
+                    awaitingEmailVerification = true
+                    msg = "أرسلنا رابط التحقق إلى $e. افتح بريدك واضغط الرابط لإكمال إنشاء الحساب."
                 }.addOnFailureListener {
                     user.delete().addOnCompleteListener {
                         auth.signOut()
                         busy = false
-                        msg = errGeneric
+                        msg = "تعذر حفظ الحساب. تحقق من اتصال الإنترنت وحاول مجددًا."
                     }
                 }
-            }.addOnFailureListener { error ->
+        }.addOnFailureListener { error ->
+            if (createProfile) {
                 user.delete().addOnCompleteListener {
                     auth.signOut()
                     busy = false
                     msg = authError(error)
                 }
+            } else {
+                busy = false
+                msg = authError(error)
             }
-        }.addOnFailureListener { busy = false; msg = authError(it) }
+        }
     }
 
     // ظهور سريع وهادئ للشعار والعنوان عند فتح الشاشة فقط
@@ -243,19 +299,42 @@ fun AuthFlow(onDone: () -> Unit) {
             modifier = Modifier.graphicsLayer { alpha = enter }
         )
         Text(stringResource(R.string.login_sub), color = Muted)
+        if (awaitingEmailVerification) {
+            val pendingEmail = auth.currentUser?.email ?: email
+            Text("تأكيد البريد الإلكتروني", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text("أرسلنا رابط تحقق إلى $pendingEmail. افتح الرسالة واضغط الرابط، ثم ارجع إلى التطبيق.", color = Muted)
+            Text("إذا لم تجد الرسالة، افحص مجلد Spam أو الرسائل غير المرغوبة.", color = Muted, fontSize = 13.sp)
+            if (msg.isNotEmpty()) Text(msg, color = if (msg.startsWith("أُعيد")) Good else Danger)
+            RedButton("تحققت من البريد، متابعة", enabled = !busy) {
+                val current = auth.currentUser
+                if (current == null) {
+                    awaitingEmailVerification = false
+                    msg = "سجّل الدخول بالبريد وكلمة المرور للمتابعة."
+                } else {
+                    finishVerifiedAccount(current)
+                }
+            }
+            OutlinedButton(
+                enabled = !busy,
+                onClick = { auth.currentUser?.let { startEmailVerification(it, false) } },
+                modifier = Modifier.fillMaxWidth().height(50.dp)
+            ) { Text("إعادة إرسال رابط التحقق", color = Color.White) }
+            TextButton(onClick = {
+                auth.signOut()
+                awaitingEmailVerification = false
+                signup = false
+                email = ""
+                pass = ""
+                msg = ""
+            }) { Text("استخدام حساب آخر", color = Red) }
+        } else {
         if (signup) {
             Field(name, { name = it }, stringResource(R.string.name), icon = Icons.Filled.Person)
             Field(
-                phone, { phone = it }, "رقم الهاتف مع رمز الدولة (+963...)",
+                phone, { phone = it }, "رقم الهاتف (اختياري للتواصل)",
                 keyboard = KeyboardType.Phone, icon = Icons.Filled.Phone
             )
-            if (otpSent) {
-                Field(otp, { otp = it.filter(Char::isDigit).take(6) }, "رمز التحقق المكوّن من 6 أرقام",
-                    keyboard = KeyboardType.Number, icon = Icons.Filled.MarkEmailRead)
-                Text("أدخل الرمز الذي وصل برسالة SMS إلى $phone", color = Muted, fontSize = 13.sp)
-            } else {
-                Text("سنرسل رمزاً لتأكيد ملكية رقم الهاتف قبل إنشاء الحساب.", color = Muted, fontSize = 13.sp)
-            }
+            Text("سيتم تأكيد الحساب عبر رابط يصل إلى بريدك الإلكتروني.", color = Muted, fontSize = 13.sp)
             Text(stringResource(R.string.account_type), color = Muted)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(
@@ -293,11 +372,7 @@ fun AuthFlow(onDone: () -> Unit) {
         }
         if (msg.isNotEmpty()) Text(msg, color = Danger)
         RedButton(
-            text = if (!signup) stringResource(R.string.login) else when {
-                phoneCredential != null -> "تأكيد الرقم وإنشاء الحساب"
-                otpSent -> "تأكيد الرمز وإنشاء الحساب"
-                else -> "إرسال رمز التحقق"
-            },
+            text = if (!signup) stringResource(R.string.login) else "إنشاء الحساب وإرسال رابط التحقق",
             enabled = !busy
         ) {
             msg = ""
@@ -306,84 +381,67 @@ fun AuthFlow(onDone: () -> Unit) {
                 msg = enterBoth
             } else if (signup && name.isBlank()) {
                 msg = enterName
-            } else if (signup && !phone.trim().matches(Regex("^\\+[1-9][0-9]{7,14}$"))) {
-                msg = "اكتب الرقم بالصيغة الدولية، مثال: +963XXXXXXXXX"
+            } else if (signup && !android.util.Patterns.EMAIL_ADDRESS.matcher(e).matches()) {
+                msg = "اكتب بريدًا إلكترونيًا صحيحًا"
             } else {
                 if (signup) {
-                    val credential = phoneCredential
-                    if (credential != null) {
-                        completeSignup(credential)
-                    } else if (otpSent) {
-                        val id = verificationId
-                        if (id.isNullOrBlank() || otp.length != 6) {
-                            msg = "أدخل رمز التحقق المكوّن من 6 أرقام"
-                        } else {
-                            busy = true
-                            completeSignup(PhoneAuthProvider.getCredential(id, otp))
-                        }
+                    if (phone.isNotBlank() && !phone.trim().matches(Regex("^\\+[1-9][0-9]{7,14}$"))) {
+                        msg = "اكتب رقم الهاتف بالصيغة الدولية أو اتركه فارغًا"
                     } else {
-                        val currentActivity = activity
-                        if (currentActivity == null) {
-                            msg = "تعذر بدء التحقق على هذا الجهاز"
-                        } else {
-                            busy = true
-                            val callbacks = object : PhoneAuthProvider.OnVerificationStateChangedCallbacks() {
-                                override fun onVerificationCompleted(credential: PhoneAuthCredential) {
-                                    phoneCredential = credential
-                                    otpSent = true
-                                    busy = false
-                                    msg = "تم التحقق تلقائياً من رقم الهاتف. اضغط للمتابعة."
-                                }
-                                override fun onVerificationFailed(error: com.google.firebase.FirebaseException) {
-                                    busy = false
-                                    msg = "تعذر إرسال رمز التحقق: ${error.localizedMessage ?: "تحقق من الرقم وإعدادات Firebase"}"
-                                }
-                                override fun onCodeSent(id: String, token: PhoneAuthProvider.ForceResendingToken) {
-                                    verificationId = id
-                                    otpSent = true
-                                    busy = false
-                                    msg = "أُرسل رمز التحقق. افحص رسائل SMS."
-                                }
+                        busy = true
+                        auth.createUserWithEmailAndPassword(e, pass).addOnSuccessListener { result ->
+                            val user = result.user
+                            if (user == null) {
+                                busy = false
+                                msg = errGeneric
+                            } else {
+                                startEmailVerification(user, true)
                             }
-                            val options = PhoneAuthOptions.newBuilder(auth)
-                                .setPhoneNumber(phone.trim())
-                                .setTimeout(60L, TimeUnit.SECONDS)
-                                .setActivity(currentActivity)
-                                .setCallbacks(callbacks)
-                                .build()
-                            PhoneAuthProvider.verifyPhoneNumber(options)
+                        }.addOnFailureListener {
+                            busy = false
+                            msg = authError(it)
                         }
                     }
                 } else {
                     busy = true
-                    auth.signInWithEmailAndPassword(e, pass).addOnSuccessListener { r ->
-                        val u = r.user!!
-                        db.collection("users").document(u.uid).get()
-                            .addOnSuccessListener { d ->
-                                if (d.exists()) {
-                                    busy = false
-                                    onDone()
-                                } else if (d.metadata.isFromCache) {
+                    auth.signInWithEmailAndPassword(e, pass).addOnSuccessListener { result ->
+                        val user = result.user
+                        if (user == null) {
+                            busy = false
+                            msg = errGeneric
+                        } else if (!user.isEmailVerified && user.phoneNumber.isNullOrBlank()) {
+                            startEmailVerification(user, false)
+                        } else {
+                            db.collection("users").document(user.uid).get()
+                                .addOnSuccessListener { profile ->
+                                    if (profile.exists()) {
+                                        busy = false
+                                        onDone()
+                                    } else if (profile.metadata.isFromCache) {
+                                        auth.signOut()
+                                        busy = false
+                                        msg = errGeneric
+                                    } else {
+                                        user.delete().addOnCompleteListener {
+                                            auth.signOut()
+                                            busy = false
+                                            msg = "الحساب لا يحتوي على ملف مستخدم صالح. أنشئ حسابًا جديدًا."
+                                        }
+                                    }
+                                }.addOnFailureListener {
                                     auth.signOut()
                                     busy = false
                                     msg = errGeneric
-                                } else {
-                                    u.delete().addOnCompleteListener {
-                                        auth.signOut()
-                                        busy = false
-                                        msg = "كان الحساب ناقصًا وتم حذفه. أنشئ حسابًا جديدًا بنفس الإيميل"
-                                    }
                                 }
-                            }
-                            .addOnFailureListener {
-                                auth.signOut()
-                                busy = false
-                                msg = errGeneric
-                            }
-                    }.addOnFailureListener { busy = false; msg = authError(it) }
+                        }
+                    }.addOnFailureListener {
+                        busy = false
+                        msg = authError(it)
+                    }
                 }
             }
         }
+
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             HorizontalDivider(Modifier.weight(1f), color = Line)
             Text(stringResource(R.string.or), color = Muted, modifier = Modifier.padding(horizontal = 12.dp))
@@ -399,6 +457,7 @@ fun AuthFlow(onDone: () -> Unit) {
                 stringResource(if (signup) R.string.have_account else R.string.create_account),
                 color = Color.White, fontSize = 16.sp
             )
+        }
         }
     }
     }
