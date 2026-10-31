@@ -1,5 +1,9 @@
 name: Build APK
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - work/complete-health-app-2026-10-31
 env:
   KS_PASS: ${{ secrets.KS_PASS }}
 jobs:
