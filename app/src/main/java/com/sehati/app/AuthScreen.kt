@@ -140,6 +140,7 @@ fun AuthFlow(onDone: () -> Unit) {
     var phone by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var pass by remember { mutableStateOf("") }
+    var confirmPass by remember { mutableStateOf("") }
     var type by remember { mutableStateOf("patient") }
     var busy by remember { mutableStateOf(false) }
     var msg by remember { mutableStateOf("") }
@@ -330,6 +331,10 @@ fun AuthFlow(onDone: () -> Unit) {
                 phone, { phone = it }, "رقم الهاتف (اختياري للتواصل)",
                 keyboard = KeyboardType.Phone, icon = Icons.Filled.Phone
             )
+            Field(
+                confirmPass, { confirmPass = it }, "تأكيد كلمة السر",
+                password = true, icon = Icons.Filled.Lock
+            )
             Text("سيتم تأكيد الحساب عبر رابط يصل إلى بريدك الإلكتروني.", color = Muted, fontSize = 13.sp)
             Text(stringResource(R.string.account_type), color = Muted)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -377,6 +382,10 @@ fun AuthFlow(onDone: () -> Unit) {
                 msg = enterBoth
             } else if (signup && name.isBlank()) {
                 msg = enterName
+            } else if (signup && pass.length < 6) {
+                msg = "كلمة السر يجب أن تكون 6 أحرف على الأقل"
+            } else if (signup && pass != confirmPass) {
+                msg = "كلمتا السر غير متطابقتين، تأكدي من كتابتهما بنفس الشكل"
             } else if (signup && !android.util.Patterns.EMAIL_ADDRESS.matcher(e).matches()) {
                 msg = "اكتب بريدًا إلكترونيًا صحيحًا"
             } else {
