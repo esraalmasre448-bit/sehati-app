@@ -213,14 +213,21 @@ private fun DoctorHomeContent(
             }
         }
 
-        // الخدمات
+        // اختصارات العمل على شكل شبكة بطاقات مثل التصميم المرجعي.
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             DoctorSectionTitle("الخدمات")
-            ServiceRow(Icons.Filled.Badge, "ملفي المهني") { onGo("profile") }
-            ServiceRow(Icons.Filled.Settings, "إعدادات العيادة (الدوام والموقع)") { onGo("settings") }
-            ServiceRow(Icons.Filled.ManageAccounts, "إعدادات الحساب") { onTab(3) }
-            ServiceRow(Icons.Filled.Autorenew, "تجديد الاشتراك والتواصل مع الإدارة") { onGo("renew") }
-            ServiceRow(Icons.Filled.Chat, "الرسائل") { onGo("messages") }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                DoctorServiceCard(Icons.Filled.Badge, "ملفي المهني", Modifier.weight(1f)) { onGo("profile") }
+                DoctorServiceCard(Icons.Filled.Settings, "إعدادات العيادة", Modifier.weight(1f)) { onGo("settings") }
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                DoctorServiceCard(Icons.Filled.ManageAccounts, "إعدادات الحساب", Modifier.weight(1f)) { onTab(3) }
+                DoctorServiceCard(Icons.Filled.Autorenew, "تجديد الاشتراك", Modifier.weight(1f)) { onGo("renew") }
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                DoctorServiceCard(Icons.Filled.Chat, "الرسائل", Modifier.weight(1f)) { onGo("messages") }
+                DoctorServiceCard(Icons.Filled.People, "قائمة المرضى", Modifier.weight(1f)) { onPatients() }
+            }
         }
     }
 }
@@ -286,25 +293,23 @@ private fun DoctorBigCard(
 }
 
 @Composable
-private fun ServiceRow(icon: ImageVector, title: String, onClick: () -> Unit) {
-    Row(
-        Modifier
-            .fillMaxWidth()
+private fun DoctorServiceCard(icon: ImageVector, title: String, modifier: Modifier, onClick: () -> Unit) {
+    Column(
+        modifier.height(94.dp)
             .background(BCard, RoundedCornerShape(16.dp))
             .border(1.dp, BLine, RoundedCornerShape(16.dp))
             .clickable { onClick() }
-            .padding(horizontal = 14.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalAlignment = Alignment.Start
     ) {
         Box(
-            Modifier.size(38.dp).background(DTeal.copy(alpha = 0.16f), CircleShape),
+            Modifier.size(34.dp).background(DTeal.copy(alpha = 0.15f), CircleShape),
             contentAlignment = Alignment.Center
         ) {
-            Icon(icon, null, tint = DTeal, modifier = Modifier.size(20.dp))
+            Icon(icon, null, tint = DTeal, modifier = Modifier.size(19.dp))
         }
-        Text(title, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, modifier = Modifier.weight(1f))
-        Icon(Icons.Filled.ChevronLeft, null, tint = BMuted)
+        Text(title, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
