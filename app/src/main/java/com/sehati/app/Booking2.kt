@@ -33,7 +33,7 @@ fun QueueScreen(onBack: () -> Unit, onFind: () -> Unit) {
             .addSnapshotListener { s, e ->
                 if (e == null) {
                     items = s?.documents?.map { it.data.orEmpty() + ("id" to it.id) }.orEmpty()
-                        .filter { it["date"] == today && it["status"] == "CONFIRMED" }
+                        .filter { it["date"] == today && it["status"] in listOf("PENDING", "CONFIRMED") }
                         .sortedBy { (it["slot"] as? Number)?.toInt() ?: 0 }
                     loaded = true
                 }
@@ -72,14 +72,16 @@ private fun QueueCard(a: Map<String, Any?>) {
     }
 
     val ahead = (number - current - 1).coerceAtLeast(0)
+    val pending = a["status"] == "PENDING"
     val (statusText, color) = when {
+        pending -> "طلبك بانتظار موافقة الطبيب" to Color(0xFFFFC857)
         current == number -> "حان دورك! تفضّل بالدخول" to BGreen
         current > number -> "انتهى دورك" to BMuted
         else -> "بانتظار دورك" to Color.White
     }
     Column(
         Modifier.fillMaxWidth().background(BCard, RoundedCornerShape(14.dp))
-            .border(1.dp, if (current == number) BGreen else BLine, RoundedCornerShape(14.dp))
+            .border(1.dp, if (!pending && current == number) BGreen else BLine, RoundedCornerShape(14.dp))
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
@@ -87,13 +89,15 @@ private fun QueueCard(a: Map<String, Any?>) {
         Text("الساعة ${a["time"]}", color = BMuted)
         Text("رقمك: $number", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = Color.White)
         Text("الرقم الحالي: $current", color = Color.White, fontSize = 16.sp)
-        if (current < number) Text("عدد الأشخاص قبلك: $ahead", color = Color.White, fontSize = 16.sp)
+        if (!pending && current < number) Text("عدد الأشخاص قبلك: $ahead", color = Color.White, fontSize = 16.sp)
         Text(statusText, color = color, fontSize = 18.sp, fontWeight = FontWeight.Bold)
         if (msg.isNotEmpty()) Text(msg, color = BDanger)
-        Button(
-            onClick = { routeToDoctor(ctx, doctorId) { msg = it } },
-            colors = ButtonDefaults.buttonColors(containerColor = BRed, contentColor = BOnAccent)
-        ) { Text("الطريق إلى العيادة") }
+        if (!pending) {
+            Button(
+                onClick = { routeToDoctor(ctx, doctorId) { msg = it } },
+                colors = ButtonDefaults.buttonColors(containerColor = BRed, contentColor = BOnAccent)
+            ) { Text("الطريق إلى العيادة") }
+        }
     }
 }
 
@@ -204,6 +208,11 @@ fun DoctorDashboardContent(onBack: (() -> Unit)? = null) {
         onDispose { r1.remove(); r2.remove() }
     }
 
+    val nextAppointment = items.firstOrNull {
+        (it["number"] as? Number)?.toLong() == current + 1L
+    }
+    val canAdvance = nextAppointment?.get("status") in listOf("CONFIRMED", "CANCELLED", "DONE")
+
     if (renew) {
         RenewalScreen(onBack = { renew = false })
         return
@@ -233,8 +242,11 @@ fun DoctorDashboardContent(onBack: (() -> Unit)? = null) {
             ) {
                 Text("الرقم الحالي: $current", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 Text("آخر رقم صدر: $last", color = BMuted)
+                if (current < last && !canAdvance) {
+                    Text("لا يمكن تجاوز طلب بانتظار موافقة الطبيب.", color = Color(0xFFFFC857), fontSize = 12.sp)
+                }
                 Button(
-                    enabled = active && current < last,
+                    enabled = active && current < last && canAdvance,
                     onClick = {
                         bDb.collection("queues").document("${uid}_$date")
                             .update("current", current + 1)
@@ -268,7 +280,7 @@ fun DoctorDashboardContent(onBack: (() -> Unit)? = null) {
                                 .addOnFailureListener { msg = "تعذر الحذف، تحقق من الإنترنت" }
                         }
                     }
-                if (a["status"] != "CANCELLED") {
+                if (a["status"] == "CONFIRMED") {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(
                             enabled = active,
@@ -278,6 +290,27 @@ fun DoctorDashboardContent(onBack: (() -> Unit)? = null) {
                             enabled = active,
                             onClick = { noteKind = "lab"; noteText = ""; noteMsg = ""; noteFor = a }
                         ) { Text("اطلب تحاليل", color = Color.White) }
+                    }
+                }
+                if (a["status"] == "PENDING") {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            enabled = active,
+                            onClick = {
+                                setStatus(id, "CONFIRMED", false) { ok ->
+                                    msg = if (ok) "تمت الموافقة على الحجز" else "تعذرت الموافقة، تحقق من الإنترنت واشتراكك"
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = BRed, contentColor = BOnAccent)
+                        ) { Text("قبول الحجز") }
+                        OutlinedButton(
+                            enabled = active,
+                            onClick = {
+                                setStatus(id, "CANCELLED", false) { ok ->
+                                    msg = if (ok) "تم رفض طلب الحجز" else "تعذر رفض الطلب، تحقق من الإنترنت واشتراكك"
+                                }
+                            }
+                        ) { Text("رفض الطلب", color = Color.White) }
                     }
                 }
                 if (a["status"] == "CONFIRMED") {
@@ -294,7 +327,7 @@ fun DoctorDashboardContent(onBack: (() -> Unit)? = null) {
                         OutlinedButton(
                             enabled = active,
                             onClick = {
-                                setStatus(id, "CANCELLED", true) { ok ->
+                                setStatus(id, "CANCELLED", false) { ok ->
                                     msg = if (ok) "" else "تعذر الإلغاء، تحقق من الإنترنت واشتراكك"
                                 }
                             }

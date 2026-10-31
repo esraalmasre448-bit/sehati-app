@@ -58,6 +58,7 @@ private fun bookByQueue(
                 if (st == "CONFIRMED") {
                     return@runTransaction "EXIST|${a.getLong("number") ?: 0L}|${a.getString("time") ?: ""}"
                 }
+                if (st == "PENDING") return@runTransaction "PENDING_EXIST|${a.getLong("number") ?: 0L}|${a.getString("time") ?: ""}"
                 if (st != "CANCELLED") return@runTransaction "BLOCKED"
             }
             val last = if (q.exists()) (q.getLong("last") ?: 0L) else 0L
@@ -83,7 +84,7 @@ private fun bookByQueue(
                     "address" to (d["address"]?.toString() ?: ""),
                     "city" to (d["city"]?.toString() ?: ""),
                     "date" to date, "slot" to est, "time" to qTime(est),
-                    "number" to number, "status" to "CONFIRMED", "note" to note,
+                    "number" to number, "status" to "PENDING", "note" to note,
                     "createdAt" to FieldValue.serverTimestamp()
                 )
             )
@@ -92,14 +93,15 @@ private fun bookByQueue(
             val p = r.split("|")
             when (p[0]) {
                 "FULL" -> onResult(false, "الأدوار ممتلئة لهذا اليوم، اختر يومًا آخر")
-                "BLOCKED" -> onResult(false, "لديك موعد منتهٍ عند هذا الطبيب بهذا اليوم، اختر يومًا آخر")
+                "BLOCKED" -> onResult(false, "لديك موعد سابق عند هذا الطبيب بهذا اليوم، اختر يومًا آخر")
+                "PENDING_EXIST" -> onResult(true, "طلبك السابق بانتظار موافقة الطبيب. رقم الدور: ${p.getOrElse(1) { "" }} — الوقت التقديري: ${p.getOrElse(2) { "" }}")
                 "EXIST" -> onResult(
                     true,
                     "لديك حجز مسبق عند هذا الطبيب بهذا اليوم. رقمك: ${p.getOrElse(1) { "" }} — الوقت التقريبي: ${p.getOrElse(2) { "" }}"
                 )
                 else -> onResult(
                     true,
-                    "تم حجز دورك. رقمك: ${p.getOrElse(1) { "" }} — الوقت التقريبي: ${p.getOrElse(2) { "" }} بتاريخ $date"
+                    "تم إرسال طلب الحجز للطبيب. سيصبح موعدك مؤكداً بعد موافقته. رقم الدور المبدئي: ${p.getOrElse(1) { "" }} — الوقت التقديري: ${p.getOrElse(2) { "" }} بتاريخ $date"
                 )
             }
         }.addOnFailureListener { e ->
@@ -195,7 +197,7 @@ fun QueueBookingScreen(d: Map<String, Any?>, onBack: () -> Unit, onDone: () -> U
             }
             Field(note, { note = it }, "ملاحظة للطبيب (اختياري)")
             if (msg.isNotEmpty()) Text(msg, color = BDanger)
-            RedButton("تأكيد الحجز", enabled = !busy && !full) {
+            RedButton("إرسال طلب الحجز", enabled = !busy && !full) {
                 busy = true
                 msg = ""
                 bookByQueue(d, date, isToday, note.trim().take(300)) { ok, text ->
