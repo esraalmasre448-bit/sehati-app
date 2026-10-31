@@ -6,6 +6,48 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.google.firebase.auth.EmailAuthProvider
+import com.google.firebase.firestore.DocumentSnapshot
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.WriteBatch
+
+private fun commitAccountDeletionBatches(
+    db: FirebaseFirestore,
+    uid: String,
+    appointments: List<DocumentSnapshot>,
+    prescriptions: List<DocumentSnapshot>,
+    onSuccess: () -> Unit,
+    onFailure: () -> Unit
+) {
+    val operations = mutableListOf<(WriteBatch) -> Unit>()
+    appointments.forEach { doc ->
+        operations.add { batch ->
+            batch.update(doc.reference, mapOf(
+                "patientName" to "حساب محذوف",
+                "patientPhone" to "",
+                "note" to ""
+            ))
+        }
+    }
+    prescriptions.forEach { doc ->
+        operations.add { batch -> batch.delete(doc.reference) }
+    }
+    operations.add { batch -> batch.delete(db.collection("users").document(uid)) }
+    operations.add { batch -> batch.delete(db.collection("doctors").document(uid)) }
+
+    fun commitChunk(start: Int) {
+        if (start >= operations.size) {
+            onSuccess()
+            return
+        }
+        val batch = db.batch()
+        operations.subList(start, minOf(start + 450, operations.size)).forEach { it(batch) }
+        batch.commit()
+            .addOnSuccessListener { commitChunk(start + 450) }
+            .addOnFailureListener { onFailure() }
+    }
+
+    commitChunk(0)
+}
 
 @Composable
 fun DeleteAccountSection(onDeleted: () -> Unit) {
@@ -54,26 +96,26 @@ fun DeleteAccountSection(onDeleted: () -> Unit) {
                                                 .addOnSuccessListener { aps ->
                                                     bDb.collection("prescriptions").whereEqualTo("patientId", user.uid).get()
                                                         .addOnSuccessListener { rxs ->
-                                                            val b = bDb.batch()
-                                                            aps.documents.take(200).forEach { d ->
-                                                                b.update(d.reference, mapOf("patientName" to "حساب محذوف", "patientPhone" to "", "note" to ""))
-                                                            }
-                                                            rxs.documents.take(200).forEach { d -> b.delete(d.reference) }
-                                                            b.delete(bDb.collection("users").document(user.uid))
-                                                            b.delete(bDb.collection("doctors").document(user.uid))
-                                                            b.commit().addOnSuccessListener {
-                                                                user.delete().addOnSuccessListener {
+                                                            commitAccountDeletionBatches(
+                                                                db = bDb,
+                                                                uid = user.uid,
+                                                                appointments = aps.documents,
+                                                                prescriptions = rxs.documents,
+                                                                onSuccess = {
+                                                                    user.delete().addOnSuccessListener {
+                                                                        busy = false
+                                                                        open = false
+                                                                        onDeleted()
+                                                                    }.addOnFailureListener {
+                                                                        busy = false
+                                                                        msg = "تعذر حذف الحساب. سجّل خروجًا ثم دخولًا وحاول مرة أخرى"
+                                                                    }
+                                                                },
+                                                                onFailure = {
                                                                     busy = false
-                                                                    open = false
-                                                                    onDeleted()
-                                                                }.addOnFailureListener {
-                                                                    busy = false
-                                                                    msg = "تعذر حذف الحساب. سجّل خروجًا ثم دخولًا وحاول مرة أخرى"
+                                                                    msg = "تعذر حذف البيانات، تحقق من الإنترنت"
                                                                 }
-                                                            }.addOnFailureListener {
-                                                                busy = false
-                                                                msg = "تعذر حذف البيانات، تحقق من الإنترنت"
-                                                            }
+                                                            )
                                                         }.addOnFailureListener { netErr() }
                                                 }.addOnFailureListener { netErr() }
                                         }
