@@ -336,7 +336,15 @@ fun AuthFlow(onDone: () -> Unit) {
                                 }
                                 override fun onVerificationFailed(error: com.google.firebase.FirebaseException) {
                                     busy = false
-                                    msg = "تعذر إرسال رمز التحقق: ${error.localizedMessage ?: "تحقق من الرقم وإعدادات Firebase"}"
+                                    val details = error.message.orEmpty()
+                                    msg = if (
+                                        details.contains("OPERATION_NOT_ALLOWED", ignoreCase = true) ||
+                                        details.contains("sign-in provider is disabled", ignoreCase = true)
+                                    ) {
+                                        "ميزة التحقق برقم الهاتف غير مفعّلة في Firebase. فعّل Phone من Authentication ثم Sign-in method."
+                                    } else {
+                                        "تعذر إرسال رمز التحقق: ${error.localizedMessage ?: "تحقق من الرقم واتصال الإنترنت وإعدادات Firebase"}"
+                                    }
                                 }
                                 override fun onCodeSent(id: String, token: PhoneAuthProvider.ForceResendingToken) {
                                     verificationId = id
