@@ -201,7 +201,7 @@ fun DoctorSearchScreen(onBack: () -> Unit, onOpen: (Map<String, Any?>) -> Unit, 
     fun loadPage() {
         if (loading || !more) return
         loading = true
-        var q: Query = fDb.collection("doctors").orderBy("name").limit(40)
+        var q: Query = fDb.collection("doctors").whereEqualTo("approved", true).orderBy("name").limit(40)
         val l = last
         if (l != null) q = q.startAfter(l)
         q.get().addOnSuccessListener { s ->
@@ -232,7 +232,7 @@ fun DoctorSearchScreen(onBack: () -> Unit, onOpen: (Map<String, Any?>) -> Unit, 
         searching = true
         found = emptyMap()
         val jobs = mutableListOf<(() -> Unit) -> Unit>()
-        val col = fDb.collection("doctors")
+        val col = fDb.collection("doctors").whereEqualTo("approved", true)
         fun cur() = q == query.trim() && fs == fSpec && fc == fCity.trim()
         fun add(s: QuerySnapshot) {
             if (!cur()) return
