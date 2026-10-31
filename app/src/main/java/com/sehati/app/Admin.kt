@@ -239,7 +239,6 @@ private fun AdminPanel(onBack: () -> Unit) {
     var tab by remember { mutableIntStateOf(0) }
     var users by remember { mutableStateOf(listOf<Map<String, Any?>>()) }
     var patientCount by remember { mutableIntStateOf(0) }
-    var bookingCount by remember { mutableIntStateOf(0) }
     var systemStatus by remember { mutableStateOf("جارٍ التحقق من الاتصال") }
     var subs by remember { mutableStateOf(mapOf<String, Map<String, Any?>>()) }
     var specs by remember { mutableStateOf(mapOf<String, String>()) }
@@ -280,13 +279,9 @@ private fun AdminPanel(onBack: () -> Unit) {
         }
         val r5 = aDb.collection("users").whereEqualTo("accountType", "patient").limit(1000)
             .addSnapshotListener { s, e -> if (e == null) patientCount = s?.size() ?: 0 }
-        val r6 = aDb.collection("appointments").limit(1000).addSnapshotListener { s, e ->
-            if (e == null) {
-                bookingCount = s?.size() ?: 0
-                systemStatus = "متصل بقاعدة البيانات"
-            } else systemStatus = "تعذر تحديث بعض بيانات لوحة المطوّر"
-        }
-        onDispose { r1.remove(); r2.remove(); r3.remove(); r4.remove(); r5.remove(); r6.remove() }
+        // لا تقرأ لوحة الإدارة سجلات المواعيد أو بياناتها الطبية؛ تبقى بين المريض والطبيب.
+        systemStatus = "متصل بقاعدة البيانات"
+        onDispose { r1.remove(); r2.remove(); r3.remove(); r4.remove(); r5.remove() }
     }
 
     LaunchedEffect(subs, users) {
@@ -353,7 +348,7 @@ private fun AdminPanel(onBack: () -> Unit) {
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     StatBox("المرضى المسجلون*", patientCount, Modifier.weight(1f))
-                    StatBox("الحجوزات المحمّلة*", bookingCount, Modifier.weight(1f))
+                    StatBox("الحسابات الطبية", doctors + clinics, Modifier.weight(1f))
                 }
             }
             item {
