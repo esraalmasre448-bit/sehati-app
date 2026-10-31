@@ -70,7 +70,6 @@ service cloud.firestore {
       allow create: if request.auth != null && request.auth.uid == uid
         && request.resource.data.keys().hasOnly(['name','phone','email','accountType','createdAt','emailVerified'])
         && request.resource.data.email == request.auth.token.email
-        && request.auth.token.email_verified == false
         && request.resource.data.emailVerified == false
         && request.resource.data.accountType in ['patient','doctor','clinic']
         && request.resource.data.name is string && request.resource.data.name.size() <= 100
