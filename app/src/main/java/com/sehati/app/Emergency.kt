@@ -33,6 +33,16 @@ fun EmergencyScreen(onBack: () -> Unit) {
             .addOnSuccessListener { s ->
                 items = s.documents.map { it.data.orEmpty() + ("id" to it.id) }
                 loaded = true
+                s.documents.forEach { doc ->
+                    bDb.collection("doctorPrivate").document(doc.id).get()
+                        .addOnSuccessListener { p ->
+                            val phone = p.getString("emergencyPhone").orEmpty()
+                                .ifBlank { p.getString("phone").orEmpty() }
+                            items = items.map { item ->
+                                if (item["id"] == doc.id) item + ("privateContact" to phone) else item
+                            }
+                        }
+                }
             }
             .addOnFailureListener {
                 error = "تعذر تحميل أماكن الطوارئ، تحقق من الإنترنت"
@@ -84,8 +94,7 @@ fun EmergencyScreen(onBack: () -> Unit) {
             item { Text("لا يوجد أطباء مسجلون للطوارئ حاليًا. استخدم زر أقرب مستشفى.", color = BMuted) }
         }
         items(items, key = { it["id"] as String }) { d ->
-            val emPhone = d["emergencyPhone"]?.toString().orEmpty()
-            val phone = if (emPhone.isNotBlank()) emPhone else d["phone"]?.toString().orEmpty()
+            val phone = d["privateContact"]?.toString().orEmpty()
             Column(
                 Modifier.fillMaxWidth().background(BCard, RoundedCornerShape(14.dp))
                     .border(1.dp, BLine, RoundedCornerShape(14.dp)).padding(14.dp),
