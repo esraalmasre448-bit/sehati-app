@@ -91,8 +91,9 @@ fun DoctorProfileScreen(onBack: () -> Unit) {
                     emergency = d.getBoolean("emergency") ?: false
                     hospitalName = d.getString("hospitalName") ?: ""
                     fDb.collection("doctorPrivate").document(uid).get().addOnSuccessListener { p ->
-                        phone = p.getString("phone") ?: ""
-                        emergencyPhone = p.getString("emergencyPhone") ?: ""
+                        // Fallback للمستندات القديمة فقط، ثم ينقلها الحفظ إلى doctorPrivate.
+                        phone = p.getString("phone") ?: d.getString("phone").orEmpty()
+                        emergencyPhone = p.getString("emergencyPhone") ?: d.getString("emergencyPhone").orEmpty()
                     }
                     hospitalHours = d.getString("hospitalHours") ?: ""
                 } else {
