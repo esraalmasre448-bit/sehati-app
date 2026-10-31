@@ -152,7 +152,8 @@ private fun TableHeader() {
 @Composable
 private fun DoctorRow(
     u: Map<String, Any?>, sub: Map<String, Any?>?, specialty: String,
-    onGrant: () -> Unit, onCancel: () -> Unit
+    approved: Boolean?, approvalBusy: Boolean,
+    onToggleApproval: () -> Unit, onGrant: () -> Unit, onCancel: () -> Unit
 ) {
     val st = statusOf(sub)
     val expiredLike = st == "EXPIRED" || st == "CANCELLED"
@@ -181,12 +182,27 @@ private fun DoctorRow(
             Text("المعرّف: ${u["id"]}", color = AMuted, fontSize = 10.sp)
             Text(label, color = color, fontSize = 14.sp, fontWeight = FontWeight.Bold)
             if (detail.isNotEmpty()) Text(detail, color = color, fontSize = 11.sp)
+            Text(
+                when (approved) {
+                    true -> "الملف معتمد"
+                    false -> "بانتظار اعتماد الملف"
+                    null -> "لم يُنشأ الملف الطبي بعد"
+                },
+                color = if (approved == true) AGreen else AMuted,
+                fontSize = 11.sp
+            )
         }
         Text(
             specialty.ifBlank { "—" }, Modifier.weight(0.9f),
             color = Color.White, fontSize = 14.sp
         )
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            OutlinedButton(
+                onClick = onToggleApproval,
+                enabled = approved != null && !approvalBusy,
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) { Text(if (approved == true) "إلغاء الاعتماد" else "اعتماد الملف", fontSize = 12.sp) }
             Button(
                 onClick = onGrant,
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
@@ -224,6 +240,8 @@ private fun AdminPanel(onBack: () -> Unit) {
     var users by remember { mutableStateOf(listOf<Map<String, Any?>>()) }
     var subs by remember { mutableStateOf(mapOf<String, Map<String, Any?>>()) }
     var specs by remember { mutableStateOf(mapOf<String, String>()) }
+    var approvals by remember { mutableStateOf(mapOf<String, Boolean>()) }
+    var profileIds by remember { mutableStateOf(setOf<String>()) }
     var history by remember { mutableStateOf(listOf<Map<String, Any?>>()) }
     var error by remember { mutableStateOf("") }
     var info by remember { mutableStateOf("") }
@@ -251,7 +269,12 @@ private fun AdminPanel(onBack: () -> Unit) {
                 if (e == null) history = s?.documents?.map { it.data.orEmpty() + ("id" to it.id) }.orEmpty()
             }
         val r4 = aDb.collection("doctors").limit(500).addSnapshotListener { s, e ->
-            if (e == null) specs = s?.documents?.associate { it.id to (it.getString("specialty") ?: "") }.orEmpty()
+            if (e == null) {
+                val docs = s?.documents.orEmpty()
+                specs = docs.associate { it.id to (it.getString("specialty") ?: "") }
+                approvals = docs.associate { it.id to (it.getBoolean("approved") == true) }
+                profileIds = docs.map { it.id }.toSet()
+            }
         }
         onDispose { r1.remove(); r2.remove(); r3.remove(); r4.remove() }
     }
@@ -336,8 +359,33 @@ private fun AdminPanel(onBack: () -> Unit) {
             else if (shown.isEmpty()) item { Text("لا توجد نتائج مطابقة للبحث", color = AMuted) }
             items(shown, key = { it["id"] as String }) { u ->
                 val id = u["id"] as String
+                val approved = if (id in profileIds) approvals[id] == true else null
                 DoctorRow(
-                    u, subs[id], specs[id].orEmpty(),
+                    u = u, sub = subs[id], specialty = specs[id].orEmpty(),
+                    approved = approved, approvalBusy = busy,
+                    onToggleApproval = {
+                        val adminUid = aAuth.currentUser?.uid
+                        if (adminUid.isNullOrBlank()) {
+                            error = "تعذر تحديد حساب الإدارة"
+                        } else if (approved != null && !busy) {
+                            val next = approved != true
+                            busy = true
+                            aDb.collection("doctors").document(id).update(
+                                mapOf(
+                                    "approved" to next,
+                                    "approvedBy" to adminUid,
+                                    "approvedAt" to FieldValue.serverTimestamp()
+                                )
+                            ).addOnSuccessListener {
+                                busy = false
+                                error = ""
+                                info = if (next) "تم اعتماد الملف الطبي" else "تم إلغاء اعتماد الملف الطبي"
+                            }.addOnFailureListener {
+                                busy = false
+                                error = "تعذر تحديث اعتماد الملف، حاول مرة أخرى"
+                            }
+                        }
+                    },
                     onGrant = { grantUser = u },
                     onCancel = { cancelUser = u }
                 )
