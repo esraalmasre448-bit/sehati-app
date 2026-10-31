@@ -364,7 +364,6 @@ fun AuthFlow(onDone: () -> Unit) {
         }
         }
     }
-    }
 
     if (showReset) {
         AlertDialog(
