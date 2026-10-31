@@ -237,51 +237,119 @@ private fun BInfo(label: String, value: Any?) {
 @Composable
 fun DoctorDetailFull(d: Map<String, Any?>, onBack: () -> Unit, onBook: () -> Unit) {
     val ctx = LocalContext.current
+    val doctorId = d["id"]?.toString().orEmpty()
+    var privatePhone by remember(doctorId) { mutableStateOf("") }
+    var tab by remember { mutableIntStateOf(0) }
     var msg by remember { mutableStateOf("") }
+
+    LaunchedEffect(doctorId) {
+        if (doctorId.isNotBlank()) {
+            bDb.collection("doctorPrivate").document(doctorId).get()
+                .addOnSuccessListener { privatePhone = it.getString("phone").orEmpty() }
+        }
+    }
+
     Column(
-        Modifier.fillMaxSize().background(BBg).padding(20.dp).verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        Modifier.fillMaxSize().background(BBg).verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        TextButton(onClick = onBack) { Text("رجوع", color = BRed) }
-        Box(Modifier.fillMaxWidth(), contentAlignment = androidx.compose.ui.Alignment.Center) {
-            DoctorAvatar(d["photo"]?.toString(), "${d["name"] ?: ""}", 110.dp)
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+        ) {
+            TextButton(onClick = onBack) { Text("رجوع", color = BRed) }
+            Spacer(Modifier.weight(1f))
+            Text("الملف الطبي", color = BMuted, fontSize = 13.sp)
         }
-        Text("${d["name"]}", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color.White)
-        Text("${d["specialty"]}", fontSize = 16.sp, color = BRed)
-        BInfo("نبذة", d["bio"])
-        BInfo("العيادة", d["clinicName"])
-        BInfo("المدينة", d["city"])
-        BInfo("العنوان", d["address"])
-        BInfo("رقم التواصل", d["phone"])
-        BInfo(
-            "ساعات استقبال الحجوزات بالعيادة",
-            "${slotLabel((num(d["startHour"]) ?: 9) * 60)} - ${slotLabel((num(d["endHour"]) ?: 17) * 60)}"
-        )
-        if (hasWorkDays(d)) BInfo("أيام الدوام", workDaysLabel(workDaysOf(d)))
-        BInfo("أيام وساعات الدوام بالعيادة", d["hours"])
-        BInfo("المشفى", d["hospitalName"])
-        BInfo("أيام وساعات الدوام بالمشفى", d["hospitalHours"])
-        BInfo("سعر الكشفية", d["fee"])
-        if (msg.isNotEmpty()) Text(msg, color = BDanger)
-        RedButton("احجز موعد", onClick = onBook)
-        OutlinedButton(
-            onClick = { msg = openRoute(ctx, d) ?: "" },
-            modifier = Modifier.fillMaxWidth().height(52.dp)
-        ) { Text("الطريق إلى العيادة", color = Color.White) }
-        val phone = d["phone"]?.toString().orEmpty()
-        if (phone.isNotBlank()) {
-            OutlinedButton(
-                onClick = {
-                    try {
-                        ctx.startActivity(
-                            Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phone"))
-                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        )
-                    } catch (e: Exception) { msg = "تعذر فتح الاتصال" }
-                },
-                modifier = Modifier.fillMaxWidth().height(52.dp)
-            ) { Text("اتصال بالعيادة", color = Color.White) }
+
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+                .background(BCard, RoundedCornerShape(22.dp))
+                .border(1.dp, BLine, RoundedCornerShape(22.dp))
+                .padding(18.dp),
+            horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Box {
+                DoctorAvatar(d["photo"]?.toString(), "${d["name"] ?: ""}", 104.dp)
+                if (d["available"] == true) {
+                    Text(
+                        "متاح",
+                        Modifier.align(androidx.compose.ui.Alignment.BottomEnd)
+                            .background(BGreen, RoundedCornerShape(12.dp))
+                            .padding(horizontal = 10.dp, vertical = 4.dp),
+                        color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+            Text("${d["name"] ?: "الطبيب"}", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            Text("${d["specialty"] ?: ""}", fontSize = 15.sp, color = BRed, fontWeight = FontWeight.SemiBold)
+            val place = listOf(d["clinicName"]?.toString(), d["city"]?.toString())
+                .filter { !it.isNullOrBlank() }.joinToString(" • ")
+            if (place.isNotBlank()) Text(place, color = BMuted, fontSize = 13.sp)
+            RedButton("احجز موعد", onClick = onBook)
         }
+
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+                .background(BCard, RoundedCornerShape(14.dp))
+                .border(1.dp, BLine, RoundedCornerShape(14.dp))
+                .padding(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            listOf("معلومات عامة", "الموقع والتواصل").forEachIndexed { index, label ->
+                Box(
+                    Modifier.weight(1f).height(42.dp)
+                        .background(if (tab == index) BRed else Color.Transparent, RoundedCornerShape(11.dp))
+                        .clickable { tab = index },
+                    contentAlignment = androidx.compose.ui.Alignment.Center
+                ) {
+                    Text(label, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                }
+            }
+        }
+
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            if (tab == 0) {
+                BInfo("نبذة عن الطبيب", d["bio"])
+                BInfo("سعر الكشفية", d["fee"])
+                BInfo(
+                    "ساعات استقبال الحجوزات",
+                    "${slotLabel((num(d["startHour"]) ?: 9) * 60)} - ${slotLabel((num(d["endHour"]) ?: 17) * 60)}"
+                )
+                if (hasWorkDays(d)) BInfo("أيام الدوام", workDaysLabel(workDaysOf(d)))
+                BInfo("أيام وساعات الدوام بالعيادة", d["hours"])
+                BInfo("المشفى", d["hospitalName"])
+                BInfo("أيام وساعات الدوام بالمشفى", d["hospitalHours"])
+            } else {
+                BInfo("اسم العيادة", d["clinicName"])
+                BInfo("المدينة", d["city"])
+                BInfo("العنوان", d["address"])
+                BInfo("رقم التواصل", privatePhone)
+                if (msg.isNotEmpty()) Text(msg, color = BDanger, fontSize = 12.sp)
+                OutlinedButton(
+                    onClick = { msg = openRoute(ctx, d) ?: "" },
+                    modifier = Modifier.fillMaxWidth().height(50.dp)
+                ) { Text("الطريق إلى العيادة", color = Color.White) }
+                if (privatePhone.isNotBlank()) {
+                    OutlinedButton(
+                        onClick = {
+                            try {
+                                ctx.startActivity(
+                                    Intent(Intent.ACTION_DIAL, Uri.parse("tel:$privatePhone"))
+                                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                )
+                            } catch (e: Exception) { msg = "تعذر فتح الاتصال" }
+                        },
+                        modifier = Modifier.fillMaxWidth().height(50.dp)
+                    ) { Text("اتصال بالعيادة", color = Color.White) }
+                }
+            }
+        }
+        Spacer(Modifier.height(12.dp))
     }
 }
 
