@@ -38,6 +38,8 @@ fun EmergencyScreen(onBack: () -> Unit) {
                         .addOnSuccessListener { p ->
                             val phone = p.getString("emergencyPhone").orEmpty()
                                 .ifBlank { p.getString("phone").orEmpty() }
+                                .ifBlank { doc.getString("emergencyPhone").orEmpty() }
+                                .ifBlank { doc.getString("phone").orEmpty() }
                             items = items.map { item ->
                                 if (item["id"] == doc.id) item + ("privateContact" to phone) else item
                             }
