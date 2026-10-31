@@ -288,11 +288,17 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/appointments/$(request.resource.data.appointmentId))
         && get(/databases/$(database)/documents/appointments/$(request.resource.data.appointmentId)).data.patientId == request.auth.uid
         && get(/databases/$(database)/documents/appointments/$(request.resource.data.appointmentId)).data.doctorId == request.resource.data.doctorId
-        && get(/databases/$(database)/documents/appointments/$(request.resource.data.appointmentId)).data.status in ['CONFIRMED','DONE'];
+        && get(/databases/$(database)/documents/appointments/$(request.resource.data.appointmentId)).data.status in ['PENDING','CONFIRMED','DONE']
+        && doctorApproved(request.resource.data.doctorId)
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.lastAt == request.time;
 
       allow update: if signedIn()
         && (resource.data.patientId == request.auth.uid || resource.data.doctorId == request.auth.uid)
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastMessage','lastAt']);
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastMessage','lastAt'])
+        && request.resource.data.lastMessage is string
+        && request.resource.data.lastMessage.size() <= 1000
+        && request.resource.data.lastAt == request.time;
 
       allow delete: if false;
     }
