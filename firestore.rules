@@ -117,7 +117,7 @@ service cloud.firestore {
       allow read: if signedIn() && (
         request.auth.uid == id
         || isAdmin()
-        || userType() == 'patient'
+        || (userType() == 'patient' && doctorApproved(id))
       );
       allow create, update: if signedIn()
         && request.auth.uid == id
