@@ -157,7 +157,6 @@ service cloud.firestore {
         && (
           resource.data.patientId == request.auth.uid
           || resource.data.doctorId == request.auth.uid
-          || isAdmin()
         );
 
       allow create: if signedIn()
@@ -274,7 +273,6 @@ service cloud.firestore {
       allow read: if signedIn() && (
         resource.data.patientId == request.auth.uid
         || resource.data.doctorId == request.auth.uid
-        || isAdmin()
       );
 
       allow create: if signedIn()
@@ -339,7 +337,6 @@ service cloud.firestore {
         && (
           get(/databases/$(database)/documents/conversations/$(resource.data.convId)).data.patientId == request.auth.uid
           || get(/databases/$(database)/documents/conversations/$(resource.data.convId)).data.doctorId == request.auth.uid
-          || isAdmin()
         );
 
       allow create: if signedIn()
