@@ -46,25 +46,29 @@ private fun bookByQueue(
     val endMin = (qNum(d["endHour"]) ?: 17) * 60
     val step = (qNum(d["slotMinutes"]) ?: 30).coerceAtLeast(10)
     val queueRef = bDb.collection("queues").document("${doctorId}_$date")
-    val apptRef = bDb.collection("appointments").document("${doctorId}_${date}_${me.uid}")
     bDb.collection("users").document(me.uid).get().addOnSuccessListener { u ->
         val pName = u.getString("name") ?: ""
         val pPhone = u.getString("phone") ?: ""
-        bDb.runTransaction<String> { tx ->
-            val a = tx.get(apptRef)
-            val q = tx.get(queueRef)
-            if (a.exists()) {
-                val st = a.getString("status")
-                if (st == "CONFIRMED") {
-                    return@runTransaction "EXIST|${a.getLong("number") ?: 0L}|${a.getString("time") ?: ""}"
-                }
-                if (st == "PENDING") return@runTransaction "PENDING_EXIST|${a.getLong("number") ?: 0L}|${a.getString("time") ?: ""}"
-                if (st != "CANCELLED") return@runTransaction "BLOCKED"
+        val activeQuery = bDb.collection("appointments")
+            .whereEqualTo("doctorId", doctorId)
+            .whereEqualTo("date", date)
+            .whereEqualTo("patientId", me.uid)
+            .whereIn("status", listOf("PENDING", "CONFIRMED"))
+        activeQuery.get().addOnSuccessListener { active ->
+            if (!active.isEmpty) {
+                val a = active.documents.first()
+                val status = if (a.getString("status") == "PENDING") "طلبك السابق بانتظار موافقة الطبيب" else "لديك حجز مؤكد مسبقًا"
+                onResult(true, "$status. رقم الدور: ${a.getLong("number") ?: 0L} — الوقت: ${a.getString("time") ?: ""}")
+                return@addOnSuccessListener
             }
+            bDb.runTransaction<String> { tx ->
+            val q = tx.get(queueRef)
             val last = if (q.exists()) (q.getLong("last") ?: 0L) else 0L
             val current = if (q.exists()) (q.getLong("current") ?: 0L) else 0L
             val (number, est) = estimate(last, current, today, startMin, step)
             if (est + step > endMin) return@runTransaction "FULL"
+            val apptRef = bDb.collection("appointments").document("${doctorId}_${date}_$number")
+            if (tx.get(apptRef).exists()) return@runTransaction "RETRY"
             if (q.exists()) {
                 tx.update(queueRef, "last", number)
             } else {
@@ -93,7 +97,7 @@ private fun bookByQueue(
             val p = r.split("|")
             when (p[0]) {
                 "FULL" -> onResult(false, "الأدوار ممتلئة لهذا اليوم، اختر يومًا آخر")
-                "BLOCKED" -> onResult(false, "لديك موعد سابق عند هذا الطبيب بهذا اليوم، اختر يومًا آخر")
+                "RETRY" -> onResult(false, "تغير رقم الدور، أعد المحاولة")
                 "PENDING_EXIST" -> onResult(true, "طلبك السابق بانتظار موافقة الطبيب. رقم الدور: ${p.getOrElse(1) { "" }} — الوقت التقديري: ${p.getOrElse(2) { "" }}")
                 "EXIST" -> onResult(
                     true,
@@ -115,6 +119,7 @@ private fun bookByQueue(
             }
             onResult(false, text)
         }
+        }.addOnFailureListener { onResult(false, "تعذر التحقق من مواعيدك السابقة") }
     }.addOnFailureListener { onResult(false, "تعذر تحميل بياناتك، تحقق من الإنترنت") }
 }
 
