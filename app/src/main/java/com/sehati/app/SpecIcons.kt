@@ -2,19 +2,34 @@ package com.sehati.app
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.size
-import androidx.compose.material3.Text
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Air
+import androidx.compose.material.icons.filled.Biotech
+import androidx.compose.material.icons.filled.ChildCare
+import androidx.compose.material.icons.filled.DirectionsRun
+import androidx.compose.material.icons.filled.Face
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Hearing
+import androidx.compose.material.icons.filled.Healing
+import androidx.compose.material.icons.filled.LocalHospital
+import androidx.compose.material.icons.filled.MedicalServices
+import androidx.compose.material.icons.filled.Psychology
+import androidx.compose.material.icons.filled.Restaurant
+import androidx.compose.material.icons.filled.Science
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.WaterDrop
+import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.sp
 
 /**
- * يعرض الصورة المخصصة للتخصص إن كانت موجودة، وإلا يستخدم رمزاً طبياً واضحاً
- * خاصاً بالتخصص بدلاً من تكرار أيقونة طبية عامة.
+ * صور التخصصات المخصصة تُعرض كما هي. بقية التخصصات تستخدم رسوماً Vector
+ * من Material Icons بلون سماوي موحّد، لتبقى حادة وواضحة على كل كثافات الشاشات.
  */
 @Composable
 fun SpecImage(s: Spec, size: Dp) {
@@ -22,39 +37,34 @@ fun SpecImage(s: Spec, size: Dp) {
     val res = remember(s.img) {
         ctx.resources.getIdentifier("sp_" + s.img, "drawable", ctx.packageName)
     }
-    val symbol = when (s.img) {
-        "eye", "eye_surgery" -> "👁️"
-        "tooth", "braces", "implant", "tooth_kid", "gums", "rootcanal", "jaw" -> "🦷"
-        "child", "newborn", "child_surgery" -> "👶"
-        "pregnant", "fertility", "uterus" -> "🤰"
-        "heart", "heart_surgery", "vessels" -> "🫀"
-        "knee", "bone_surgery", "spine", "rheum" -> "🦴"
-        "organs", "stomach_surgery", "liver" -> "🫁"
-        "skin", "hair", "plastic" -> "🧑🏻"
-        "ent", "hearing", "larynx" -> "👂"
-        "brain", "psych", "brain_surgery" -> "🧠"
-        "bladder", "kidney" -> "🫘"
-        "intestines" -> "🩻"
-        "steth", "family" -> "🩺"
-        "scalpel", "hand_surgery", "thyroid_surgery" -> "🩹"
-        "lungs", "lung_surgery" -> "🫁"
-        "thyroid", "blood", "virus", "allergy" -> "🧬"
-        "nutrition" -> "🍎"
-        "physio", "sport" -> "🏃"
-        "ambulance" -> "🚑"
-        "xray" -> "🩻"
-        "lab" -> "🧪"
-        "tumor", "tumor_surgery" -> "🔬"
-        else -> "⚕️"
-    }
+
     if (res != 0) {
         Image(painterResource(res), null, Modifier.size(size))
     } else {
-        Text(
-            text = symbol,
-            fontSize = (size.value * 0.88f).sp,
-            textAlign = TextAlign.Center,
-            maxLines = 1
+        val vector = when (s.img) {
+            "eye", "eye_surgery" -> Icons.Filled.Visibility
+            "heart", "heart_surgery", "vessels", "pregnant", "fertility", "uterus" -> Icons.Filled.Favorite
+            "child", "newborn", "child_surgery", "tooth_kid" -> Icons.Filled.ChildCare
+            "brain", "psych", "brain_surgery" -> Icons.Filled.Psychology
+            "knee", "bone_surgery", "spine", "rheum", "hand_surgery", "jaw", "scalpel",
+            "braces", "implant", "gums", "rootcanal", "bariatric" -> Icons.Filled.Healing
+            "ent", "hearing", "larynx" -> Icons.Filled.Hearing
+            "skin", "hair", "plastic" -> Icons.Filled.Face
+            "lungs", "lung_surgery" -> Icons.Filled.Air
+            "nutrition" -> Icons.Filled.Restaurant
+            "physio", "sport" -> Icons.Filled.DirectionsRun
+            "ambulance" -> Icons.Filled.LocalHospital
+            "xray", "lab", "tumor", "tumor_surgery" -> Icons.Filled.Science
+            "thyroid", "blood", "virus", "allergy", "thyroid_surgery" -> Icons.Filled.Biotech
+            "kidney", "bladder", "intestines", "liver", "organs", "stomach_surgery" -> Icons.Filled.WaterDrop
+            "family", "steth", "kidney", "bladder" -> Icons.Filled.MedicalServices
+            else -> Icons.Filled.MedicalServices
+        }
+        Icon(
+            imageVector = vector,
+            contentDescription = s.name,
+            modifier = Modifier.size(size),
+            tint = Color(0xFF7CEBFF)
         )
     }
 }
