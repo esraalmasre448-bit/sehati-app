@@ -364,7 +364,7 @@ fun DoctorPatientsScreen(onBack: () -> Unit) {
             icon = Icons.Filled.People
         )
         Spacer(Modifier.height(8.dp))
-
+        val list = patients
         when {
             failed -> Text("تعذر تحميل المرضى، تحقق من الإنترنت", color = BDanger)
             list == null -> Text("جارٍ التحميل...", color = BMuted)
