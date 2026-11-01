@@ -216,6 +216,13 @@ private fun AdminHome(name: String, photo: String?, onPage: (String) -> Unit) {
             }
         }
 
+        SehatiHero(
+            eyebrow = "مركز التحكم",
+            title = "إدارة الطريق إلى صحتي",
+            subtitle = "نظرة واضحة على المستخدمين والحجوزات وأدوات تشغيل المنصة.",
+            icon = Icons.Filled.Dashboard
+        )
+
         // الإحصائيات
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             AdminStat("إجمالي المستخدمين", total?.toString() ?: "...", Icons.Filled.Group, AccBlue, Modifier.weight(1f))
