@@ -369,6 +369,7 @@ private fun NeonAllSpecialtiesCard(modifier: Modifier, onClick: () -> Unit) {
     }
 }
 
+@Composable
 private fun OtherSpecCircle(modifier: Modifier, onClick: () -> Unit) {
     Column(
         modifier.clickable { onClick() }.padding(vertical = 4.dp),
