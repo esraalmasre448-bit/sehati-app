@@ -224,7 +224,7 @@ fun DoctorDashboardContent(onBack: (() -> Unit)? = null) {
         contentPadding = PaddingValues(vertical = 16.dp)
     ) {
         if (onBack != null) item { TextButton(onClick = onBack) { Text("رجوع", color = BRed) } }
-        item { Text("لوحتي — الحجوزات", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White) }
+        item { SehatiHero(eyebrow = "إدارة العيادة", title = "لوحتي — الحجوزات", subtitle = "طلبات المرضى، الموافقات، وإدارة الدور اليومي.", icon = Icons.Filled.CalendarMonth) }
         if (st == "expired" || st == "cancelled") {
             item { ExpiredCard { renew = true } }
         } else {
