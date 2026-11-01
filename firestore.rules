@@ -154,13 +154,24 @@ service cloud.firestore {
     match /appointments/{id} {
       // يسمح بقراءة مستند الموعد غير الموجود فقط أثناء فحص أول حجز
       // وبشرط أن يطابق معرّفه الطبيب والتاريخ والمريض الحالي.
+      // يسمح بقراءة مستند الموعد غير الموجود فقط إذا كان معرّفه يخص المريض الحالي.
       allow read: if signedIn()
         && (
           (
             resource == null
             && id.matches(
-              '^[A-Za-z0-9]+_[0-9]{4}-[0-9]{2}-[0-9]{2}_'
-              + request.auth.uid + '
+              '^[A-Za-z0-9]+_[0-9]{4}-[0-9]{2}-[0-9]{2}_' + request.auth.uid + '$'
+            )
+          )
+          ||
+          (
+            resource != null
+            && (
+              resource.data.patientId == request.auth.uid
+              || resource.data.doctorId == request.auth.uid
+            )
+          )
+        );
 
       allow create: if signedIn()
         && userType() == 'patient'
