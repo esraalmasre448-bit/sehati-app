@@ -126,7 +126,7 @@ service cloud.firestore {
         && request.resource.data.phone.size() <= 30
         && request.resource.data.emergencyPhone is string
         && request.resource.data.emergencyPhone.size() <= 30;
-      allow delete: if isAdmin();
+      allow delete: if isAdmin() || (signedIn() && request.auth.uid == id);
     }
 
     match /subscriptions/{id} {
