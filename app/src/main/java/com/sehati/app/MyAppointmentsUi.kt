@@ -111,7 +111,7 @@ fun MyAppointmentsContent(onFind: () -> Unit, onBack: (() -> Unit)? = null) {
         contentPadding = PaddingValues(vertical = 16.dp)
     ) {
         if (onBack != null) item { TextButton(onClick = onBack) { Text("رجوع", color = BRed) } }
-        item { SehatiHero(eyebrow = "ملفك الصحي", title = "مواعيدي", subtitle = "كل طلبات الحجز والمواعيد المؤكدة في مكان واحد.", icon = Icons.Filled.CalendarMonth) }        item { Text("مواعيدي", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White) }
+        item { SehatiHero(eyebrow = "ملفك الصحي", title = "مواعيدي", subtitle = "كل طلبات الحجز والمواعيد المؤكدة في مكان واحد.", icon = Icons.Filled.CalendarMonth) }
         item {
             Row(
                 Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
