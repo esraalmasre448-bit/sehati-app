@@ -43,10 +43,11 @@ fun SpecImage(s: Spec, size: Dp) {
     } else {
         val vector = when (s.img) {
             "eye", "eye_surgery" -> Icons.Filled.Visibility
-            "heart", "heart_surgery", "vessels" -> Icons.Filled.Favorite
+            "heart", "heart_surgery", "vessels", "pregnant", "fertility", "uterus" -> Icons.Filled.Favorite
             "child", "newborn", "child_surgery", "tooth_kid" -> Icons.Filled.ChildCare
             "brain", "psych", "brain_surgery" -> Icons.Filled.Psychology
-            "knee", "bone_surgery", "spine", "rheum", "hand_surgery" -> Icons.Filled.Healing
+            "knee", "bone_surgery", "spine", "rheum", "hand_surgery", "jaw", "scalpel",
+            "braces", "implant", "gums", "rootcanal", "bariatric" -> Icons.Filled.Healing
             "ent", "hearing", "larynx" -> Icons.Filled.Hearing
             "skin", "hair", "plastic" -> Icons.Filled.Face
             "lungs", "lung_surgery" -> Icons.Filled.Air
@@ -54,8 +55,9 @@ fun SpecImage(s: Spec, size: Dp) {
             "physio", "sport" -> Icons.Filled.DirectionsRun
             "ambulance" -> Icons.Filled.LocalHospital
             "xray", "lab", "tumor", "tumor_surgery" -> Icons.Filled.Science
-            "thyroid", "blood", "virus", "allergy" -> Icons.Filled.Biotech
+            "thyroid", "blood", "virus", "allergy", "thyroid_surgery" -> Icons.Filled.Biotech
             "kidney", "bladder", "intestines", "liver", "organs", "stomach_surgery" -> Icons.Filled.WaterDrop
+            "family", "steth", "kidney", "bladder" -> Icons.Filled.MedicalServices
             else -> Icons.Filled.MedicalServices
         }
         Icon(
