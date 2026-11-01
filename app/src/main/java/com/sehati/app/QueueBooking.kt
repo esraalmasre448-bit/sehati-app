@@ -49,18 +49,20 @@ private fun bookByQueue(
     bDb.collection("users").document(me.uid).get().addOnSuccessListener { u ->
         val pName = u.getString("name") ?: ""
         val pPhone = u.getString("phone") ?: ""
-        bDb.runTransaction<String> { tx ->
-            val q = tx.get(queueRef)
-            val activeQuery = bDb.collection("appointments")
-                .whereEqualTo("doctorId", doctorId)
-                .whereEqualTo("date", date)
-                .whereEqualTo("patientId", me.uid)
-                .whereIn("status", listOf("PENDING", "CONFIRMED"))
-            val active = tx.get(activeQuery)
+        val activeQuery = bDb.collection("appointments")
+            .whereEqualTo("doctorId", doctorId)
+            .whereEqualTo("date", date)
+            .whereEqualTo("patientId", me.uid)
+            .whereIn("status", listOf("PENDING", "CONFIRMED"))
+        activeQuery.get().addOnSuccessListener { active ->
             if (!active.isEmpty) {
                 val a = active.documents.first()
-                return@runTransaction "${if (a.getString("status") == "PENDING") "PENDING_EXIST" else "EXIST"}|${a.getLong("number") ?: 0L}|${a.getString("time") ?: ""}"
+                val status = if (a.getString("status") == "PENDING") "طلبك السابق بانتظار موافقة الطبيب" else "لديك حجز مؤكد مسبقًا"
+                onResult(true, "$status. رقم الدور: ${a.getLong("number") ?: 0L} — الوقت: ${a.getString("time") ?: ""}")
+                return@addOnSuccessListener
             }
+            bDb.runTransaction<String> { tx ->
+            val q = tx.get(queueRef)
             val last = if (q.exists()) (q.getLong("last") ?: 0L) else 0L
             val current = if (q.exists()) (q.getLong("current") ?: 0L) else 0L
             val (number, est) = estimate(last, current, today, startMin, step)
@@ -117,6 +119,7 @@ private fun bookByQueue(
             }
             onResult(false, text)
         }
+        }.addOnFailureListener { onResult(false, "تعذر التحقق من مواعيدك السابقة") }
     }.addOnFailureListener { onResult(false, "تعذر تحميل بياناتك، تحقق من الإنترنت") }
 }
 
