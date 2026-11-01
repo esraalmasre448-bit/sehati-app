@@ -225,10 +225,10 @@ private fun DoctorHomeContent(
                 DoctorServiceCard(Icons.Filled.Autorenew, "تجديد الاشتراك", Modifier.weight(1f)) { onGo("renew") }
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                DoctorServiceCard(Icons.Filled.Description, "الوصفات الطبية", Modifier.weight(1f)) { onGo("prescriptions") }
                 DoctorServiceCard(Icons.Filled.Chat, "الرسائل", Modifier.weight(1f)) { onGo("messages") }
                 DoctorServiceCard(Icons.Filled.Group, "قائمة المرضى", Modifier.weight(1f)) { onPatients() }
             }
+            DoctorServiceCard(Icons.Filled.Description, "الوصفات الطبية", Modifier.fillMaxWidth()) { onGo("prescriptions") }
         }
     }
 }
