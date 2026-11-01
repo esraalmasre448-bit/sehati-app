@@ -109,7 +109,30 @@ fun MyAppointmentsContent(onFind: () -> Unit, onBack: (() -> Unit)? = null) {
         contentPadding = PaddingValues(vertical = 16.dp)
     ) {
         if (onBack != null) item { TextButton(onClick = onBack) { Text("رجوع", color = BRed) } }
-        item { Text("مواعيدي", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White) }
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("مواعيدي", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Text("تابع حالة حجوزاتك ومواعيدك القادمة", fontSize = 12.sp, color = BMuted)
+            }
+        }
+        item {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(
+                    Triple("الكل", items.size, BRed),
+                    Triple("مؤكد", items.count { it["status"] == "CONFIRMED" }, BGreen),
+                    Triple("قيد الانتظار", items.count { it["status"] == "PENDING" }, SxPending)
+                ).forEach { (label, value, tint) ->
+                    Column(
+                        Modifier.weight(1f).background(BCard, RoundedCornerShape(13.dp))
+                            .border(1.dp, BLine, RoundedCornerShape(13.dp)).padding(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(3.dp)
+                    ) {
+                        Text(value.toString(), color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                        Text(label, color = tint, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
+        }
         item {
             Row(
                 Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
