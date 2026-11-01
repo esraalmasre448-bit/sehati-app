@@ -116,7 +116,8 @@ fun MessagesScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit) {
             IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowForward, null, tint = Color.White) }
             Text("الرسائل", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White)
         }
-        Spacer(Modifier.height(10.dp))
+        SehatiHero(eyebrow = "تواصل آمن", title = "رسائلك الطبية", subtitle = "ابقَ على تواصل مع طبيبك وتابع آخر المحادثات بسهولة.", icon = Icons.Filled.Chat)
+        Spacer(Modifier.height(10.dp))        Spacer(Modifier.height(10.dp))
         when {
             failed -> Text("تعذر تحميل الرسائل، تحقق من الإنترنت", color = BDanger)
             !loaded -> Text("جارٍ التحميل...", color = BMuted)
