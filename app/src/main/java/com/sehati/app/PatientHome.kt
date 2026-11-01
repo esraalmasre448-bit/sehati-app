@@ -265,9 +265,11 @@ private fun OtherSpecCircle(modifier: Modifier, onClick: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
-            Modifier.size(56.dp).background(BCard, CircleShape).border(1.dp, BRed, CircleShape),
+            Modifier.size(72.dp)
+                .background(Color(0xFF071A3D), CircleShape)
+                .border(1.5.dp, Color(0xFF168BFF), CircleShape),
             contentAlignment = Alignment.Center
-        ) { Icon(Icons.Filled.MoreHoriz, null, tint = Color.White, modifier = Modifier.size(26.dp)) }
+        ) { Icon(Icons.Filled.GridView, null, tint = Color.White, modifier = Modifier.size(32.dp)) }
         Spacer(Modifier.height(6.dp))
         Text("كل التخصصات", color = Color.White, fontSize = 11.sp, textAlign = TextAlign.Center, maxLines = 1)
     }
