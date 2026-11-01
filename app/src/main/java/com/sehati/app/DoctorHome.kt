@@ -136,6 +136,13 @@ private fun DoctorHomeContent(
             }
         }
 
+        SehatiHero(
+            eyebrow = "مساحة عملك الطبية",
+            title = if (shownName.isBlank()) "مرحباً بك" else "د. $shownName",
+            subtitle = "تابع الحجوزات والدور وحالة استقبال المرضى من مكان واحد.",
+            icon = Icons.Filled.MedicalServices
+        )
+
         // بطاقة الهوية والتوافر
         Column(
             Modifier
