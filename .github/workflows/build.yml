@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - fix/multi-visit-queue-2026-11-01
+      - fix/multi-visit-queue-2026-11-01
   push:
     branches:
       - security/privacy-hardening-2026-10
