@@ -23,8 +23,17 @@ import androidx.compose.ui.unit.Dp
 @Composable
 fun SpecImage(s: Spec, size: Dp) {
     val ctx = LocalContext.current
+    // Existing custom files use the "spec_" prefix and legacy keys.
     val res = remember(s.img) {
-        ctx.resources.getIdentifier("sp_" + s.img, "drawable", ctx.packageName)
+        val legacyKey = when (s.img) {
+            "knee" -> "bones"
+            "pregnant" -> "women"
+            else -> s.img
+        }
+        val candidates = listOf("spec_" + legacyKey, "sp_" + s.img)
+        candidates.firstNotNullOfOrNull { name ->
+            ctx.resources.getIdentifier(name, "drawable", ctx.packageName).takeIf { it != 0 }
+        } ?: 0
     }
 
     if (res != 0) {
