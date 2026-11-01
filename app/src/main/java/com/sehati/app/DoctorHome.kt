@@ -357,8 +357,14 @@ fun DoctorPatientsScreen(onBack: () -> Unit) {
             IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowForward, "رجوع", tint = Color.White) }
             Text("المرضى", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White)
         }
+        SehatiHero(
+            eyebrow = "رعاية ومتابعة",
+            title = "ملف المرضى",
+            subtitle = "تابع المرضى المرتبطين بحجوزاتك وسجل زياراتهم.",
+            icon = Icons.Filled.People
+        )
         Spacer(Modifier.height(8.dp))
-        val list = patients
+
         when {
             failed -> Text("تعذر تحميل المرضى، تحقق من الإنترنت", color = BDanger)
             list == null -> Text("جارٍ التحميل...", color = BMuted)
