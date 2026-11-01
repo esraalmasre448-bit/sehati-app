@@ -73,6 +73,13 @@ fun PatientHome(
             Image(painterResource(R.drawable.ic_launcher), null, Modifier.size(48.dp))
         }
 
+        SehatiHero(
+            eyebrow = "رعايتك أقرب مما تتخيل",
+            title = if (name.isBlank()) "أهلاً بك في صحتي" else "أهلاً، $name",
+            subtitle = "ابحث عن الطبيب المناسب، وتابع مواعيدك واهتم بصحتك بسهولة.",
+            icon = Icons.Filled.Favorite
+        )
+
         Row(
             Modifier.fillMaxWidth().height(52.dp)
                 .background(BCard, RoundedCornerShape(14.dp))
