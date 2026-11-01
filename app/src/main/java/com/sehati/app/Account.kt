@@ -56,6 +56,7 @@ fun DeleteAccountSection(onDeleted: () -> Unit) {
                                             rxs.documents.take(200).forEach { d -> b.delete(d.reference) }
                                             b.delete(bDb.collection("users").document(user.uid))
                                             b.delete(bDb.collection("doctors").document(user.uid))
+                                            b.delete(bDb.collection("doctorPrivate").document(user.uid))
                                             b.commit().addOnSuccessListener {
                                                 user.delete().addOnSuccessListener {
                                                     busy = false
