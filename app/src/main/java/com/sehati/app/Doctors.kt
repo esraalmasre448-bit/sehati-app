@@ -171,9 +171,9 @@ fun DoctorProfileScreen(onBack: () -> Unit) {
             batch.set(publicRef, mapOf(
                 "uid" to uid, "name" to name.trim(), "specialty" to specialty.trim(),
                 "clinicName" to clinicName.trim(), "city" to city.trim(),
-                "address" to address.trim(), "phone" to FieldValue.delete(),
+                "address" to address.trim(),
                 "hours" to hours.trim(), "fee" to fee.trim(), "photo" to photo,
-                "emergency" to emergency, "emergencyPhone" to FieldValue.delete(),
+                "emergency" to emergency,
                 "hospitalName" to hospitalName.trim(), "hospitalHours" to hospitalHours.trim(),
                 "updatedAt" to FieldValue.serverTimestamp()
             ), SetOptions.merge())
