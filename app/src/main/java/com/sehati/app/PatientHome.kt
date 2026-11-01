@@ -112,6 +112,11 @@ fun PatientHome(
             Tile(Icons.Filled.Person, stringResource(R.string.my_turn), false, Modifier.weight(1f)) { onGo("queue") }
             Tile(Icons.Filled.LocationOn, stringResource(R.string.way_to_clinic), false, Modifier.weight(1f)) { onGo("route") }
         }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Tile(Icons.Filled.Description, "وصفاتي الطبية", false, Modifier.weight(1f)) { onGo("patient_prescriptions") }
+            Tile(Icons.Filled.Email, "الرسائل", false, Modifier.weight(1f)) { onGo("messages") }
+        }
     }
 }
 
