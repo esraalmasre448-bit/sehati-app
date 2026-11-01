@@ -149,17 +149,25 @@ fun AllSpecialtiesScreen(onBack: () -> Unit, onPick: (String) -> Unit) {
 fun SpecTile(s: Spec, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Column(
         modifier
-            .height(112.dp)
-            .background(BCard, RoundedCornerShape(14.dp))
-            .border(1.dp, BLine, RoundedCornerShape(14.dp))
+            .height(116.dp)
             .clickable { onClick() }
-            .padding(8.dp),
+            .padding(horizontal = 2.dp, vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        SpecImage(s, 52.dp)
-        Spacer(Modifier.height(6.dp))
-        Text(s.name, color = Color.White, fontSize = 12.sp, textAlign = TextAlign.Center, maxLines = 2)
+        Box(
+            Modifier.size(72.dp)
+                .background(BCard, CircleShape)
+                .border(1.5.dp, BRed, CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            SpecImage(s, 48.dp)
+        }
+        Spacer(Modifier.height(7.dp))
+        Text(
+            s.name, color = Color.White, fontSize = 12.sp,
+            textAlign = TextAlign.Center, maxLines = 2
+        )
     }
 }
 

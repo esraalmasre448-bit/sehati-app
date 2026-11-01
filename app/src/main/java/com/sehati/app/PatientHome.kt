@@ -268,7 +268,7 @@ private fun OtherSpecCircle(modifier: Modifier, onClick: () -> Unit) {
             contentAlignment = Alignment.Center
         ) { Icon(Icons.Filled.MoreHoriz, null, tint = Color.White, modifier = Modifier.size(26.dp)) }
         Spacer(Modifier.height(6.dp))
-        Text("أخرى", color = Color.White, fontSize = 12.sp, textAlign = TextAlign.Center)
+        Text("كل التخصصات", color = Color.White, fontSize = 11.sp, textAlign = TextAlign.Center, maxLines = 1)
     }
 }
 
