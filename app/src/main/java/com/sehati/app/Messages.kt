@@ -7,9 +7,11 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -82,6 +84,7 @@ fun MessagesScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit) {
     var asDoctor by remember { mutableStateOf<List<Map<String, Any?>>>(emptyList()) }
     var loaded by remember { mutableStateOf(false) }
     var failed by remember { mutableStateOf(false) }
+    var query by remember { mutableStateOf("") }
 
     DisposableEffect(uid) {
         val r1 = bDb.collection("conversations").whereEqualTo("patientId", uid).limit(100)
@@ -110,29 +113,54 @@ fun MessagesScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit) {
     val all = (asPatient + asDoctor)
         .distinctBy { it["id"] }
         .sortedByDescending { (it["lastAt"] as? Timestamp)?.toDate()?.time ?: 0L }
+    val filtered = all.filter { c ->
+        val isPatient = c["patientId"] == uid
+        val other = if (isPatient) "${c["doctorName"] ?: ""}" else "${c["patientName"] ?: ""}"
+        "$other ${c["lastMessage"] ?: ""}".contains(query.trim(), ignoreCase = true)
+    }
 
     Column(Modifier.fillMaxSize().background(BBg).padding(16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowForward, null, tint = Color.White) }
-            Text("الرسائل", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            Column(Modifier.weight(1f)) {
+                Text("الرسائل", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Text("${all.size} محادثة", fontSize = 12.sp, color = BMuted)
+            }
         }
+        OutlinedTextField(
+            value = query,
+            onValueChange = { query = it },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            placeholder = { Text("ابحث في المحادثات") },
+            leadingIcon = { Icon(Icons.Filled.Search, null) },
+            shape = RoundedCornerShape(14.dp)
+        )
         Spacer(Modifier.height(10.dp))
         when {
             failed -> Text("تعذر تحميل الرسائل، تحقق من الإنترنت", color = BDanger)
             !loaded -> Text("جارٍ التحميل...", color = BMuted)
             all.isEmpty() -> Text("لا توجد محادثات بعد. يمكنك مراسلة طبيبك بعد حجز موعد معه.", color = BMuted)
+            filtered.isEmpty() -> Text("لا توجد محادثات مطابقة للبحث", color = BMuted)
             else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(all, key = { it["id"].toString() }) { c ->
+                items(filtered, key = { it["id"].toString() }) { c ->
                     val isPatient = c["patientId"] == uid
                     val other = if (isPatient) "${c["doctorName"] ?: ""}" else "${c["patientName"] ?: ""}"
                     Row(
                         Modifier.fillMaxWidth()
-                            .background(BCard, RoundedCornerShape(14.dp))
-                            .border(1.dp, BLine, RoundedCornerShape(14.dp))
+                            .background(BCard, RoundedCornerShape(16.dp))
+                            .border(1.dp, BLine, RoundedCornerShape(16.dp))
                             .clickable { onOpenChat("${c["id"]}") }
                             .padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
+                        Box(
+                            Modifier.size(46.dp).background(BRed.copy(alpha = 0.16f), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(other.trim().take(1).ifBlank { "؟" }, color = BRed, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        }
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                             Text(other.ifBlank { "محادثة" }, color = Color.White, fontWeight = FontWeight.Bold)
                             Text(

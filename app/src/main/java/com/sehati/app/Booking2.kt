@@ -1,8 +1,11 @@
 package com.sehati.app
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -174,6 +177,7 @@ fun DoctorDashboardContent(onBack: (() -> Unit)? = null) {
     var noteText by remember { mutableStateOf("") }
     var noteBusy by remember { mutableStateOf(false) }
     var noteMsg by remember { mutableStateOf("") }
+    var statusFilter by remember { mutableStateOf("ALL") }
 
     LaunchedEffect(uid) {
         if (uid.isNotEmpty()) {
@@ -208,6 +212,7 @@ fun DoctorDashboardContent(onBack: (() -> Unit)? = null) {
         onDispose { r1.remove(); r2.remove() }
     }
 
+    val visibleItems = if (statusFilter == "ALL") items else items.filter { it["status"] == statusFilter }
     val nextAppointment = items.firstOrNull {
         (it["number"] as? Number)?.toLong() == current + 1L
     }
@@ -235,6 +240,29 @@ fun DoctorDashboardContent(onBack: (() -> Unit)? = null) {
         }
         item { DayChips(days, idx.coerceIn(0, days.size - 1)) { idx = it } }
         item {
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(7.dp)
+            ) {
+                listOf(
+                    "ALL" to "الكل",
+                    "PENDING" to "بانتظار الموافقة",
+                    "CONFIRMED" to "مؤكد",
+                    "DONE" to "منتهي",
+                    "CANCELLED" to "ملغى"
+                ).forEach { (key, label) ->
+                    Box(
+                        Modifier.background(if (statusFilter == key) BRed else BCard, RoundedCornerShape(18.dp))
+                            .border(1.dp, if (statusFilter == key) BRed else BLine, RoundedCornerShape(18.dp))
+                            .clickable { statusFilter = key }
+                            .padding(horizontal = 12.dp, vertical = 8.dp)
+                    ) {
+                        Text(label, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
+        }
+        item {
             Column(
                 Modifier.fillMaxWidth().background(BCard, RoundedCornerShape(14.dp))
                     .border(1.dp, BLine, RoundedCornerShape(14.dp)).padding(14.dp),
@@ -259,7 +287,8 @@ fun DoctorDashboardContent(onBack: (() -> Unit)? = null) {
         }
         if (msg.isNotEmpty()) item { Text(msg, color = BDanger) }
         if (items.isEmpty()) item { Text("لا توجد حجوزات لهذا اليوم", color = BMuted) }
-        items(items, key = { it["id"] as String }) { a ->
+        else if (visibleItems.isEmpty()) item { Text("لا توجد حجوزات بهذه الحالة لهذا اليوم", color = BMuted) }
+        items(visibleItems, key = { it["id"] as String }) { a ->
             val (label, color) = statusLabel(a["status"])
             val id = a["id"] as String
             Column(

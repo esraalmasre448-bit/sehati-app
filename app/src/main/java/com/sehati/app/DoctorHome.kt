@@ -320,6 +320,7 @@ fun DoctorPatientsScreen(onBack: () -> Unit) {
     val uid = bAuth.currentUser?.uid ?: ""
     var patients by remember { mutableStateOf<List<Map<String, Any?>>?>(null) }
     var failed by remember { mutableStateOf(false) }
+    var query by remember { mutableStateOf("") }
 
     DisposableEffect(uid) {
         val reg = bDb.collection("appointments").whereEqualTo("doctorId", uid).limit(300)
@@ -348,16 +349,37 @@ fun DoctorPatientsScreen(onBack: () -> Unit) {
     Column(Modifier.fillMaxSize().background(BBg).padding(horizontal = 16.dp, vertical = 12.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowForward, "رجوع", tint = Color.White) }
-            Text("المرضى", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            Column(Modifier.weight(1f)) {
+                Text("قائمة المرضى", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Text("المرضى المرتبطون بمواعيدك", fontSize = 12.sp, color = BMuted)
+            }
         }
         Spacer(Modifier.height(8.dp))
+        OutlinedTextField(
+            value = query,
+            onValueChange = { query = it },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            placeholder = { Text("ابحث باسم المريض أو رقم الهاتف") },
+            leadingIcon = { Icon(Icons.Filled.Search, null) },
+            shape = RoundedCornerShape(14.dp)
+        )
+        Spacer(Modifier.height(8.dp))
         val list = patients
+        val filtered = list.orEmpty().filter {
+            "${it["name"] ?: ""} ${it["phone"] ?: ""}".contains(query.trim(), ignoreCase = true)
+        }
+        if (list != null) {
+            Text("عدد المرضى: ${list.size}", color = BMuted, fontSize = 12.sp)
+            Spacer(Modifier.height(8.dp))
+        }
         when {
             failed -> Text("تعذر تحميل المرضى، تحقق من الإنترنت", color = BDanger)
             list == null -> Text("جارٍ التحميل...", color = BMuted)
             list.isEmpty() -> Text("لا يوجد مرضى مرتبطون بحجوزاتك بعد", color = BMuted)
+            filtered.isEmpty() -> Text("لا توجد نتائج مطابقة للبحث", color = BMuted)
             else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                items(list, key = { it["id"].toString() }) { p ->
+                items(filtered, key = { it["id"].toString() }) { p ->
                     val pname = p["name"].toString()
                     Row(
                         Modifier
