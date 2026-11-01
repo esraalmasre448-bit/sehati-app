@@ -1,4 +1,3 @@
-
 package com.sehati.app
 
 import androidx.compose.foundation.layout.*
@@ -16,15 +15,9 @@ fun DeleteAccountSection(onDeleted: () -> Unit) {
     var msg by remember { mutableStateOf("") }
 
     OutlinedButton(
-        onClick = {
-            open = true
-            msg = ""
-            pass = ""
-        },
+        onClick = { open = true; msg = ""; pass = "" },
         modifier = Modifier.fillMaxWidth().height(52.dp)
-    ) {
-        Text("حذف حسابي", color = BDanger)
-    }
+    ) { Text("حذف حسابي", color = BDanger) }
 
     if (open) {
         AlertDialog(
@@ -32,30 +25,78 @@ fun DeleteAccountSection(onDeleted: () -> Unit) {
             title = { Text("حذف الحساب نهائيًا") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(
-                        "حذف الحساب غير متاح مؤقتًا حتى نضمن حذف جميع البيانات المرتبطة به بأمان. تواصل مع الدعم لإتمام الطلب."
-                    )
+                    Text("سيتم حذف حسابك وملفك الشخصي ولا يمكن التراجع. اكتب كلمة السر للتأكيد.")
+                    Field(pass, { pass = it }, "كلمة السر", password = true)
                     if (msg.isNotEmpty()) Text(msg, color = BDanger)
                 }
             },
             confirmButton = {
-                TextButton(
-                    enabled = !busy,
-                    onClick = {
-                        open = false
+                TextButton(enabled = !busy, onClick = {
+                    val user = bAuth.currentUser
+                    val email = user?.email
+                    if (user == null || email == null) {
+                        msg = "تعذر تحديد الحساب"
+                    } else if (pass.isBlank()) {
+                        msg = "اكتب كلمة السر"
+                    } else {
+                        busy = true
                         msg = ""
+
+                        // تنفيذ الحذف الفعلي: إخفاء بيانات المريض في مواعيده، حذف وصفاته وملفاته، ثم حذف حساب الدخول.
+                        fun wipe() {
+                            val netErr = { busy = false; msg = "تعذر الاتصال، تحقق من الإنترنت" }
+                            bDb.collection("appointments").whereEqualTo("patientId", user.uid).get()
+                                .addOnSuccessListener { aps ->
+                                    bDb.collection("prescriptions").whereEqualTo("patientId", user.uid).get()
+                                        .addOnSuccessListener { rxs ->
+                                            val b = bDb.batch()
+                                            aps.documents.take(200).forEach { d ->
+                                                b.update(d.reference, mapOf("patientName" to "حساب محذوف", "patientPhone" to "", "note" to ""))
+                                            }
+                                            rxs.documents.take(200).forEach { d -> b.delete(d.reference) }
+                                            b.delete(bDb.collection("users").document(user.uid))
+                                            b.delete(bDb.collection("doctors").document(user.uid))
+                                            b.commit().addOnSuccessListener {
+                                                user.delete().addOnSuccessListener {
+                                                    busy = false
+                                                    open = false
+                                                    onDeleted()
+                                                }.addOnFailureListener {
+                                                    busy = false
+                                                    msg = "تعذر حذف الحساب. سجّل خروجًا ثم دخولًا وحاول مرة أخرى"
+                                                }
+                                            }.addOnFailureListener {
+                                                busy = false
+                                                msg = "تعذر حذف البيانات، تحقق من الإنترنت"
+                                            }
+                                        }.addOnFailureListener { netErr() }
+                                }.addOnFailureListener { netErr() }
+                        }
+
+                        user.reauthenticate(EmailAuthProvider.getCredential(email, pass))
+                            .addOnSuccessListener {
+                                // قراءة config/admin مسموحة للأدمن فقط في القواعد. نجاحها وتطابق uid يعني أن الحساب أدمن فنمنع حذفه.
+                                // فشلها (رفض الصلاحية) يعني أن الحساب ليس أدمن، فنكمل الحذف بدل إظهار خطأ اتصال كاذب.
+                                bDb.collection("config").document("admin").get()
+                                    .addOnSuccessListener { a ->
+                                        if (a.exists() && a.getString("uid") == user.uid) {
+                                            busy = false
+                                            msg = "لا يمكن حذف حساب الأدمن"
+                                        } else {
+                                            wipe()
+                                        }
+                                    }
+                                    .addOnFailureListener { wipe() }
+                            }
+                            .addOnFailureListener {
+                                busy = false
+                                msg = "كلمة السر غير صحيحة"
+                            }
                     }
-                ) {
-                    Text("حسنًا")
-                }
+                }) { Text("حذف نهائي", color = BDanger) }
             },
             dismissButton = {
-                TextButton(
-                    enabled = !busy,
-                    onClick = { open = false }
-                ) {
-                    Text("إلغاء")
-                }
+                TextButton(enabled = !busy, onClick = { open = false }) { Text("إلغاء") }
             }
         )
     }
