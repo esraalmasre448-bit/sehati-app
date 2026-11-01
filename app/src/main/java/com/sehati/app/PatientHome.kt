@@ -34,10 +34,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.google.firebase.firestore.FirebaseFirestoreException
 
-/** تخصصات الرئيسية للمريض (9 + أخرى)، بحسب التصميم المرجعي. */
+/** التخصصات الثمانية الظاهرة في المرجع، مع زر كل التخصصات كالعنصر التاسع. */
 private val PATIENT_SPECS: List<Spec> = listOf(
-    "أعصاب", "طب الأسنان", "طب العيون", "عظمية ومفاصل", "قلبية",
-    "طب الأطفال", "نسائية وتوليد", "باطنية", "جلدية"
+    "طب العيون", "عظمية ومفاصل", "قلبية",
+    "طب الأسنان", "أعصاب", "طب الأطفال",
+    "نسائية وتوليد", "جلدية"
 ).mapNotNull { n -> SPECIALTIES.firstOrNull { it.name == n } }
 
 @Composable
@@ -91,13 +92,13 @@ fun PatientHome(
 
         Text("التخصصات", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
         val specCells: List<Spec?> = PATIENT_SPECS + listOf<Spec?>(null)
-        specCells.chunked(5).forEach { row ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        specCells.chunked(3).forEach { row ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 row.forEach { sp ->
                     if (sp != null) SpecCircle(sp, Modifier.weight(1f)) { onGo("search:" + sp.name) }
                     else OtherSpecCircle(Modifier.weight(1f)) { onGo("specs") }
                 }
-                repeat(5 - row.size) { Spacer(Modifier.weight(1f)) }
+                repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
             }
         }
 
