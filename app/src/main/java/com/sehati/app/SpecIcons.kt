@@ -60,6 +60,7 @@ fun SpecImage(s: Spec, size: Dp) {
         "kidney", "bladder", "liver", "organs" -> Icons.Filled.WaterDrop
         "family", "steth", "tooth" -> Icons.Filled.MedicalServices
         else -> Icons.Filled.MedicalServices
+    }
 
     Icon(
         imageVector = vector,
