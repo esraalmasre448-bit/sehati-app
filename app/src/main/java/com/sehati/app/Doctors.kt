@@ -399,6 +399,12 @@ fun DoctorDetailScreen(d: Map<String, Any?>, onBack: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         TextButton(onClick = onBack) { Text("رجوع", color = DRed) }
+        SehatiHero(
+            eyebrow = "الملف الطبي المهني",
+            title = "${d["name"] ?: "الطبيب"}",
+            subtitle = "${d["specialty"] ?: "معلومات الطبيب وموقع العيادة"}",
+            icon = Icons.Filled.MedicalServices
+        )
         Text("${d["name"]}", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color.White)
         Text("${d["specialty"]}", fontSize = 16.sp, color = DRed)
         InfoRow("العيادة", d["clinicName"])
