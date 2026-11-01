@@ -13,6 +13,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -116,8 +117,8 @@ fun AllSpecialtiesScreen(onBack: () -> Unit, onPick: (String) -> Unit) {
 
     Column(Modifier.fillMaxSize().background(BBg).padding(16.dp)) {
         TextButton(onClick = onBack) { Text("رجوع", color = BRed) }
-        Text("كل التخصصات", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White)
-        Text("${SPECIALTIES.size} تخصصًا — اختر تخصصك أو ابحث عنه", color = BMuted, fontSize = 13.sp)
+        Text("التخصصات الطبية", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White)
+        Text("${SPECIALTIES.size} تخصصاً — اختر تخصصك أو ابحث عنه", color = Color(0xFF45CFFF), fontSize = 13.sp)
         Spacer(Modifier.height(8.dp))
         Field(q, { q = it }, "ابحث عن تخصص... (مثل: عيون، قلب، أسنان)")
         Spacer(Modifier.height(8.dp))
@@ -148,26 +149,40 @@ fun AllSpecialtiesScreen(onBack: () -> Unit, onPick: (String) -> Unit) {
 @Composable
 fun SpecTile(s: Spec, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Column(
-        modifier
-            .height(116.dp)
-            .clickable { onClick() }
-            .padding(horizontal = 2.dp, vertical = 4.dp),
+        modifier.clickable { onClick() }.padding(horizontal = 2.dp, vertical = 5.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        verticalArrangement = Arrangement.spacedBy(7.dp)
     ) {
         Box(
-            Modifier.size(72.dp)
-                .background(BCard, CircleShape)
-                .border(1.5.dp, BRed, CircleShape),
+            Modifier.size(88.dp)
+                .background(
+                    Brush.radialGradient(listOf(Color(0xFF164C91), Color(0xFF071A3D))),
+                    CircleShape
+                )
+                .border(
+                    1.8.dp,
+                    Brush.sweepGradient(listOf(Color(0xFF7CEBFF), Color(0xFF168BFF), Color(0xFF7CEBFF))),
+                    CircleShape
+                ),
             contentAlignment = Alignment.Center
         ) {
-            SpecImage(s, 48.dp)
+            SpecImage(s, 66.dp)
         }
-        Spacer(Modifier.height(7.dp))
-        Text(
-            s.name, color = Color.White, fontSize = 12.sp,
-            textAlign = TextAlign.Center, maxLines = 2
-        )
+        Box(
+            Modifier.fillMaxWidth()
+                .background(
+                    Brush.horizontalGradient(listOf(Color(0xFF071A3D), Color(0xFF123B78), Color(0xFF071A3D))),
+                    RoundedCornerShape(50)
+                )
+                .border(1.dp, Color(0xFF168BFF), RoundedCornerShape(50))
+                .padding(horizontal = 5.dp, vertical = 6.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                s.name, color = Color.White, fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center, maxLines = 2
+            )
+        }
     }
 }
 
