@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.sp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.QuerySnapshot
 import kotlinx.coroutines.delay
@@ -210,24 +211,34 @@ fun DoctorSearchScreen(onBack: () -> Unit, onOpen: (Map<String, Any?>) -> Unit, 
     fun loadPage() {
         if (loading || !more) return
         loading = true
-        var q: Query = fDb.collection("doctors").whereEqualTo("approved", true).orderBy("name").limit(40)
+        // Equality filter only: avoid a composite index requirement from approved + orderBy(name).
+        var q: Query = fDb.collection("doctors").whereEqualTo("approved", true).limit(40)
         val l = last
         if (l != null) q = q.startAfter(l)
         q.get().addOnSuccessListener { s ->
             val docs = s.documents
-            items = items + docs.map { it.data.orEmpty() + ("id" to it.id) }
+            items = (items + docs.map { it.data.orEmpty() + ("id" to it.id) })
+                .distinctBy { it["id"] }
+                .sortedBy { "${it["name"] ?: ""}".lowercase() }
             if (docs.isNotEmpty()) last = docs.last()
             if (docs.size < 40) more = false
             error = ""
             loading = false
-        }.addOnFailureListener {
+        }.addOnFailureListener { e ->
             loading = false
-            error = "تعذر تحميل الأطباء، تحقق من الإنترنت"
+            error = when ((e as? FirebaseFirestoreException)?.code) {
+                FirebaseFirestoreException.Code.PERMISSION_DENIED -> "لا توجد صلاحية لقراءة قائمة الأطباء. راجع قواعد Firestore."
+                FirebaseFirestoreException.Code.FAILED_PRECONDITION -> "Firestore رفض الاستعلام بسبب فهرس مطلوب. راجع فهارس قاعدة البيانات."
+                FirebaseFirestoreException.Code.UNAVAILABLE -> "خدمة Firestore غير متاحة حالياً. أعد المحاولة بعد قليل."
+                FirebaseFirestoreException.Code.UNAUTHENTICATED -> "انتهت جلسة الدخول. سجّل الدخول من جديد."
+                else -> "فشل تحميل الأطباء: ${e.localizedMessage ?: "خطأ غير معروف"}"
+            }
         }
     }
 
     LaunchedEffect(Unit) { loadPage() }
 
+    // البحث والفلاتر محلياً ضمن قائمة الأطباء المعتمدين لتجنب الفهارس المركبة.
     LaunchedEffect(query, fSpec, fCity) {
         val q = query.trim()
         val fs = fSpec
@@ -237,45 +248,30 @@ fun DoctorSearchScreen(onBack: () -> Unit, onOpen: (Map<String, Any?>) -> Unit, 
             searching = false
             return@LaunchedEffect
         }
-        delay(450)
+        delay(350)
         searching = true
-        found = emptyMap()
-        val jobs = mutableListOf<(() -> Unit) -> Unit>()
-        val col = fDb.collection("doctors")
-        fun cur() = q == query.trim() && fs == fSpec && fc == fCity.trim()
-        fun add(s: QuerySnapshot) {
-            if (!cur()) return
-            found = found + s.documents.associate { it.id to (it.data.orEmpty() + ("id" to it.id)) }
-        }
-        if (q.isNotEmpty()) {
-            jobs.add { done -> col.whereEqualTo("approved", true).orderBy("name").startAt(q).endAt(q + "").limit(30).get()
-                .addOnSuccessListener { add(it); done() }.addOnFailureListener { done() } }
-            jobs.add { done -> col.whereEqualTo("approved", true).whereEqualTo("city", q).limit(30).get()
-                .addOnSuccessListener { add(it); done() }.addOnFailureListener { done() } }
-            val sp = matchSpecialty(q)
-            if (sp != null) {
-                jobs.add { done -> col.whereEqualTo("approved", true).whereIn("specialty", specVariants(sp)).limit(50).get()
-                    .addOnSuccessListener { add(it); done() }.addOnFailureListener { done() } }
-            } else {
-                jobs.add { done -> col.whereEqualTo("approved", true).whereEqualTo("specialty", q).limit(30).get()
-                    .addOnSuccessListener { add(it); done() }.addOnFailureListener { done() } }
+        error = ""
+        fDb.collection("doctors").whereEqualTo("approved", true).limit(500).get()
+            .addOnSuccessListener { snapshot ->
+                if (q == query.trim() && fs == fSpec && fc == fCity.trim()) {
+                    found = snapshot.documents.associate { doc ->
+                        doc.id to (doc.data.orEmpty() + ("id" to doc.id))
+                    }
+                    searching = false
+                }
             }
-        }
-        if (fs.isNotEmpty()) {
-            val sp = matchSpecialty(fs)
-            if (sp != null) jobs.add { done -> col.whereEqualTo("approved", true).whereIn("specialty", specVariants(sp)).limit(50).get()
-                .addOnSuccessListener { add(it); done() }.addOnFailureListener { done() } }
-        }
-        if (fc.isNotEmpty()) {
-            jobs.add { done -> col.whereEqualTo("approved", true).whereEqualTo("city", fc).limit(50).get()
-                .addOnSuccessListener { add(it); done() }.addOnFailureListener { done() } }
-        }
-        if (jobs.isEmpty()) { searching = false; return@LaunchedEffect }
-        var pending = jobs.size
-        val fin = { pending--; if (pending <= 0) searching = false }
-        jobs.forEach { it(fin) }
+            .addOnFailureListener { e ->
+                if (q == query.trim() && fs == fSpec && fc == fCity.trim()) {
+                    searching = false
+                    error = when ((e as? FirebaseFirestoreException)?.code) {
+                        FirebaseFirestoreException.Code.PERMISSION_DENIED -> "لا توجد صلاحية لقراءة الأطباء. راجع قواعد Firestore."
+                        FirebaseFirestoreException.Code.UNAVAILABLE -> "خدمة Firestore غير متاحة حالياً. أعد المحاولة."
+                        FirebaseFirestoreException.Code.UNAUTHENTICATED -> "انتهت جلسة الدخول. سجّل الدخول من جديد."
+                        else -> "فشل البحث: ${e.localizedMessage ?: "خطأ غير معروف"}"
+                    }
+                }
+            }
     }
-
     val qNow = query.trim()
     val filtersOn = qNow.isNotEmpty() || fSpec.isNotEmpty() || fCity.isNotBlank()
     val qSpec = matchSpecialty(qNow)
