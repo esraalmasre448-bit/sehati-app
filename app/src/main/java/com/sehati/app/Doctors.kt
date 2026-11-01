@@ -297,6 +297,13 @@ fun DoctorSearchScreen(onBack: () -> Unit, onOpen: (Map<String, Any?>) -> Unit, 
             Text("ابحث عن طبيب أو عيادة", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
             TextButton(onClick = { showFilter = !showFilter }) { Text(if (showFilter) "إخفاء الفلتر" else "فلتر", color = DRed) }
         }
+        SehatiHero(
+            eyebrow = "دليل الرعاية الطبية",
+            title = "اعثر على طبيبك",
+            subtitle = "ابحث بالاسم أو التخصص أو المدينة، وقارن المعلومات المتاحة قبل الحجز.",
+            icon = Icons.Filled.Search
+        )
+        Spacer(Modifier.height(12.dp))
         Field(query, { query = it }, "اسم، اختصاص، أو مدينة")
         Spacer(Modifier.height(8.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
