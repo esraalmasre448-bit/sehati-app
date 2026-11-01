@@ -136,6 +136,13 @@ private fun DoctorHomeContent(
             }
         }
 
+        SehatiHero(
+            eyebrow = "مساحة عملك الطبية",
+            title = if (shownName.isBlank()) "مرحباً بك" else "د. $shownName",
+            subtitle = "تابع الحجوزات والدور وحالة استقبال المرضى من مكان واحد.",
+            icon = Icons.Filled.MedicalServices
+        )
+
         // بطاقة الهوية والتوافر
         Column(
             Modifier
@@ -350,6 +357,12 @@ fun DoctorPatientsScreen(onBack: () -> Unit) {
             IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowForward, "رجوع", tint = Color.White) }
             Text("المرضى", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White)
         }
+        SehatiHero(
+            eyebrow = "رعاية ومتابعة",
+            title = "ملف المرضى",
+            subtitle = "تابع المرضى المرتبطين بحجوزاتك وسجل زياراتهم.",
+            icon = Icons.Filled.People
+        )
         Spacer(Modifier.height(8.dp))
         val list = patients
         when {

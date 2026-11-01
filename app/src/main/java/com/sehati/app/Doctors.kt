@@ -14,6 +14,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -297,6 +299,13 @@ fun DoctorSearchScreen(onBack: () -> Unit, onOpen: (Map<String, Any?>) -> Unit, 
             Text("ابحث عن طبيب أو عيادة", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
             TextButton(onClick = { showFilter = !showFilter }) { Text(if (showFilter) "إخفاء الفلتر" else "فلتر", color = DRed) }
         }
+        SehatiHero(
+            eyebrow = "دليل الرعاية الطبية",
+            title = "اعثر على طبيبك",
+            subtitle = "ابحث بالاسم أو التخصص أو المدينة، وقارن المعلومات المتاحة قبل الحجز.",
+            icon = Icons.Filled.Search
+        )
+        Spacer(Modifier.height(12.dp))
         Field(query, { query = it }, "اسم، اختصاص، أو مدينة")
         Spacer(Modifier.height(8.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -390,6 +399,12 @@ fun DoctorDetailScreen(d: Map<String, Any?>, onBack: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         TextButton(onClick = onBack) { Text("رجوع", color = DRed) }
+        SehatiHero(
+            eyebrow = "الملف الطبي المهني",
+            title = "${d["name"] ?: "الطبيب"}",
+            subtitle = "${d["specialty"] ?: "معلومات الطبيب وموقع العيادة"}",
+            icon = Icons.Filled.MedicalServices
+        )
         Text("${d["name"]}", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color.White)
         Text("${d["specialty"]}", fontSize = 16.sp, color = DRed)
         InfoRow("العيادة", d["clinicName"])

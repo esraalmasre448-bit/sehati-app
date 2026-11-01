@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -116,6 +117,7 @@ fun MessagesScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit) {
             IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowForward, null, tint = Color.White) }
             Text("الرسائل", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White)
         }
+        SehatiHero(eyebrow = "تواصل آمن", title = "رسائلك الطبية", subtitle = "ابقَ على تواصل مع طبيبك وتابع آخر المحادثات بسهولة.", icon = Icons.Filled.Chat)
         Spacer(Modifier.height(10.dp))
         when {
             failed -> Text("تعذر تحميل الرسائل، تحقق من الإنترنت", color = BDanger)

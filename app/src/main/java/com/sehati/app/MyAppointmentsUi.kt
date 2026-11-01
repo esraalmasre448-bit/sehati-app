@@ -9,6 +9,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -109,7 +111,7 @@ fun MyAppointmentsContent(onFind: () -> Unit, onBack: (() -> Unit)? = null) {
         contentPadding = PaddingValues(vertical = 16.dp)
     ) {
         if (onBack != null) item { TextButton(onClick = onBack) { Text("رجوع", color = BRed) } }
-        item { Text("مواعيدي", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White) }
+        item { SehatiHero(eyebrow = "ملفك الصحي", title = "مواعيدي", subtitle = "كل طلبات الحجز والمواعيد المؤكدة في مكان واحد.", icon = Icons.Filled.CalendarMonth) }
         item {
             Row(
                 Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
