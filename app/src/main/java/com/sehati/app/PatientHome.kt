@@ -85,7 +85,7 @@ fun PatientHome(
         // الطوارئ: زر أحمر ممتلئ كما في التصميم، والعيادات والأطباء بطاقات داكنة
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             EmergencyQuickBtn(Modifier.weight(1.2f)) { onGo("emergency") }
-            QuickBtn(Icons.Filled.LocalHospital, "العيادات", BRed, Modifier.weight(1f)) { onGo("search:@clinics") }
+            QuickBtn(Icons.Filled.CalendarMonth, "المواعيد", BRed, Modifier.weight(1f)) { onGo("myappts") }
             QuickBtn(Icons.Filled.MedicalServices, "الأطباء", BRed, Modifier.weight(1f)) { onGo("search:@doctors") }
         }
 
