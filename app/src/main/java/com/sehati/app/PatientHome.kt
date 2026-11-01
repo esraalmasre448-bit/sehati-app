@@ -7,18 +7,12 @@ import android.location.Location
 import android.location.LocationManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
-import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -30,43 +24,29 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.google.firebase.firestore.FirebaseFirestoreException
 
-private val PH_COLORS = listOf(
-    Color(0xFFE5171F), Color(0xFF6EA8FE), Color(0xFFFF6B8A),
-    Color(0xFF8E9DB8), Color(0xFFE6A15C), Color(0xFF7C9DCE)
-)
+/** تخصصات الرئيسية للمريض (9 + أخرى)، بحسب التصميم المرجعي. */
+private val PATIENT_SPECS: List<Spec> = listOf(
+    "أعصاب", "طب الأسنان", "طب العيون", "عظمية ومفاصل", "قلبية",
+    "طب الأطفال", "نسائية وتوليد", "باطنية", "جلدية"
+).mapNotNull { n -> SPECIALTIES.firstOrNull { it.name == n } }
 
 @Composable
 fun PatientHome(
     name: String, unread: Int,
     onGo: (String) -> Unit, onOpen: (Map<String, Any?>) -> Unit, onTab: (Int) -> Unit
 ) {
-    // ظهور خفيف للشاشة مرة واحدة: شفافية فقط مع انزياح بسيط جداً
-    var entered by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { entered = true }
-    val enter by animateFloatAsState(
-        targetValue = if (entered) 1f else 0f,
-        animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing),
-        label = "homeEnter"
-    )
-
     Column(
-        Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-            .verticalScroll(rememberScrollState())
-            .graphicsLayer {
-                alpha = enter
-                translationY = (1f - enter) * 8.dp.toPx()
-            },
+        Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         // الرأس: في RTL العنصر الأول يظهر على اليمين
@@ -78,7 +58,7 @@ fun PatientHome(
                 Text(name.trim().take(1).uppercase().ifBlank { "؟" }, color = Color.White, fontWeight = FontWeight.Bold)
             }
             Box {
-                IconButton(onClick = { onTab(4) }) { Icon(Icons.Filled.Notifications, null, tint = Color.White) }
+                IconButton(onClick = { onTab(2) }) { Icon(Icons.Filled.Notifications, null, tint = Color.White) }
                 if (unread > 0) Badge(Modifier.align(Alignment.TopEnd)) { Text("$unread") }
             }
             Spacer(Modifier.weight(1f))
@@ -102,24 +82,20 @@ fun PatientHome(
             Text("ابحث عن طبيب أو عيادة...", color = BMuted)
         }
 
+        // الطوارئ: زر أحمر ممتلئ كما في التصميم، والعيادات والأطباء بطاقات داكنة
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            QuickBtn(Icons.Filled.Warning, "الطوارئ", BDanger, Modifier.weight(1f)) { onGo("emergency") }
+            EmergencyQuickBtn(Modifier.weight(1.2f)) { onGo("emergency") }
             QuickBtn(Icons.Filled.LocalHospital, "العيادات", BRed, Modifier.weight(1f)) { onGo("search:@clinics") }
             QuickBtn(Icons.Filled.MedicalServices, "الأطباء", BRed, Modifier.weight(1f)) { onGo("search:@doctors") }
         }
 
-        Text("التخصصات الأكثر طلباً", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-        // شبكة مختصرة من 9 تخصصات أساسية + «أخرى»؛ بقية التخصصات متاحة من شاشة الكل.
-        val cells: List<Spec?> = listOf(
-            "أعصاب", "طب الأسنان", "طب العيون", "عظمية ومفاصل", "قلبية",
-            "طب الأطفال", "نسائية وتوليد", "باطنية", "جلدية"
-        ).mapNotNull { n -> SPECIALTIES.firstOrNull { it.name == n } } + listOf<Spec?>(null)
-        cells.chunked(5).forEachIndexed { r, row ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                row.forEachIndexed { c, sp ->
-                    val color = PH_COLORS[(r * 5 + c) % PH_COLORS.size]
-                    if (sp != null) PHSpec(sp, color, Modifier.weight(1f)) { onGo("search:" + sp.name) }
-                    else PHAllSpec(Modifier.weight(1f)) { onGo("specs") }
+        Text("التخصصات", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        val specCells: List<Spec?> = PATIENT_SPECS + listOf<Spec?>(null)
+        specCells.chunked(5).forEach { row ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                row.forEach { sp ->
+                    if (sp != null) SpecCircle(sp, Modifier.weight(1f)) { onGo("search:" + sp.name) }
+                    else OtherSpecCircle(Modifier.weight(1f)) { onGo("specs") }
                 }
                 repeat(5 - row.size) { Spacer(Modifier.weight(1f)) }
             }
@@ -136,30 +112,47 @@ fun PatientHome(
             Tile(Icons.Filled.Person, stringResource(R.string.my_turn), false, Modifier.weight(1f)) { onGo("queue") }
             Tile(Icons.Filled.LocationOn, stringResource(R.string.way_to_clinic), false, Modifier.weight(1f)) { onGo("route") }
         }
-        Tile(Icons.Filled.Description, "وصفاتي الطبية", false, Modifier.fillMaxWidth()) { onGo("patient_prescriptions") }
-        Tile(Icons.Filled.Email, "الرسائل", false, Modifier.fillMaxWidth()) { onGo("messages") }
     }
 }
 
-/** قائمة الأطباء والعيادات الحقيقية. عند منح إذن الموقع تُرتّب بالأقرب، وإلا تُعرض بالترتيب الأبجدي. */
+/**
+ * قائمة الأطباء المعتمدين. تُرتّب بالأقرب عند منح إذن الموقع، وإلا أبجدياً.
+ * الاستعلام يعتمد على approved فقط (بدون orderBy) حتى لا يحتاج فهرساً مركباً،
+ * والترتيب يتم داخل التطبيق. رسالة الخطأ تبيّن السبب الحقيقي بدل رسالة الإنترنت العامة.
+ */
 @Composable
 private fun PatientDoctorList(onOpen: (Map<String, Any?>) -> Unit) {
     val ctx = LocalContext.current
     var docs by remember { mutableStateOf<List<Map<String, Any?>>?>(null) }
-    var failed by remember { mutableStateOf(false) }
+    var failed by remember { mutableStateOf("") }
     var hasPerm by remember { mutableStateOf(ctx.hasLocationPermission()) }
     var here by remember { mutableStateOf<Location?>(null) }
     var locMsg by remember { mutableStateOf("") }
 
-    LaunchedEffect(Unit) {
-        bDb.collection("doctors").whereEqualTo("approved", true).orderBy("name").limit(50).get()
+    fun load() {
+        failed = ""
+        docs = null
+        bDb.collection("doctors").whereEqualTo("approved", true).limit(50).get()
             .addOnSuccessListener { s ->
-                failed = false
-                docs = s.documents.map { it.data.orEmpty() + ("id" to it.id) }
-                    .filter { it["approved"] == true }
+                failed = ""
+                docs = s.documents
+                    .map { it.data.orEmpty() + ("id" to it.id) }
+                    .sortedBy { "${it["name"] ?: ""}" }
             }
-            .addOnFailureListener { failed = true }
+            .addOnFailureListener { e ->
+                failed = when ((e as? FirebaseFirestoreException)?.code) {
+                    FirebaseFirestoreException.Code.PERMISSION_DENIED ->
+                        "لا تملك صلاحية قراءة الأطباء (قواعد Firestore). أبلغ المطوّر."
+                    FirebaseFirestoreException.Code.UNAVAILABLE ->
+                        "تعذر الاتصال بالخادم. تحقق من الإنترنت أو أوقف الـVPN وحاول مجدداً."
+                    FirebaseFirestoreException.Code.FAILED_PRECONDITION ->
+                        "الاستعلام يحتاج فهرساً في Firestore. أبلغ المطوّر."
+                    else -> "تعذر تحميل الأطباء، حاول مرة أخرى."
+                }
+            }
     }
+
+    LaunchedEffect(Unit) { load() }
 
     fun locate() {
         val loc = lastKnownLocation(ctx)
@@ -184,89 +177,93 @@ private fun PatientDoctorList(onOpen: (Map<String, Any?>) -> Unit) {
 
     val list = docs
     val from = here
+    val hScroll = rememberScrollState()
     when {
-        failed -> Text("تعذر تحميل الأطباء، تحقق من الإنترنت", color = BDanger)
+        failed.isNotEmpty() -> {
+            Text(failed, color = BDanger)
+            OutlinedButton(
+                onClick = { load() },
+                modifier = Modifier.fillMaxWidth().height(44.dp)
+            ) { Text("إعادة المحاولة", color = Color.White) }
+        }
         list == null -> Text("جارٍ تحميل الأطباء...", color = BMuted)
-        list.isEmpty() -> Text("لا يوجد أطباء أو عيادات مسجلة بعد", color = BMuted)
+        list.isEmpty() -> Text("لا يوجد أطباء معتمدون بعد", color = BMuted)
         else -> {
             val shown = if (from == null) list else list.sortedBy { distanceKm(it, from) ?: Double.MAX_VALUE }
             Row(
-                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                Modifier.fillMaxWidth().horizontalScroll(hScroll),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 shown.take(20).forEach { d ->
                     val km = from?.let { distanceKm(d, it) }
-                    DoctorListCard(d, km, onOpen)
+                    DoctorHCard(d, km, onOpen)
                 }
             }
         }
     }
 }
 
+/** بطاقة أفقية للطبيب: الصورة والاسم والتخصص والمدينة والمسافة (إن توفرت). بدون تقييمات وهمية. */
 @Composable
-private fun DoctorListCard(d: Map<String, Any?>, km: Double?, onOpen: (Map<String, Any?>) -> Unit) {
-    // ضغط بسيط وسريع على البطاقة، بدون ارتداد
-    val source = remember { MutableInteractionSource() }
-    val pressed by source.collectIsPressedAsState()
-    val pressScale by animateFloatAsState(
-        targetValue = if (pressed) 0.985f else 1f,
-        animationSpec = tween(durationMillis = 90, easing = FastOutSlowInEasing),
-        label = "cardPress"
-    )
-
+private fun DoctorHCard(d: Map<String, Any?>, km: Double?, onOpen: (Map<String, Any?>) -> Unit) {
     Column(
-        Modifier.width(170.dp)
-            .graphicsLayer { scaleX = pressScale; scaleY = pressScale }
-            .background(BCard, RoundedCornerShape(16.dp))
-            .border(1.dp, BLine, RoundedCornerShape(16.dp))
-            .clickable(interactionSource = source, indication = LocalIndication.current) { onOpen(d) }
+        Modifier.width(150.dp)
+            .background(BCard, RoundedCornerShape(14.dp))
+            .border(1.dp, BLine, RoundedCornerShape(14.dp))
+            .clickable { onOpen(d) }
             .padding(10.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(5.dp)
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Box {
-            DoctorAvatar(d["photo"]?.toString(), "${d["name"] ?: ""}", 84.dp)
-            if (d["available"] == true) {
-                Text("متاح", Modifier.align(Alignment.TopEnd)
-                    .background(BGreen, RoundedCornerShape(10.dp)).padding(horizontal = 7.dp, vertical = 2.dp),
-                    color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-            }
+        DoctorAvatar(d["photo"]?.toString(), "${d["name"] ?: ""}", 72.dp)
+        Text(
+            "${d["name"] ?: ""}", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White,
+            maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center
+        )
+        Text(
+            "${d["specialty"] ?: ""}", color = BRed, fontSize = 12.sp,
+            maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center
+        )
+        val place = "${d["clinicName"] ?: ""}".ifBlank { "${d["city"] ?: ""}" }
+        if (place.isNotBlank()) {
+            Text(
+                place, color = BMuted, fontSize = 11.sp,
+                maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center
+            )
         }
-        Text("${d["name"] ?: "مقدم خدمة"}", fontSize = 14.sp, fontWeight = FontWeight.Bold,
-            color = Color.White, maxLines = 1)
-        Text("${d["specialty"] ?: d["clinicName"] ?: ""}", color = BMuted, fontSize = 12.sp, maxLines = 1)
-        Text("${d["city"] ?: ""}", color = BMuted, fontSize = 11.sp, maxLines = 1)
-        if (km != null) Text("%.1f كم".format(km), color = BMuted, fontSize = 10.sp)
+        if (km != null) Text("%.1f كم".format(km), color = BMuted, fontSize = 11.sp)
     }
 }
 
+/** زر الطوارئ الأحمر الممتلئ في الصف العلوي. */
 @Composable
-private fun PHSpec(sp: Spec, color: Color, modifier: Modifier, onClick: () -> Unit) {
+private fun EmergencyQuickBtn(modifier: Modifier, onClick: () -> Unit) {
     Column(
-        modifier.clickable { onClick() }.padding(vertical = 2.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+        modifier.height(96.dp)
+            .background(BRed, RoundedCornerShape(16.dp))
+            .clickable { onClick() }
+            .padding(10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
     ) {
-        Box(
-            Modifier.size(48.dp).background(color.copy(alpha = 0.14f), CircleShape).border(1.dp, color.copy(alpha = 0.55f), CircleShape),
-            contentAlignment = Alignment.Center
-        ) { SpecImage(sp, 30.dp) }
+        Icon(Icons.Filled.Warning, null, tint = Color.White, modifier = Modifier.size(32.dp))
         Spacer(Modifier.height(6.dp))
-        Text(sp.name, color = Color.White, fontSize = 10.sp, textAlign = TextAlign.Center, maxLines = 2)
+        Text("الطوارئ", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
     }
 }
 
 @Composable
-private fun PHAllSpec(modifier: Modifier, onClick: () -> Unit) {
+private fun OtherSpecCircle(modifier: Modifier, onClick: () -> Unit) {
     Column(
         modifier.clickable { onClick() }.padding(vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
-            Modifier.size(48.dp).background(BRed.copy(alpha = 0.16f), CircleShape).border(1.dp, BRed, CircleShape),
+            Modifier.size(56.dp).background(BCard, CircleShape).border(1.dp, BRed, CircleShape),
             contentAlignment = Alignment.Center
-        ) { Icon(Icons.Filled.GridView, null, tint = Color.White, modifier = Modifier.size(30.dp)) }
+        ) { Icon(Icons.Filled.MoreHoriz, null, tint = Color.White, modifier = Modifier.size(26.dp)) }
         Spacer(Modifier.height(6.dp))
-        Text("كل التخصصات", color = Color.White, fontSize = 11.sp, textAlign = TextAlign.Center, maxLines = 2)
+        Text("أخرى", color = Color.White, fontSize = 12.sp, textAlign = TextAlign.Center)
     }
 }
 
