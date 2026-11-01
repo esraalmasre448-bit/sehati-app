@@ -24,6 +24,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -90,13 +93,16 @@ fun PatientHome(
             QuickBtn(Icons.Filled.MedicalServices, "الأطباء", BRed, Modifier.weight(1f)) { onGo("search:@doctors") }
         }
 
-        Text("التخصصات", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text("التخصصات الطبية", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text("اختر التخصص الذي تبحث عنه", color = Color(0xFF45CFFF), fontSize = 12.sp)
+        }
         val specCells: List<Spec?> = PATIENT_SPECS + listOf<Spec?>(null)
         specCells.chunked(3).forEach { row ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 row.forEach { sp ->
-                    if (sp != null) SpecCircle(sp, Modifier.weight(1f)) { onGo("search:" + sp.name) }
-                    else OtherSpecCircle(Modifier.weight(1f)) { onGo("specs") }
+                    if (sp != null) NeonSpecialtyCard(sp, Modifier.weight(1f)) { onGo("search:" + sp.name) }
+                    else NeonAllSpecialtiesCard(Modifier.weight(1f)) { onGo("specs") }
                 }
                 repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
             }
@@ -259,6 +265,110 @@ private fun EmergencyQuickBtn(modifier: Modifier, onClick: () -> Unit) {
 }
 
 @Composable
+private fun featuredSpecialtyImage(sp: Spec): Int? = when (sp.img) {
+    "heart" -> R.drawable.spec_heart
+    "knee" -> R.drawable.spec_bones
+    "eye" -> R.drawable.spec_eye
+    "tooth" -> R.drawable.spec_tooth
+    "brain" -> R.drawable.spec_brain
+    "child" -> R.drawable.spec_child
+    "pregnant" -> R.drawable.spec_women
+    "skin" -> R.drawable.spec_skin
+    else -> null
+}
+
+@Composable
+private fun NeonSpecialtyCard(sp: Spec, modifier: Modifier, onClick: () -> Unit) {
+    Column(
+        modifier.clickable { onClick() }.padding(vertical = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Box(
+            Modifier.size(108.dp)
+                .background(
+                    Brush.radialGradient(listOf(Color(0xFF164C91), Color(0xFF071A3D))),
+                    CircleShape
+                )
+                .border(
+                    2.dp,
+                    Brush.sweepGradient(listOf(Color(0xFF7CEBFF), Color(0xFF168BFF), Color(0xFF7CEBFF))),
+                    CircleShape
+                )
+                .padding(4.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            val image = featuredSpecialtyImage(sp)
+            if (image != null) {
+                Image(
+                    painter = painterResource(image),
+                    contentDescription = sp.name,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize().clip(CircleShape)
+                )
+            } else {
+                SpecImage(sp, 72.dp)
+            }
+        }
+        Box(
+            Modifier.widthIn(min = 104.dp, max = 132.dp)
+                .background(
+                    Brush.horizontalGradient(listOf(Color(0xFF071A3D), Color(0xFF123B78), Color(0xFF071A3D))),
+                    RoundedCornerShape(50)
+                )
+                .border(1.dp, Color(0xFF168BFF), RoundedCornerShape(50))
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                sp.name,
+                color = Color.White,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+                maxLines = 2
+            )
+        }
+    }
+}
+
+@Composable
+private fun NeonAllSpecialtiesCard(modifier: Modifier, onClick: () -> Unit) {
+    Column(
+        modifier.clickable { onClick() }.padding(vertical = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Box(
+            Modifier.size(108.dp)
+                .background(
+                    Brush.radialGradient(listOf(Color(0xFF176DDB), Color(0xFF061B43))),
+                    CircleShape
+                )
+                .border(
+                    2.dp,
+                    Brush.sweepGradient(listOf(Color(0xFF7CEBFF), Color(0xFF168BFF), Color(0xFF7CEBFF))),
+                    CircleShape
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(Icons.Filled.GridView, null, tint = Color.White, modifier = Modifier.size(42.dp))
+        }
+        Box(
+            Modifier.widthIn(min = 104.dp, max = 132.dp)
+                .background(
+                    Brush.horizontalGradient(listOf(Color(0xFF071A3D), Color(0xFF123B78), Color(0xFF071A3D))),
+                    RoundedCornerShape(50)
+                )
+                .border(1.dp, Color(0xFF168BFF), RoundedCornerShape(50))
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text("كل التخصصات", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+        }
+    }
+}
+
 private fun OtherSpecCircle(modifier: Modifier, onClick: () -> Unit) {
     Column(
         modifier.clickable { onClick() }.padding(vertical = 4.dp),
