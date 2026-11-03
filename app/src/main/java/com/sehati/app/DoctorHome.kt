@@ -38,7 +38,7 @@ fun DoctorHome(name: String, unread: Int, onGo: (String) -> Unit, onTab: (Int) -
     var page by remember { mutableStateOf("home") }
     BackHandler(enabled = page != "home") { page = "home" }
     when (page) {
-        "patients" -> DoctorPatientsScreen(onBack = { page = "home" })
+        "patients" -> DoctorPatientsScreenOld(onBack = { page = "home" })
         else -> DoctorHomeContent(name, unread, onGo, onTab, onPatients = { page = "patients" })
     }
 }
@@ -323,7 +323,7 @@ private fun DoctorServiceCard(icon: ImageVector, title: String, modifier: Modifi
 
 /** قائمة مرضى الطبيب الحاليّ، مبنية من مواعيده، بدون تكرار حسب معرّف المريض. */
 @Composable
-fun DoctorPatientsScreen(onBack: () -> Unit) {
+fun DoctorPatientsScreenOld(onBack: () -> Unit) {
     val uid = bAuth.currentUser?.uid ?: ""
     var patients by remember { mutableStateOf<List<Map<String, Any?>>?>(null) }
     var failed by remember { mutableStateOf(false) }
