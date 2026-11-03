@@ -77,7 +77,7 @@ fun openConversation(
 
 /** قائمة المحادثات للمريض والطبيب معاً. */
 @Composable
-fun MessagesScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit) {
+fun MessagesScreenOld(onBack: () -> Unit, onOpenChat: (String) -> Unit) {
     val uid = bAuth.currentUser?.uid ?: ""
     var asPatient by remember { mutableStateOf<List<Map<String, Any?>>>(emptyList()) }
     var asDoctor by remember { mutableStateOf<List<Map<String, Any?>>>(emptyList()) }
