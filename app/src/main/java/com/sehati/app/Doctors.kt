@@ -195,7 +195,7 @@ fun DoctorProfileScreen(onBack: () -> Unit) {
 }
 
 @Composable
-fun DoctorSearchScreen(onBack: () -> Unit, onOpen: (Map<String, Any?>) -> Unit, initial: String = "") {
+fun DoctorSearchScreenOld(onBack: () -> Unit, onOpen: (Map<String, Any?>) -> Unit, initial: String = "") {
     var items by remember { mutableStateOf(listOf<Map<String, Any?>>()) }
     var last by remember { mutableStateOf<DocumentSnapshot?>(null) }
     var more by remember { mutableStateOf(true) }
