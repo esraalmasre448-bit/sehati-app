@@ -236,7 +236,7 @@ private fun BInfo(label: String, value: Any?) {
 }
 
 @Composable
-fun DoctorDetailFull(d: Map<String, Any?>, onBack: () -> Unit, onBook: () -> Unit) {
+fun DoctorDetailFullOld(d: Map<String, Any?>, onBack: () -> Unit, onBook: () -> Unit) {
     val ctx = LocalContext.current
     val doctorId = d["id"]?.toString().orEmpty()
     var privatePhone by remember(doctorId) { mutableStateOf("") }
