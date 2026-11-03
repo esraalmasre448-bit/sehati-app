@@ -1,0 +1,162 @@
+package com.sehati.app
+
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+
+private fun sxHm(min: Int): String = "%02d:%02d".format(min / 60, min % 60)
+
+@Composable
+private fun SxInfoRow(label: String, value: Any?) {
+    val v = value?.toString().orEmpty()
+    if (v.isNotBlank()) {
+        Column(
+            Modifier.fillMaxWidth().background(BCard, RoundedCornerShape(12.dp))
+                .border(1.dp, BLine, RoundedCornerShape(12.dp)).padding(12.dp)
+        ) {
+            Text(label, color = BMuted, fontSize = 13.sp)
+            Text(v, color = Color.White, fontSize = 16.sp)
+        }
+    }
+}
+
+@Composable
+private fun SxProfTab(label: String, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    Box(
+        modifier
+            .background(if (selected) BRed else BCard, RoundedCornerShape(12.dp))
+            .border(1.dp, if (selected) BRed else BLine, RoundedCornerShape(12.dp))
+            .clickable { onClick() }
+            .padding(vertical = 10.dp),
+        contentAlignment = Alignment.Center
+    ) { Text(label, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp) }
+}
+
+@Composable
+private fun SxStat(label: String, value: String, modifier: Modifier) {
+    Column(
+        modifier.background(BCard, RoundedCornerShape(12.dp))
+            .border(1.dp, BLine, RoundedCornerShape(12.dp)).padding(vertical = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(value, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+        Text(label, color = BMuted, fontSize = 12.sp, textAlign = TextAlign.Center)
+    }
+}
+
+/**
+ * صفحة الطبيب بتصميم المرجع: صورة واسم وتخصص، تبويبان (معلومات عامة / الموقع)، وأرقام اليوم الحقيقية من الطابور.
+ * لا تقييمات ولا حالة توفر هنا لأنه لا يوجد مصدر بيانات مؤكد لهما في هذا الملف.
+ * رقم الهاتف يؤخذ من ملف الطبيب إن وُجد، وإلا من doctorPrivate إن سمحت القواعد (وإلا لا يظهر).
+ */
+@Composable
+fun DoctorDetailFull(d: Map<String, Any?>, onBack: () -> Unit, onBook: () -> Unit) {
+    val ctx = LocalContext.current
+    val doctorId = d["id"]?.toString().orEmpty()
+    var msg by remember { mutableStateOf("") }
+    var tab by remember { mutableIntStateOf(0) }
+    var phone by remember { mutableStateOf(d["phone"]?.toString().orEmpty()) }
+    var last by remember { mutableLongStateOf(0L) }
+    var current by remember { mutableLongStateOf(0L) }
+
+    LaunchedEffect(doctorId) {
+        if (phone.isBlank() && doctorId.isNotBlank()) {
+            bDb.collection("doctorPrivate").document(doctorId).get()
+                .addOnSuccessListener { s ->
+                    val p = s.getString("phone").orEmpty()
+                    if (p.isNotBlank()) phone = p
+                }
+        }
+    }
+
+    DisposableEffect(doctorId) {
+        val reg = if (doctorId.isBlank()) null else
+            bDb.collection("queues").document("${doctorId}_${todayKey()}")
+                .addSnapshotListener { s, _ ->
+                    last = s?.getLong("last") ?: 0L
+                    current = s?.getLong("current") ?: 0L
+                }
+        onDispose { reg?.remove() }
+    }
+
+    val startMin = ((d["startHour"] as? Number)?.toInt() ?: 9) * 60
+    val endMin = ((d["endHour"] as? Number)?.toInt() ?: 17) * 60
+
+    Column(
+        Modifier.fillMaxSize().background(BBg).padding(20.dp).verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        TextButton(onClick = onBack) { Text("رجوع", color = BRed) }
+        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+            DoctorAvatar(d["photo"]?.toString(), "${d["name"] ?: ""}", 110.dp)
+            Spacer(Modifier.height(8.dp))
+            Text("${d["name"] ?: ""}", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            Text("${d["specialty"] ?: ""}", fontSize = 16.sp, color = BRed)
+            val city = "${d["city"] ?: ""}"
+            if (city.isNotBlank()) Text(city, fontSize = 13.sp, color = BMuted)
+        }
+
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SxProfTab("معلومات عامة", tab == 0, Modifier.weight(1f)) { tab = 0 }
+            SxProfTab("الموقع", tab == 1, Modifier.weight(1f)) { tab = 1 }
+        }
+
+        if (tab == 0) {
+            SxInfoRow("نبذة", d["bio"])
+            SxInfoRow("العيادة", d["clinicName"])
+            SxInfoRow("سعر الكشفية", d["fee"])
+            SxInfoRow("ساعات استقبال الحجوزات بالعيادة", "${sxHm(startMin)} - ${sxHm(endMin)}")
+            if (hasWorkDays(d)) SxInfoRow("أيام الدوام", workDaysLabel(workDaysOf(d)))
+            SxInfoRow("أيام وساعات الدوام بالعيادة", d["hours"])
+            SxInfoRow("المشفى", d["hospitalName"])
+            SxInfoRow("أيام وساعات الدوام بالمشفى", d["hospitalHours"])
+            SxInfoRow("رقم التواصل", phone)
+        } else {
+            SxInfoRow("المدينة", d["city"])
+            SxInfoRow("العنوان", d["address"])
+            OutlinedButton(
+                onClick = { msg = openRoute(ctx, d) ?: "" },
+                modifier = Modifier.fillMaxWidth().height(52.dp)
+            ) { Text("الطريق إلى العيادة", color = Color.White) }
+        }
+
+        // أرقام اليوم الحقيقية من وثيقة الطابور
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SxStat("حجوزات اليوم", "$last", Modifier.weight(1f))
+            SxStat("الدور الحالي", "$current", Modifier.weight(1f))
+            SxStat("بالانتظار", "${(last - current).coerceAtLeast(0L)}", Modifier.weight(1f))
+        }
+
+        if (msg.isNotEmpty()) Text(msg, color = BDanger)
+        RedButton("احجز موعد", onClick = onBook)
+        if (phone.isNotBlank()) {
+            OutlinedButton(
+                onClick = {
+                    try {
+                        ctx.startActivity(
+                            Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phone"))
+                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        )
+                    } catch (e: Exception) { msg = "تعذر فتح الاتصال" }
+                },
+                modifier = Modifier.fillMaxWidth().height(52.dp)
+            ) { Text("اتصال بالعيادة", color = Color.White) }
+        }
+    }
+}
