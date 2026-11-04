@@ -38,7 +38,7 @@ fun DoctorHome(name: String, unread: Int, onGo: (String) -> Unit, onTab: (Int) -
     var page by remember { mutableStateOf("home") }
     BackHandler(enabled = page != "home") { page = "home" }
     when (page) {
-        "patients" -> DoctorPatientsScreenOld(onBack = { page = "home" })
+        "patients" -> DoctorPatientsScreen(onBack = { page = "home" })
         else -> DoctorHomeContent(name, unread, onGo, onTab, onPatients = { page = "patients" })
     }
 }
@@ -194,10 +194,35 @@ private fun DoctorHomeContent(
                     enabled = hasProfile == true,
                     onCheckedChange = { v ->
                         toggleMsg = ""
-                        bDb.collection("doctors").document(uid)
-                            .update(mapOf("available" to v, "availableUpdatedAt" to FieldValue.serverTimestamp()))
-                            .addOnSuccessListener { available = v }
-                            .addOnFailureListener { toggleMsg = "تعذر تغيير الحالة، تحقق من الإنترنت" }
+                        val ref = bDb.collection("doctors").document(uid)
+                        ref.get().addOnSuccessListener { cur ->
+                            val oldPhone = cur.getString("phone").orEmpty()
+                            val oldEmg = cur.getString("emergencyPhone").orEmpty()
+                            val upd = hashMapOf<String, Any>(
+                                "available" to v,
+                                "availableUpdatedAt" to FieldValue.serverTimestamp()
+                            )
+                            // الأرقام القديمة داخل مستند الطبيب ممنوعة بالقواعد: تُنقل إلى doctorPrivate ثم تُحذف.
+                            if (cur.contains("phone")) upd["phone"] = FieldValue.delete()
+                            if (cur.contains("emergencyPhone")) upd["emergencyPhone"] = FieldValue.delete()
+                            val batch = bDb.batch()
+                            batch.update(ref, upd)
+                            if (oldPhone.isNotBlank() || oldEmg.isNotBlank()) {
+                                val priv = hashMapOf<String, Any>("updatedAt" to FieldValue.serverTimestamp())
+                                if (oldPhone.isNotBlank()) priv["phone"] = oldPhone
+                                if (oldEmg.isNotBlank()) priv["emergencyPhone"] = oldEmg
+                                batch.set(
+                                    bDb.collection("doctorPrivate").document(uid), priv,
+                                    com.google.firebase.firestore.SetOptions.merge()
+                                )
+                            }
+                            batch.commit()
+                                .addOnSuccessListener { available = v }
+                                .addOnFailureListener { ex ->
+                                    val code = (ex as? com.google.firebase.firestore.FirebaseFirestoreException)?.code
+                                    toggleMsg = "تعذر تغيير الحالة: ${code ?: "خطأ"}"
+                                }
+                        }.addOnFailureListener { toggleMsg = "تعذر قراءة الملف، تحقق من الإنترنت" }
                     }
                 )
             }
@@ -318,94 +343,5 @@ private fun DoctorServiceCard(icon: ImageVector, title: String, modifier: Modifi
             Icon(icon, null, tint = DTeal, modifier = Modifier.size(19.dp))
         }
         Text(title, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-    }
-}
-
-/** قائمة مرضى الطبيب الحاليّ، مبنية من مواعيده، بدون تكرار حسب معرّف المريض. */
-@Composable
-fun DoctorPatientsScreenOld(onBack: () -> Unit) {
-    val uid = bAuth.currentUser?.uid ?: ""
-    var patients by remember { mutableStateOf<List<Map<String, Any?>>?>(null) }
-    var failed by remember { mutableStateOf(false) }
-
-    DisposableEffect(uid) {
-        val reg = bDb.collection("appointments").whereEqualTo("doctorId", uid).limit(300)
-            .addSnapshotListener { s, e ->
-                if (e != null || s == null) {
-                    failed = true
-                } else {
-                    failed = false
-                    val rows = s.documents.map { it.data.orEmpty() }
-                        .filter { it["status"] != "CANCELLED" && !it["patientId"].toString().isBlank() }
-                    patients = rows.groupBy { it["patientId"].toString() }.map { (pid, list) ->
-                        val latest = list.maxByOrNull { it["date"].toString() } ?: list.first()
-                        mapOf(
-                            "id" to pid,
-                            "name" to (latest["patientName"]?.toString() ?: ""),
-                            "phone" to (latest["patientPhone"]?.toString() ?: ""),
-                            "count" to list.size,
-                            "last" to (latest["date"]?.toString() ?: "")
-                        )
-                    }.sortedBy { it["name"].toString() }
-                }
-            }
-        onDispose { reg.remove() }
-    }
-
-    Column(Modifier.fillMaxSize().background(BBg).padding(horizontal = 16.dp, vertical = 12.dp)) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowForward, "رجوع", tint = Color.White) }
-            Text("المرضى", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White)
-        }
-        SehatiHero(
-            eyebrow = "رعاية ومتابعة",
-            title = "ملف المرضى",
-            subtitle = "تابع المرضى المرتبطين بحجوزاتك وسجل زياراتهم.",
-            icon = Icons.Filled.People
-        )
-        Spacer(Modifier.height(8.dp))
-        val list = patients
-        when {
-            failed -> Text("تعذر تحميل المرضى، تحقق من الإنترنت", color = BDanger)
-            list == null -> Text("جارٍ التحميل...", color = BMuted)
-            list.isEmpty() -> Text("لا يوجد مرضى مرتبطون بحجوزاتك بعد", color = BMuted)
-            else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                items(list, key = { it["id"].toString() }) { p ->
-                    val pname = p["name"].toString()
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .background(BCard, RoundedCornerShape(16.dp))
-                            .border(1.dp, BLine, RoundedCornerShape(16.dp))
-                            .padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Box(
-                            Modifier.size(44.dp).background(DTeal.copy(alpha = 0.16f), CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                pname.trim().take(1).ifBlank { "؟" },
-                                color = DTeal, fontWeight = FontWeight.Bold, fontSize = 17.sp
-                            )
-                        }
-                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                            Text(
-                                pname.ifBlank { "مريض" },
-                                color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp,
-                                maxLines = 1, overflow = TextOverflow.Ellipsis
-                            )
-                            val phone = p["phone"].toString()
-                            if (phone.isNotBlank()) Text(phone, color = BMuted, fontSize = 13.sp)
-                            Text(
-                                "الحجوزات: ${p["count"]}  •  آخر موعد: ${p["last"]}",
-                                color = BMuted, fontSize = 12.sp
-                            )
-                        }
-                    }
-                }
-            }
-        }
     }
 }
