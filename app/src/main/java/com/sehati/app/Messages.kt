@@ -44,9 +44,9 @@ fun openConversation(
     val uid = bAuth.currentUser?.uid
     if (uid.isNullOrEmpty()) { onError("سجّلي الدخول أولاً"); return }
     bDb.collection("appointments")
-        .whereEqualTo("patientId", uid).whereEqualTo("doctorId", doctorId).limit(1).get()
+        .whereEqualTo("patientId", uid).whereEqualTo("doctorId", doctorId).limit(20).get()
         .addOnSuccessListener { s ->
-            val appt = s.documents.firstOrNull()
+            val appt = s.documents.firstOrNull { it.getString("status") in listOf("PENDING", "CONFIRMED", "DONE") }
             if (appt == null) {
                 onError("يمكنك مراسلة الطبيب بعد حجز موعد معه")
                 return@addOnSuccessListener
@@ -73,81 +73,6 @@ fun openConversation(
             }.addOnFailureListener { onError("تعذر فتح المحادثة، تحقق من الإنترنت") }
         }
         .addOnFailureListener { onError("تعذر فتح المحادثة، تحقق من الإنترنت") }
-}
-
-/** قائمة المحادثات للمريض والطبيب معاً. */
-@Composable
-fun MessagesScreenOld(onBack: () -> Unit, onOpenChat: (String) -> Unit) {
-    val uid = bAuth.currentUser?.uid ?: ""
-    var asPatient by remember { mutableStateOf<List<Map<String, Any?>>>(emptyList()) }
-    var asDoctor by remember { mutableStateOf<List<Map<String, Any?>>>(emptyList()) }
-    var loaded by remember { mutableStateOf(false) }
-    var failed by remember { mutableStateOf(false) }
-
-    DisposableEffect(uid) {
-        val r1 = bDb.collection("conversations").whereEqualTo("patientId", uid).limit(100)
-            .addSnapshotListener { s, e ->
-                if (e != null || s == null) {
-                    failed = true
-                } else {
-                    failed = false
-                    asPatient = s.documents.map { it.data.orEmpty() + ("id" to it.id) }
-                    loaded = true
-                }
-            }
-        val r2 = bDb.collection("conversations").whereEqualTo("doctorId", uid).limit(100)
-            .addSnapshotListener { s, e ->
-                if (e != null || s == null) {
-                    failed = true
-                } else {
-                    failed = false
-                    asDoctor = s.documents.map { it.data.orEmpty() + ("id" to it.id) }
-                    loaded = true
-                }
-            }
-        onDispose { r1.remove(); r2.remove() }
-    }
-
-    val all = (asPatient + asDoctor)
-        .distinctBy { it["id"] }
-        .sortedByDescending { (it["lastAt"] as? Timestamp)?.toDate()?.time ?: 0L }
-
-    Column(Modifier.fillMaxSize().background(BBg).padding(16.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowForward, null, tint = Color.White) }
-            Text("الرسائل", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White)
-        }
-        SehatiHero(eyebrow = "تواصل آمن", title = "رسائلك الطبية", subtitle = "ابقَ على تواصل مع طبيبك وتابع آخر المحادثات بسهولة.", icon = Icons.Filled.Chat)
-        Spacer(Modifier.height(10.dp))
-        when {
-            failed -> Text("تعذر تحميل الرسائل، تحقق من الإنترنت", color = BDanger)
-            !loaded -> Text("جارٍ التحميل...", color = BMuted)
-            all.isEmpty() -> Text("لا توجد محادثات بعد. يمكنك مراسلة طبيبك بعد حجز موعد معه.", color = BMuted)
-            else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(all, key = { it["id"].toString() }) { c ->
-                    val isPatient = c["patientId"] == uid
-                    val other = if (isPatient) "${c["doctorName"] ?: ""}" else "${c["patientName"] ?: ""}"
-                    Row(
-                        Modifier.fillMaxWidth()
-                            .background(BCard, RoundedCornerShape(14.dp))
-                            .border(1.dp, BLine, RoundedCornerShape(14.dp))
-                            .clickable { onOpenChat("${c["id"]}") }
-                            .padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                            Text(other.ifBlank { "محادثة" }, color = Color.White, fontWeight = FontWeight.Bold)
-                            Text(
-                                "${c["lastMessage"] ?: ""}".ifBlank { "لا توجد رسائل بعد" },
-                                color = BMuted, fontSize = 13.sp, maxLines = 1
-                            )
-                        }
-                        Text(fmtTime(c["lastAt"]), color = BMuted, fontSize = 11.sp)
-                    }
-                }
-            }
-        }
-    }
 }
 
 /** شاشة محادثة واحدة. */
