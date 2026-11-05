@@ -22,6 +22,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -67,7 +69,19 @@ class MainActivity : ComponentActivity() {
                 onSurface = Color.White, onBackground = Color.White
             )
             MaterialTheme(colorScheme = scheme) {
-                Surface(Modifier.fillMaxSize(), color = Bg) { App() }
+                Box(Modifier.fillMaxSize()) {
+                    // خلفية طبية ثابتة على مستوى نافذة التطبيق؛ لا تتحرك مع محتوى الأقسام.
+                    Image(
+                        painter = painterResource(R.drawable.medical_fixed_background),
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                    // شفافية موحّدة خفيفة تكشف الخلفية خلف كل الشاشات دون تغيير تخطيطها.
+                    Box(Modifier.fillMaxSize().alpha(0.90f)) {
+                        Surface(Modifier.fillMaxSize(), color = Bg) { App() }
+                    }
+                }
             }
         }
     }
