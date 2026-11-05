@@ -27,7 +27,12 @@ android {
                 signingConfig = signingConfigs.getByName("fixed")
             }
         }
-        release { isMinifyEnabled = false }
+        release {
+            isMinifyEnabled = false
+            if (file("sehati.keystore").exists()) {
+                signingConfig = signingConfigs.getByName("fixed")
+            }
+        }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
