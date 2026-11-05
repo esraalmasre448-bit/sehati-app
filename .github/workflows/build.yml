@@ -91,7 +91,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           tag="sehati-apk-${GITHUB_RUN_NUMBER}"
-          gh release create "$tag" sehati.apk \
-            --title "الطريق إلى صحتي - APK ${GITHUB_RUN_NUMBER}" \
-            --notes "Signed Android APK built from commit ${GITHUB_SHA}."
-          gh release view "$tag" --json url --jq .url
+          for attempt in 1 2 3 4 5; do
+            if gh release view "$tag" >/dev/null 2>&1; then
+              gh release upload "$tag" sehati.apk --clobber && exit 0
+            fi
+            if gh release create "$tag" sehati.apk \
+              --title "الطريق إلى صحتي - APK ${GITHUB_RUN_NUMBER}" \
+              --notes "Signed Android release APK built from commit ${GITHUB_SHA}."; then
+              exit 0
+            fi
+            echo "GitHub Release upload failed (attempt $attempt/5); retrying..."
+            sleep 10
+          done
+          echo "::error::Could not publish the signed APK release asset after 5 attempts."
+          exit 1
