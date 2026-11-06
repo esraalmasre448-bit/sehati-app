@@ -332,8 +332,13 @@ service cloud.firestore {
     }
 
     match /conversations/{id} {
-      allow read: if signedIn() && (resource.data.patientId == request.auth.uid
-        || resource.data.doctorId == request.auth.uid);
+      // السماح للمريض بالتحقق من معرّف محادثته غير الموجودة لا يعيد أي بيانات؛ يمنع إعادة إنشاء محادثة فوق سجل قديم.
+      allow read: if signedIn() && (
+        (resource == null && userType() == 'patient'
+          && id.matches('[A-Za-z0-9_-]+_' + request.auth.uid))
+        || (resource != null && (resource.data.patientId == request.auth.uid
+          || resource.data.doctorId == request.auth.uid))
+      );
 
       allow create: if signedIn()
         && userType() == 'patient'
