@@ -73,6 +73,8 @@ fun rememberNotifs(uid: String, type: String): NotifState {
     val isDoc = type == "doctor" || type == "clinic"
     val ready = uid.isNotEmpty() && type.isNotEmpty()
     var appts by remember(uid, type) { mutableStateOf(listOf<Map<String, Any?>>()) }
+    var prescriptions by remember(uid, type) { mutableStateOf(listOf<Map<String, Any?>>()) }
+    var prescriptionsLoaded by remember(uid, type) { mutableStateOf(isDoc) }
     var loaded by remember(uid, type) { mutableStateOf(false) }
     val queues: SnapshotStateMap<String, Long> = remember(uid, type) { mutableStateMapOf() }
     val today = remember { todayKey() }
@@ -87,7 +89,16 @@ fun rememberNotifs(uid: String, type: String): NotifState {
                     loaded = true
                 }
             }
-        onDispose { reg.remove() }
+        val rxReg = if (!isDoc) {
+            bDb.collection("prescriptions").whereEqualTo("patientId", uid).limit(200)
+                .addSnapshotListener { s, e ->
+                    if (e == null) {
+                        prescriptions = s?.documents?.map { it.data.orEmpty() + ("id" to it.id) }.orEmpty()
+                        prescriptionsLoaded = true
+                    }
+                }
+        } else null
+        onDispose { reg.remove(); rxReg?.remove() }
     }
 
     val queueIds = if (isDoc) emptyList() else appts
@@ -142,11 +153,28 @@ fun rememberNotifs(uid: String, type: String): NotifState {
             }
         }
     }
+    if (!isDoc) {
+        for (p in prescriptions) {
+            val id = p["id"]?.toString().orEmpty()
+            val kind = p["kind"]?.toString()
+            val doctor = p["doctorName"]?.toString().orEmpty().ifBlank { "طبيبك" }
+            val ts = (p["createdAt"] as? Timestamp)?.toDate()?.time ?: 0L
+            out.add(
+                Notif(
+                    "prescription:$id",
+                    if (kind == "lab") "طلب تحاليل جديد" else "وصفة طبية جديدة",
+                    "أرسل $doctor مستنداً طبياً جديداً. افتح وصفاتك الطبية للاطلاع عليه.",
+                    ts,
+                    false
+                )
+            )
+        }
+    }
     val ctx = LocalContext.current
     var known by remember(uid, type) { mutableStateOf<Set<String>?>(null) }
     val keysNow = out.map { it.key }.toSet()
-    LaunchedEffect(keysNow, loaded) {
-        if (!loaded) return@LaunchedEffect
+    LaunchedEffect(keysNow, loaded, prescriptionsLoaded) {
+        if (!loaded || !prescriptionsLoaded) return@LaunchedEffect
         val k = known
         if (k == null) {
             known = keysNow
