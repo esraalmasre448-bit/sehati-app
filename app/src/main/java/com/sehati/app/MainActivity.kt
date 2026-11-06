@@ -267,6 +267,7 @@ fun MainShell(onGo: (String) -> Unit, onOpen: (Map<String, Any?>) -> Unit, onLog
     var type by remember { mutableStateOf("") }
     var isAdmin by remember { mutableStateOf(false) }
     var showFirstGuide by remember { mutableStateOf(false) }
+    var subscriptionExpired by remember { mutableStateOf(false) }
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val uid = auth.currentUser?.uid ?: ""
     val email = auth.currentUser?.email ?: ""
@@ -290,6 +291,23 @@ fun MainShell(onGo: (String) -> Unit, onOpen: (Map<String, Any?>) -> Unit, onLog
             db.collection("config").document("admin").get().addOnSuccessListener { d ->
                 isAdmin = d.getString("uid") == id
             }
+        }
+    }
+    DisposableEffect(uid, type) {
+        if (uid.isBlank() || (type != "doctor" && type != "clinic")) {
+            subscriptionExpired = false
+            onDispose { }
+        } else {
+            val registration = db.collection("subscriptions").document(uid)
+                .addSnapshotListener { snapshot, error ->
+                    if (error == null) {
+                        val expiry = snapshot?.getTimestamp("expiresAt")?.toDate()
+                        subscriptionExpired = snapshot?.exists() != true ||
+                            snapshot.getString("status") != "ACTIVE" ||
+                            expiry == null || !expiry.after(java.util.Date())
+                    }
+                }
+            onDispose { registration.remove() }
         }
     }
     val ns = rememberNotifs(uid, type)
@@ -351,6 +369,17 @@ fun MainShell(onGo: (String) -> Unit, onOpen: (Map<String, Any?>) -> Unit, onLog
                         .edit().putBoolean("guide_seen_$uid", true).apply()
                     showFirstGuide = false
                 }
+            }
+            if (subscriptionExpired && (type == "doctor" || type == "clinic")) {
+                AlertDialog(
+                    onDismissRequest = { },
+                    icon = { Icon(Icons.Filled.EventBusy, contentDescription = null, tint = Red) },
+                    title = { Text("انتهى اشتراكك") },
+                    text = { Text("انتهت مدة اشتراكك. يمكنك تجديده الآن، وستبقى بياناتك ومواعيدك محفوظة.") },
+                    confirmButton = {
+                        TextButton(onClick = { onGo("renew") }) { Text("تجديد الاشتراك") }
+                    }
+                )
             }
         }
     }
