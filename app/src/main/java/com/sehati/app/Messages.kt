@@ -56,36 +56,28 @@ fun openConversation(
             // لا نقرأ وثيقة غير موجودة أولاً: قواعد Firestore تسمح بقراءة محادثة
             // موجودة للمشارك، لكنها لا تسمح بقراءة وثيقة غير موجودة.
             // نحاول الإنشاء مباشرة؛ وإذا كانت المحادثة موجودة مسبقاً نقرأها بعد فشل الإنشاء.
-            ref.set(mapOf(
-                "doctorId" to doctorId,
-                "patientId" to uid,
-                "doctorName" to doctorName,
-                "patientName" to patientName,
-                "appointmentId" to appt.id,
-                "lastMessage" to "",
-                "lastSenderId" to uid,
-                "lastAt" to FieldValue.serverTimestamp(),
-                "createdAt" to FieldValue.serverTimestamp()
-            )).addOnSuccessListener {
-                onReady(id)
-            }.addOnFailureListener { createError ->
-                ref.get().addOnSuccessListener { existing ->
-                    if (existing.exists()
-                        && existing.getString("patientId") == uid
-                        && existing.getString("doctorId") == doctorId
-                    ) {
+            ref.get().addOnSuccessListener { existing ->
+                if (existing.exists()) {
+                    onReady(id)
+                } else {
+                    ref.set(mapOf(
+                        "doctorId" to doctorId,
+                        "patientId" to uid,
+                        "doctorName" to doctorName,
+                        "patientName" to patientName,
+                        "appointmentId" to appt.id,
+                        "lastMessage" to "",
+                        "lastSenderId" to uid,
+                        "lastAt" to FieldValue.serverTimestamp(),
+                        "createdAt" to FieldValue.serverTimestamp()
+                    )).addOnSuccessListener {
                         onReady(id)
-                    } else {
-                        onError("تعذر إنشاء المحادثة. تأكد من أن طلب الحجز ما زال فعالاً.")
+                    }.addOnFailureListener {
+                        onError("تعذر إنشاء المحادثة. تحقق من اتصالك وصلاحيات الحساب.")
                     }
-                }.addOnFailureListener {
-                    val code = (createError as? com.google.firebase.firestore.FirebaseFirestoreException)?.code
-                    onError(
-                        if (code == com.google.firebase.firestore.FirebaseFirestoreException.Code.PERMISSION_DENIED)
-                            "لا تسمح صلاحيات الحساب بفتح المحادثة لهذا الموعد."
-                        else "تعذر فتح المحادثة، تحقق من الإنترنت وحاول مجدداً."
-                    )
                 }
+            }.addOnFailureListener {
+                onError("تعذر فتح المحادثة. تحقق من الاتصال وصلاحيات الحساب.")
             }
         }
         .addOnFailureListener { onError("تعذر فتح المحادثة، تحقق من الإنترنت") }
