@@ -1,9 +1,16 @@
 package com.sehati.app
 
+import android.Manifest
 import android.app.Activity
+import android.app.Notification
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.media.RingtoneManager
+import android.os.Build
+import androidx.core.content.ContextCompat
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -66,6 +73,30 @@ fun playTone(ctx: Context) {
         val u = toneUri(ctx) ?: return
         RingtoneManager.getRingtone(ctx, u)?.play()
     } catch (e: Exception) { }
+}
+
+private fun postLocalNotification(ctx: Context, id: Int, title: String, body: String) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+        ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+    ) return
+    val intent = Intent(ctx, MainActivity::class.java).apply {
+        flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+    }
+    val pending = PendingIntent.getActivity(
+        ctx, id, intent,
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+    )
+    val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        Notification.Builder(ctx, "sehati_general")
+    } else Notification.Builder(ctx)
+    builder.setSmallIcon(R.drawable.ic_launcher)
+        .setContentTitle(title)
+        .setContentText(body)
+        .setContentIntent(pending)
+        .setAutoCancel(true)
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) builder.setSilent(true)
+    else builder.setSound(null)
+    ctx.getSystemService(NotificationManager::class.java).notify(id, builder.build())
 }
 
 @Composable
@@ -210,7 +241,17 @@ fun rememberNotifs(uid: String, type: String): NotifState {
         } else {
             val added = (keysNow - k).filter { isDoc || !it.endsWith(":C") }
             known = keysNow
-            if (added.isNotEmpty()) playTone(ctx)
+            if (added.isNotEmpty()) {
+                added.forEach { key ->
+                    out.firstOrNull { it.key == key }?.let { item ->
+                        val safeBody = if (key.startsWith("message:"))
+                            "وصلتك رسالة جديدة. افتح التطبيق للاطلاع عليها."
+                        else item.body
+                        postLocalNotification(ctx, key.hashCode(), item.title, safeBody)
+                    }
+                }
+                playTone(ctx)
+            }
         }
     }
     return NotifState(out.sortedByDescending { it.ts }, loaded)
