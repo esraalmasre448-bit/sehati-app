@@ -99,19 +99,19 @@ private fun QueueCard(a: Map<String, Any?>) {
         Text("الرقم الحالي: $current", color = Color.White, fontSize = 16.sp)
         if (!pending && current < number) {
             val initialAhead = (number - 1L).coerceAtLeast(0L)
-            val remainingPercent = if (initialAhead == 0L) 0
-                else ((ahead * 100L) / initialAhead).toInt().coerceIn(0, 100)
+            val progressPercent = if (initialAhead == 0L) 100
+                else (((initialAhead - ahead).coerceAtLeast(0L) * 100L) / initialAhead).toInt().coerceIn(0, 100)
             val etaMinutes = ahead * slotMinutes
             val etaText = if (etaMinutes < 60L) "$etaMinutes دقيقة تقريباً"
                 else "${etaMinutes / 60L} ساعة و ${etaMinutes % 60L} دقيقة تقريباً"
             Text("عدد الأشخاص قبلك: $ahead", color = Color.White, fontSize = 16.sp)
-            Text("المتبقي من الانتظار: $remainingPercent%", color = BMuted, fontSize = 13.sp)
+            Text("نسبة التقدم نحو دورك: $progressPercent%", color = BMuted, fontSize = 13.sp)
             Box(
                 Modifier.fillMaxWidth().height(9.dp)
                     .background(BBg, RoundedCornerShape(50))
             ) {
                 Box(
-                    Modifier.fillMaxWidth(remainingPercent / 100f).height(9.dp)
+                    Modifier.fillMaxWidth(progressPercent / 100f).height(9.dp)
                         .background(BRed, RoundedCornerShape(50))
                 )
             }
