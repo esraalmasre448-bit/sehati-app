@@ -94,19 +94,19 @@ fun rememberNotifs(uid: String, type: String): NotifState {
         val rxReg = if (!isDoc) {
             bDb.collection("prescriptions").whereEqualTo("patientId", uid).limit(200)
                 .addSnapshotListener { s, e ->
-                    if (e == null) {
-                        prescriptions = s?.documents?.map { it.data.orEmpty() + ("id" to it.id) }.orEmpty()
-                        prescriptionsLoaded = true
-                    }
+                    prescriptions = if (e == null) {
+                        s?.documents?.map { it.data.orEmpty() + ("id" to it.id) }.orEmpty()
+                    } else emptyList()
+                    prescriptionsLoaded = true
                 }
         } else null
         val convField = if (isDoc) "doctorId" else "patientId"
         val convReg = bDb.collection("conversations").whereEqualTo(convField, uid).limit(100)
             .addSnapshotListener { s, e ->
-                if (e == null) {
-                    conversations = s?.documents?.map { it.data.orEmpty() + ("id" to it.id) }.orEmpty()
-                    conversationsLoaded = true
-                }
+                conversations = if (e == null) {
+                    s?.documents?.map { it.data.orEmpty() + ("id" to it.id) }.orEmpty()
+                } else emptyList()
+                conversationsLoaded = true
             }
         onDispose { reg.remove(); rxReg?.remove(); convReg.remove() }
     }
