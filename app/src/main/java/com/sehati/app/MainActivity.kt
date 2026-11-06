@@ -22,7 +22,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
@@ -46,7 +45,7 @@ import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.delay
 
-private val Bg = Color(0xFF0B1220)
+private val Bg = Color(0xE60B1220)
 private val CardC = Color(0xFF131C2E)
 private val Line = Color(0xFF24304A)
 private val Red = Color(0xFFE5171F)
@@ -77,10 +76,8 @@ class MainActivity : ComponentActivity() {
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize()
                     )
-                    // شفافية موحّدة خفيفة تكشف الخلفية خلف كل الشاشات دون تغيير تخطيطها.
-                    Box(Modifier.fillMaxSize().alpha(0.90f)) {
-                        Surface(Modifier.fillMaxSize(), color = Bg) { App() }
-                    }
+                    // الخلفية شفافة جزئياً فقط؛ عناصر الواجهة والنصوص تبقى بوضوحها الكامل.
+                    Surface(Modifier.fillMaxSize(), color = Color.Transparent) { App() }
                 }
             }
         }
