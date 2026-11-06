@@ -200,7 +200,7 @@ fun RenewalScreen(onBack: () -> Unit) {
                     }
                 },
                 modifier = Modifier.fillMaxWidth()
-            ) { Text(if (requestBusy) "جارٍ إرسال الطلب..." else "تم الدفع — إرسال طلب المراجعة", color = Color.White) }
+            ) { Text(if (requestBusy) "جارٍ إرسال الطلب..." else "إرسال طلب مراجعة الدفع", color = Color.White) }
             OutlinedButton(
                 onClick = {
                     val label = when (selectedMonths) { 3 -> "3 أشهر"; 6 -> "6 أشهر"; 12 -> "12 شهرًا"; else -> "شهر واحد" }
@@ -214,31 +214,7 @@ fun RenewalScreen(onBack: () -> Unit) {
                 },
                 modifier = Modifier.fillMaxWidth()
             ) { Text("تواصل معي عبر واتساب", color = Color.White) }
-            /* existing plan-specific WhatsApp actions retained for compatibility */
-            listOf(1 to "شهر واحد", 3 to "3 أشهر", 6 to "6 أشهر", 12 to "12 شهرًا").forEach { (m, label) ->
-                val price = prices[m].orEmpty()
-                OutlinedButton(
-                    onClick = {
-                        val text = "مرحبًا، أنا $myName، أرغب بتجديد اشتراكي في تطبيق الطريق إلى صحتي لمدة $label" +
-                            (if (price.isNotBlank()) " (المبلغ: $price)" else "") +
-                            ". رقم حسابي: $myUid"
-                        try {
-                            ctx.startActivity(
-                                Intent(
-                                    Intent.ACTION_VIEW,
-                                    Uri.parse("https://wa.me/" + waNumber(phone) + "?text=" + Uri.encode(text))
-                                ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            )
-                        } catch (e: Exception) { msg = "تعذر فتح واتساب" }
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        "$label" + (if (price.isNotBlank()) " — $price" else ""),
-                        color = Color.White
-                    )
-                }
-            }
+
         }
         if (msg.isNotEmpty()) Text(msg, color = if (msg.startsWith("تعذر")) BDanger else BGreen)
         Text(
