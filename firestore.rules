@@ -23,6 +23,12 @@ service cloud.firestore {
     function aPath(did, d, pid) {
       return /databases/$(database)/documents/appointments/$(did + '_' + d + '_' + pid);
     }
+    function conversationMember(convId) {
+      let p = /databases/$(database)/documents/conversations/$(convId);
+      return signedIn() && exists(p)
+        && (get(p).data.patientId == request.auth.uid
+            || get(p).data.doctorId == request.auth.uid);
+    }
     function validDate(d) {
       return d is string && d.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
     }
@@ -368,12 +374,7 @@ service cloud.firestore {
     }
 
     match /messages/{id} {
-      allow read: if signedIn()
-        && exists(/databases/$(database)/documents/conversations/$(resource.data.convId))
-        && (
-          get(/databases/$(database)/documents/conversations/$(resource.data.convId)).data.patientId == request.auth.uid
-          || get(/databases/$(database)/documents/conversations/$(resource.data.convId)).data.doctorId == request.auth.uid
-        );
+      allow read: if signedIn() && conversationMember(resource.data.convId);
 
       allow create: if signedIn()
         && request.resource.data.keys().hasOnly(['convId','senderId','text','createdAt'])
@@ -382,9 +383,7 @@ service cloud.firestore {
         && request.resource.data.text.size() > 0
         && request.resource.data.text.size() <= 1000
         && request.resource.data.createdAt == request.time
-        && exists(/databases/$(database)/documents/conversations/$(request.resource.data.convId))
-        && (get(/databases/$(database)/documents/conversations/$(request.resource.data.convId)).data.patientId == request.auth.uid
-          || get(/databases/$(database)/documents/conversations/$(request.resource.data.convId)).data.doctorId == request.auth.uid);
+        && conversationMember(request.resource.data.convId);
 
       allow update, delete: if false;
     }
