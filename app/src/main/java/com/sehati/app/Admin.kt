@@ -234,6 +234,48 @@ private fun HistoryCard(h: Map<String, Any?>) {
 }
 
 @Composable
+private fun RenewalRequestCard(
+    request: Map<String, Any?>,
+    busy: Boolean,
+    onApprove: () -> Unit,
+    onReject: () -> Unit
+) {
+    val status = request["status"]?.toString() ?: "PENDING"
+    val statusLabel = when (status) {
+        "APPROVED" -> "تم التفعيل"
+        "REJECTED" -> "مرفوض"
+        else -> "بانتظار المراجعة"
+    }
+    Column(
+        Modifier.fillMaxWidth().background(ACard, RoundedCornerShape(12.dp))
+            .border(1.dp, ALine, RoundedCornerShape(12.dp)).padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(7.dp)
+    ) {
+        Text(request["doctorName"]?.toString().orEmpty().ifBlank { "طبيب / عيادة" },
+            color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+        Text("معرّف الحساب: ${request["uid"] ?: "—"}", color = AMuted, fontSize = 11.sp)
+        Text("المدة: ${request["planLabel"] ?: request["months"] ?: "—"}", color = Color.White)
+        val amount = request["amount"]?.toString().orEmpty()
+        if (amount.isNotBlank()) Text("المبلغ المعلن: $amount", color = AMuted)
+        Text(statusLabel, color = when (status) {
+            "APPROVED" -> AGreen
+            "REJECTED" -> ADanger
+            else -> Color(0xFFFFC857)
+        }, fontWeight = FontWeight.Bold)
+        if (status == "PENDING") {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = onApprove, enabled = !busy, modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = AGreen, contentColor = Color.Black)
+                ) { Text("تأكيد الدفع والتفعيل") }
+                OutlinedButton(onClick = onReject, enabled = !busy, modifier = Modifier.weight(1f)) {
+                    Text("رفض الطلب", color = ADanger)
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun AdminPanel(onBack: () -> Unit) {
     val adminUid = aAuth.currentUser?.uid ?: ""
     var tab by remember { mutableIntStateOf(0) }
@@ -244,7 +286,7 @@ private fun AdminPanel(onBack: () -> Unit) {
     var specs by remember { mutableStateOf(mapOf<String, String>()) }
     var approvals by remember { mutableStateOf(mapOf<String, Boolean>()) }
     var profileExists by remember { mutableStateOf(emptySet<String>()) }
-    var history by remember { mutableStateOf(listOf<Map<String, Any?>>()) }
+    var history by remember { mutableStateOf(listOf<Map<String, Any?>>()) }\n    var renewalRequests by remember { mutableStateOf(listOf<Map<String, Any?>>()) }
     var error by remember { mutableStateOf("") }
     var info by remember { mutableStateOf("") }
     var grantUser by remember { mutableStateOf<Map<String, Any?>?>(null) }
@@ -281,7 +323,7 @@ private fun AdminPanel(onBack: () -> Unit) {
             .addSnapshotListener { s, e -> if (e == null) patientCount = s?.size() ?: 0 }
         // لا تقرأ لوحة الإدارة سجلات المواعيد أو بياناتها الطبية؛ تبقى بين المريض والطبيب.
         systemStatus = "متصل بقاعدة البيانات"
-        onDispose { r1.remove(); r2.remove(); r3.remove(); r4.remove(); r5.remove() }
+        onDispose { r1.remove(); r2.remove(); r3.remove(); r4.remove(); r5.remove(); r6.remove() }
     }
 
     LaunchedEffect(subs, users) {
