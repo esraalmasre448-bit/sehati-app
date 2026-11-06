@@ -10,10 +10,21 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Business
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.LocalHospital
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.MedicalServices
+import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -23,15 +34,20 @@ import androidx.compose.ui.unit.sp
 private fun sxHm(min: Int): String = "%02d:%02d".format(min / 60, min % 60)
 
 @Composable
-private fun SxInfoRow(label: String, value: Any?) {
+private fun SxInfoRow(label: String, value: Any?, icon: ImageVector) {
     val v = value?.toString().orEmpty()
     if (v.isNotBlank()) {
-        Column(
+        Row(
             Modifier.fillMaxWidth().background(BCard, RoundedCornerShape(12.dp))
-                .border(1.dp, BLine, RoundedCornerShape(12.dp)).padding(12.dp)
+                .border(1.dp, BLine, RoundedCornerShape(12.dp)).padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Text(label, color = BMuted, fontSize = 13.sp)
-            Text(v, color = Color.White, fontSize = 16.sp)
+            Icon(icon, contentDescription = null, tint = BRed, modifier = Modifier.size(22.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(label, color = BMuted, fontSize = 13.sp)
+                Text(v, color = Color.White, fontSize = 16.sp)
+            }
         }
     }
 }
@@ -112,24 +128,27 @@ fun DoctorDetailFull(d: Map<String, Any?>, onBack: () -> Unit, onBook: () -> Uni
             if (city.isNotBlank()) Text(city, fontSize = 13.sp, color = BMuted)
         }
 
+        // الحجز هو الإجراء الأساسي، لذلك يظهر مباشرة بعد هوية الطبيب.
+        RedButton("احجز موعد", onClick = onBook)
+
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             SxProfTab("معلومات عامة", tab == 0, Modifier.weight(1f)) { tab = 0 }
             SxProfTab("الموقع", tab == 1, Modifier.weight(1f)) { tab = 1 }
         }
 
         if (tab == 0) {
-            SxInfoRow("نبذة", d["bio"])
-            SxInfoRow("العيادة", d["clinicName"])
-            SxInfoRow("سعر الكشفية", d["fee"])
-            SxInfoRow("ساعات استقبال الحجوزات بالعيادة", "${sxHm(startMin)} - ${sxHm(endMin)}")
-            if (hasWorkDays(d)) SxInfoRow("أيام الدوام", workDaysLabel(workDaysOf(d)))
-            SxInfoRow("أيام وساعات الدوام بالعيادة", d["hours"])
-            SxInfoRow("المشفى", d["hospitalName"])
-            SxInfoRow("أيام وساعات الدوام بالمشفى", d["hospitalHours"])
-            SxInfoRow("رقم التواصل", phone)
+            SxInfoRow("نبذة", d["bio"], Icons.Filled.Info)
+            SxInfoRow("العيادة", d["clinicName"], Icons.Filled.Business)
+            SxInfoRow("سعر الكشفية", d["fee"], Icons.Filled.Payments)
+            SxInfoRow("ساعات استقبال الحجوزات بالعيادة", "${sxHm(startMin)} - ${sxHm(endMin)}", Icons.Filled.Schedule)
+            if (hasWorkDays(d)) SxInfoRow("أيام الدوام", workDaysLabel(workDaysOf(d)), Icons.Filled.CalendarMonth)
+            SxInfoRow("أيام وساعات الدوام بالعيادة", d["hours"], Icons.Filled.CalendarMonth)
+            SxInfoRow("المشفى", d["hospitalName"], Icons.Filled.LocalHospital)
+            SxInfoRow("أيام وساعات الدوام بالمشفى", d["hospitalHours"], Icons.Filled.Schedule)
+            SxInfoRow("رقم التواصل", phone, Icons.Filled.Phone)
         } else {
-            SxInfoRow("المدينة", d["city"])
-            SxInfoRow("العنوان", d["address"])
+            SxInfoRow("المدينة", d["city"], Icons.Filled.LocationOn)
+            SxInfoRow("العنوان", d["address"], Icons.Filled.LocationOn)
             OutlinedButton(
                 onClick = { msg = openRoute(ctx, d) ?: "" },
                 modifier = Modifier.fillMaxWidth().height(52.dp)
@@ -144,7 +163,6 @@ fun DoctorDetailFull(d: Map<String, Any?>, onBack: () -> Unit, onBook: () -> Uni
         }
 
         if (msg.isNotEmpty()) Text(msg, color = BDanger)
-        RedButton("احجز موعد", onClick = onBook)
         if (phone.isNotBlank()) {
             OutlinedButton(
                 onClick = {
