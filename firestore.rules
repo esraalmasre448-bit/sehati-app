@@ -338,7 +338,8 @@ service cloud.firestore {
       allow create: if signedIn()
         && userType() == 'patient'
         && request.resource.data.patientId == request.auth.uid
-        && request.resource.data.keys().hasOnly(['doctorId','patientId','doctorName','patientName','appointmentId','lastMessage','lastAt','createdAt'])
+        && request.resource.data.keys().hasOnly(['doctorId','patientId','doctorName','patientName','appointmentId','lastMessage','lastSenderId','lastAt','createdAt'])
+        && (!('lastSenderId' in request.resource.data) || request.resource.data.lastSenderId == request.auth.uid)
         && request.resource.data.doctorId is string
         && request.resource.data.appointmentId is string
         && id == request.resource.data.doctorId + '_' + request.resource.data.patientId
@@ -352,7 +353,8 @@ service cloud.firestore {
 
       allow update: if signedIn()
         && (resource.data.patientId == request.auth.uid || resource.data.doctorId == request.auth.uid)
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastMessage','lastAt'])
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastMessage','lastAt','lastSenderId'])
+        && (!('lastSenderId' in request.resource.data) || request.resource.data.lastSenderId == request.auth.uid)
         && request.resource.data.lastMessage is string
         && request.resource.data.lastMessage.size() <= 1000
         && request.resource.data.lastAt == request.time;
