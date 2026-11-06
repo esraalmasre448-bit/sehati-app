@@ -1,9 +1,16 @@
 package com.sehati.app
 
+import android.Manifest
 import android.app.Activity
+import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.media.RingtoneManager
+import android.os.Build
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -68,11 +75,38 @@ fun playTone(ctx: Context) {
     } catch (e: Exception) { }
 }
 
+private fun postLocalNotification(ctx: Context, id: Int, title: String, body: String) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+        ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+    ) return
+    val intent = Intent(ctx, MainActivity::class.java).apply {
+        flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+    }
+    val pending = PendingIntent.getActivity(
+        ctx, id, intent,
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+    )
+    val notification = NotificationCompat.Builder(ctx, "sehati_general")
+        .setSmallIcon(R.drawable.ic_launcher)
+        .setContentTitle(title)
+        .setContentText(body)
+        .setContentIntent(pending)
+        .setAutoCancel(true)
+        .setPriority(NotificationCompat.PRIORITY_HIGH)
+        .setSilent(true)
+        .build()
+    NotificationManagerCompat.from(ctx).notify(id, notification)
+}
+
 @Composable
 fun rememberNotifs(uid: String, type: String): NotifState {
     val isDoc = type == "doctor" || type == "clinic"
     val ready = uid.isNotEmpty() && type.isNotEmpty()
     var appts by remember(uid, type) { mutableStateOf(listOf<Map<String, Any?>>()) }
+    var prescriptions by remember(uid, type) { mutableStateOf(listOf<Map<String, Any?>>()) }
+    var prescriptionsLoaded by remember(uid, type) { mutableStateOf(isDoc) }
+    var conversations by remember(uid, type) { mutableStateOf(listOf<Map<String, Any?>>()) }
+    var conversationsLoaded by remember(uid, type) { mutableStateOf(false) }
     var loaded by remember(uid, type) { mutableStateOf(false) }
     val queues: SnapshotStateMap<String, Long> = remember(uid, type) { mutableStateMapOf() }
     val today = remember { todayKey() }
@@ -87,7 +121,24 @@ fun rememberNotifs(uid: String, type: String): NotifState {
                     loaded = true
                 }
             }
-        onDispose { reg.remove() }
+        val rxReg = if (!isDoc) {
+            bDb.collection("prescriptions").whereEqualTo("patientId", uid).limit(200)
+                .addSnapshotListener { s, e ->
+                    prescriptions = if (e == null) {
+                        s?.documents?.map { it.data.orEmpty() + ("id" to it.id) }.orEmpty()
+                    } else emptyList()
+                    prescriptionsLoaded = true
+                }
+        } else null
+        val convField = if (isDoc) "doctorId" else "patientId"
+        val convReg = bDb.collection("conversations").whereEqualTo(convField, uid).limit(100)
+            .addSnapshotListener { s, e ->
+                conversations = if (e == null) {
+                    s?.documents?.map { it.data.orEmpty() + ("id" to it.id) }.orEmpty()
+                } else emptyList()
+                conversationsLoaded = true
+            }
+        onDispose { reg.remove(); rxReg?.remove(); convReg.remove() }
     }
 
     val queueIds = if (isDoc) emptyList() else appts
@@ -142,18 +193,64 @@ fun rememberNotifs(uid: String, type: String): NotifState {
             }
         }
     }
+    for (conversation in conversations) {
+        val senderId = conversation["lastSenderId"]?.toString().orEmpty()
+        val message = conversation["lastMessage"]?.toString().orEmpty()
+        if (senderId.isNotBlank() && senderId != uid && message.isNotBlank()) {
+            val id = conversation["id"]?.toString().orEmpty()
+            val other = if (isDoc) conversation["patientName"]?.toString().orEmpty()
+                else conversation["doctorName"]?.toString().orEmpty()
+            val ts = (conversation["lastAt"] as? Timestamp)?.toDate()?.time ?: 0L
+            out.add(
+                Notif(
+                    "message:$id:$ts",
+                    "رسالة جديدة من ${other.ifBlank { "مستخدم" }}",
+                    message,
+                    ts,
+                    false
+                )
+            )
+        }
+    }
+    if (!isDoc) {
+        for (p in prescriptions) {
+            val id = p["id"]?.toString().orEmpty()
+            val kind = p["kind"]?.toString()
+            val doctor = p["doctorName"]?.toString().orEmpty().ifBlank { "طبيبك" }
+            val ts = (p["createdAt"] as? Timestamp)?.toDate()?.time ?: 0L
+            out.add(
+                Notif(
+                    "prescription:$id",
+                    if (kind == "lab") "طلب تحاليل جديد" else "وصفة طبية جديدة",
+                    "أرسل $doctor مستنداً طبياً جديداً. افتح وصفاتك الطبية للاطلاع عليه.",
+                    ts,
+                    false
+                )
+            )
+        }
+    }
     val ctx = LocalContext.current
     var known by remember(uid, type) { mutableStateOf<Set<String>?>(null) }
     val keysNow = out.map { it.key }.toSet()
-    LaunchedEffect(keysNow, loaded) {
-        if (!loaded) return@LaunchedEffect
+    LaunchedEffect(keysNow, loaded, prescriptionsLoaded, conversationsLoaded) {
+        if (!loaded || !prescriptionsLoaded || !conversationsLoaded) return@LaunchedEffect
         val k = known
         if (k == null) {
             known = keysNow
         } else {
             val added = (keysNow - k).filter { isDoc || !it.endsWith(":C") }
             known = keysNow
-            if (added.isNotEmpty()) playTone(ctx)
+            if (added.isNotEmpty()) {
+                added.forEach { key ->
+                    out.firstOrNull { it.key == key }?.let { item ->
+                        val safeBody = if (key.startsWith("message:"))
+                            "وصلتك رسالة جديدة. افتح التطبيق للاطلاع عليها."
+                        else item.body
+                        postLocalNotification(ctx, key.hashCode(), item.title, safeBody)
+                    }
+                }
+                playTone(ctx)
+            }
         }
     }
     return NotifState(out.sortedByDescending { it.ts }, loaded)

@@ -87,6 +87,19 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
+private fun NotificationWatcher() {
+    val uid = auth.currentUser?.uid.orEmpty()
+    var type by remember(uid) { mutableStateOf("") }
+    LaunchedEffect(uid) {
+        if (uid.isNotBlank()) {
+            db.collection("users").document(uid).get()
+                .addOnSuccessListener { type = it.getString("accountType").orEmpty() }
+        }
+    }
+    rememberNotifs(uid, type)
+}
+
+@Composable
 fun App() {
     var splash by remember { mutableStateOf(true) }
     var loggedIn by remember { mutableStateOf(auth.currentUser != null) }
@@ -125,6 +138,7 @@ fun App() {
             else -> "main"
         }
     }
+    if (loggedIn && !locked && screen != "main") NotificationWatcher()
     val sel = selected
     when {
         splash -> Splash()
@@ -266,6 +280,8 @@ fun MainShell(onGo: (String) -> Unit, onOpen: (Map<String, Any?>) -> Unit, onLog
     var name by remember { mutableStateOf("") }
     var type by remember { mutableStateOf("") }
     var isAdmin by remember { mutableStateOf(false) }
+    var showFirstGuide by remember { mutableStateOf(false) }
+    var subscriptionExpired by remember { mutableStateOf(false) }
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val uid = auth.currentUser?.uid ?: ""
     val email = auth.currentUser?.email ?: ""
@@ -274,10 +290,39 @@ fun MainShell(onGo: (String) -> Unit, onOpen: (Map<String, Any?>) -> Unit, onLog
             db.collection("users").document(id).get().addOnSuccessListener { d ->
                 name = d.getString("name") ?: ""
                 type = d.getString("accountType") ?: ""
+                val prefs = ctx.getSharedPreferences("sehati_first_run", android.content.Context.MODE_PRIVATE)
+                if (!prefs.getBoolean("guide_seen_$id", false)) showFirstGuide = true
+                if (type == "doctor" || type == "clinic") {
+                    db.collection("doctors").document(id).get().addOnSuccessListener { doctor ->
+                        val complete = doctor.exists() &&
+                            !doctor.getString("name").isNullOrBlank() &&
+                            !doctor.getString("specialty").isNullOrBlank() &&
+                            !doctor.getString("city").isNullOrBlank()
+                        if (!complete) onGo("profile")
+                    }
+                }
             }
             db.collection("config").document("admin").get().addOnSuccessListener { d ->
                 isAdmin = d.getString("uid") == id
             }
+        }
+    }
+    DisposableEffect(uid, type) {
+        if (uid.isBlank() || (type != "doctor" && type != "clinic")) {
+            subscriptionExpired = false
+            onDispose { }
+        } else {
+            val registration = db.collection("subscriptions").document(uid)
+                .addSnapshotListener { snapshot, error ->
+                    if (error == null) {
+                        val current = snapshot
+                    val expiry = current?.getTimestamp("expiresAt")?.toDate()
+                    subscriptionExpired = current == null || !current.exists() ||
+                        current.getString("status") != "ACTIVE" ||
+                        expiry == null || !expiry.after(java.util.Date())
+                    }
+                }
+            onDispose { registration.remove() }
         }
     }
     val ns = rememberNotifs(uid, type)
@@ -332,6 +377,24 @@ fun MainShell(onGo: (String) -> Unit, onOpen: (Map<String, Any?>) -> Unit, onLog
                 else MyAppointmentsContent(onFind = { onGo("search") })
                 4 -> NotifTab(ns.items, fresh)
                 else -> ProfileTab(name, email, typeLabel, onLogout, onPrivacy = { onGo("privacy") }, isAdmin = isAdmin, onAdmin = { onGo("admin") })
+            }
+            if (showFirstGuide && type.isNotBlank()) {
+                FirstRunGuide(type) {
+                    ctx.getSharedPreferences("sehati_first_run", android.content.Context.MODE_PRIVATE)
+                        .edit().putBoolean("guide_seen_$uid", true).apply()
+                    showFirstGuide = false
+                }
+            }
+            if (subscriptionExpired && !showFirstGuide && (type == "doctor" || type == "clinic")) {
+                AlertDialog(
+                    onDismissRequest = { },
+                    icon = { Icon(Icons.Filled.EventBusy, contentDescription = null, tint = Red) },
+                    title = { Text("انتهى اشتراكك") },
+                    text = { Text("انتهت مدة اشتراكك. يمكنك تجديده الآن، وستبقى بياناتك ومواعيدك محفوظة.") },
+                    confirmButton = {
+                        TextButton(onClick = { onGo("renew") }) { Text("تجديد الاشتراك") }
+                    }
+                )
             }
         }
     }

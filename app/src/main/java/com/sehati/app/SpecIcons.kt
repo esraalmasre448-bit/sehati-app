@@ -84,7 +84,7 @@ fun SpecImage(s: Spec, size: Dp) {
     val ctx = LocalContext.current
     val res = remember(s.img) {
         val legacyKey = when (s.img) {
-            "knee" -> "bones"
+            "knee", "bone_surgery" -> "bones"
             "pregnant" -> "women"
             else -> s.img
         }

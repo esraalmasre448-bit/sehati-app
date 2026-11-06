@@ -53,38 +53,29 @@ fun openConversation(
             }
             val id = convIdOf(doctorId, uid)
             val ref = bDb.collection("conversations").document(id)
-            // لا نقرأ وثيقة غير موجودة أولاً: قواعد Firestore تسمح بقراءة محادثة
-            // موجودة للمشارك، لكنها لا تسمح بقراءة وثيقة غير موجودة.
-            // نحاول الإنشاء مباشرة؛ وإذا كانت المحادثة موجودة مسبقاً نقرأها بعد فشل الإنشاء.
-            ref.set(mapOf(
-                "doctorId" to doctorId,
-                "patientId" to uid,
-                "doctorName" to doctorName,
-                "patientName" to patientName,
-                "appointmentId" to appt.id,
-                "lastMessage" to "",
-                "lastAt" to FieldValue.serverTimestamp(),
-                "createdAt" to FieldValue.serverTimestamp()
-            )).addOnSuccessListener {
-                onReady(id)
-            }.addOnFailureListener { createError ->
-                ref.get().addOnSuccessListener { existing ->
-                    if (existing.exists()
-                        && existing.getString("patientId") == uid
-                        && existing.getString("doctorId") == doctorId
-                    ) {
+            // نتحقق من وجود المحادثة أولاً؛ القواعد تسمح للمريض بالتحقق من معرّف محادثته غير الموجودة دون كشف أي بيانات.
+            ref.get().addOnSuccessListener { existing ->
+                if (existing.exists()) {
+                    onReady(id)
+                } else {
+                    ref.set(mapOf(
+                        "doctorId" to doctorId,
+                        "patientId" to uid,
+                        "doctorName" to doctorName,
+                        "patientName" to patientName,
+                        "appointmentId" to appt.id,
+                        "lastMessage" to "",
+                        "lastSenderId" to uid,
+                        "lastAt" to FieldValue.serverTimestamp(),
+                        "createdAt" to FieldValue.serverTimestamp()
+                    )).addOnSuccessListener {
                         onReady(id)
-                    } else {
-                        onError("تعذر إنشاء المحادثة. تأكد من أن طلب الحجز ما زال فعالاً.")
+                    }.addOnFailureListener {
+                        onError("تعذر إنشاء المحادثة. تحقق من اتصالك وصلاحيات الحساب.")
                     }
-                }.addOnFailureListener {
-                    val code = (createError as? com.google.firebase.firestore.FirebaseFirestoreException)?.code
-                    onError(
-                        if (code == com.google.firebase.firestore.FirebaseFirestoreException.Code.PERMISSION_DENIED)
-                            "لا تسمح صلاحيات الحساب بفتح المحادثة لهذا الموعد."
-                        else "تعذر فتح المحادثة، تحقق من الإنترنت وحاول مجدداً."
-                    )
                 }
+            }.addOnFailureListener {
+                onError("تعذر فتح المحادثة. تحقق من الاتصال وصلاحيات الحساب.")
             }
         }
         .addOnFailureListener { onError("تعذر فتح المحادثة، تحقق من الإنترنت") }
@@ -150,6 +141,7 @@ fun ChatScreen(convId: String, onBack: () -> Unit) {
         ))
         batch.update(db.collection("conversations").document(convId), mapOf(
             "lastMessage" to text,
+            "lastSenderId" to uid,
             "lastAt" to FieldValue.serverTimestamp()
         ))
         batch.commit()
