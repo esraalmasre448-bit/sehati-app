@@ -81,6 +81,8 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+        // اطلب إذن الإشعارات بعد تجهيز واجهة التطبيق، مرة واحدة على Android 13+.
+        NotificationPermission.prepareAndRequest(this)
     }
 }
 
