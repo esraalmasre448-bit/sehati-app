@@ -2,14 +2,14 @@ package com.sehati.app
 
 import android.Manifest
 import android.app.Activity
-import android.app.Notification
-import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.media.RingtoneManager
 import android.os.Build
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -86,17 +86,16 @@ private fun postLocalNotification(ctx: Context, id: Int, title: String, body: St
         ctx, id, intent,
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     )
-    val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-        Notification.Builder(ctx, "sehati_general")
-    } else Notification.Builder(ctx)
-    builder.setSmallIcon(R.drawable.ic_launcher)
+    val notification = NotificationCompat.Builder(ctx, "sehati_general")
+        .setSmallIcon(R.drawable.ic_launcher)
         .setContentTitle(title)
         .setContentText(body)
         .setContentIntent(pending)
         .setAutoCancel(true)
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) builder.setSilent(true)
-    else builder.setSound(null)
-    ctx.getSystemService(NotificationManager::class.java).notify(id, builder.build())
+        .setPriority(NotificationCompat.PRIORITY_HIGH)
+        .setSilent(true)
+        .build()
+    NotificationManagerCompat.from(ctx).notify(id, notification)
 }
 
 @Composable
