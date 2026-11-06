@@ -193,7 +193,7 @@ fun RenewalScreen(onBack: () -> Unit) {
                         "createdAt" to FieldValue.serverTimestamp()
                     )).addOnSuccessListener {
                         requestBusy = false
-                        msg = "تم إرسال طلب مراجعة الدفع. تواصل مع الإدارة وأرسل إثبات الحوالة."
+                        msg = "تم إرسال طلب مراجعة الدفع. أرسل إثبات الحوالة للإدارة عبر واتساب."
                     }.addOnFailureListener {
                         requestBusy = false
                         msg = "تعذر إرسال الطلب. تحقق من الإنترنت أو تواصل عبر واتساب."
