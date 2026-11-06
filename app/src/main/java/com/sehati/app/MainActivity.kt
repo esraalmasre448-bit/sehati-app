@@ -87,6 +87,19 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
+private fun NotificationWatcher() {
+    val uid = auth.currentUser?.uid.orEmpty()
+    var type by remember(uid) { mutableStateOf("") }
+    LaunchedEffect(uid) {
+        if (uid.isNotBlank()) {
+            db.collection("users").document(uid).get()
+                .addOnSuccessListener { type = it.getString("accountType").orEmpty() }
+        }
+    }
+    rememberNotifs(uid, type)
+}
+
+@Composable
 fun App() {
     var splash by remember { mutableStateOf(true) }
     var loggedIn by remember { mutableStateOf(auth.currentUser != null) }
@@ -125,6 +138,7 @@ fun App() {
             else -> "main"
         }
     }
+    if (loggedIn && !locked && screen != "main") NotificationWatcher()
     val sel = selected
     when {
         splash -> Splash()
