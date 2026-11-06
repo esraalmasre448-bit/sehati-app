@@ -301,10 +301,11 @@ fun MainShell(onGo: (String) -> Unit, onOpen: (Map<String, Any?>) -> Unit, onLog
             val registration = db.collection("subscriptions").document(uid)
                 .addSnapshotListener { snapshot, error ->
                     if (error == null) {
-                        val expiry = snapshot?.getTimestamp("expiresAt")?.toDate()
-                        subscriptionExpired = snapshot?.exists() != true ||
-                            snapshot.getString("status") != "ACTIVE" ||
-                            expiry == null || !expiry.after(java.util.Date())
+                        val current = snapshot
+                    val expiry = current?.getTimestamp("expiresAt")?.toDate()
+                    subscriptionExpired = current == null || !current.exists() ||
+                        current.getString("status") != "ACTIVE" ||
+                        expiry == null || !expiry.after(java.util.Date())
                     }
                 }
             onDispose { registration.remove() }
