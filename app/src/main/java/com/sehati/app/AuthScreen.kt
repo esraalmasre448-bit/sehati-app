@@ -53,14 +53,14 @@ import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.delay
 
-private val Bg = Color(0xFF0B1220)
-private val CardC = Color(0xFF131C2E)
-private val Line = Color(0xFF24304A)
-private val Red = Color(0xFFE5171F)
+private val Bg = Color(0xC90A1424)
+private val CardC = Color(0xE6101D32)
+private val Line = Color(0xFF294766)
+private val Red = Color(0xFF27B8F2)
 private val Danger = Color(0xFFFF5A5F)
 private val Good = Color(0xFF3DDC84)
-private val OnAccent = Color(0xFFFFFFFF)
-private val Muted = Color(0xFF9AA7BD)
+private val OnAccent = Color(0xFF061522)
+private val Muted = Color(0xFFB6C6DA)
 
 private val auth get() = FirebaseAuth.getInstance()
 private val db get() = FirebaseFirestore.getInstance()
