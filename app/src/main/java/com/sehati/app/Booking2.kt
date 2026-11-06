@@ -63,7 +63,15 @@ private fun QueueCard(a: Map<String, Any?>) {
     val date = a["date"].toString()
     val number = (a["number"] as? Number)?.toLong() ?: 0L
     var current by remember { mutableLongStateOf(0L) }
+    var slotMinutes by remember { mutableIntStateOf(30) }
     var msg by remember { mutableStateOf("") }
+
+    LaunchedEffect(doctorId) {
+        bDb.collection("doctors").document(doctorId).get()
+            .addOnSuccessListener { doctor ->
+                slotMinutes = (doctor.getLong("slotMinutes") ?: 30L).toInt().coerceIn(10, 180)
+            }
+    }
 
     DisposableEffect(doctorId, date) {
         val reg = bDb.collection("queues").document("${doctorId}_$date")
@@ -89,7 +97,27 @@ private fun QueueCard(a: Map<String, Any?>) {
         Text("الساعة ${a["time"]}", color = BMuted)
         Text("رقمك: $number", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = Color.White)
         Text("الرقم الحالي: $current", color = Color.White, fontSize = 16.sp)
-        if (!pending && current < number) Text("عدد الأشخاص قبلك: $ahead", color = Color.White, fontSize = 16.sp)
+        if (!pending && current < number) {
+            val initialAhead = (number - 1L).coerceAtLeast(0L)
+            val remainingPercent = if (initialAhead == 0L) 0
+                else ((ahead * 100L) / initialAhead).toInt().coerceIn(0, 100)
+            val etaMinutes = ahead * slotMinutes
+            val etaText = if (etaMinutes < 60L) "$etaMinutes دقيقة تقريباً"
+                else "${etaMinutes / 60L} ساعة و ${etaMinutes % 60L} دقيقة تقريباً"
+            Text("عدد الأشخاص قبلك: $ahead", color = Color.White, fontSize = 16.sp)
+            Text("المتبقي من الانتظار: $remainingPercent%", color = BMuted, fontSize = 13.sp)
+            Box(
+                Modifier.fillMaxWidth().height(9.dp)
+                    .background(BBg, RoundedCornerShape(50))
+            ) {
+                Box(
+                    Modifier.fillMaxWidth(remainingPercent / 100f).height(9.dp)
+                        .background(BRed, RoundedCornerShape(50))
+                )
+            }
+            Text("الوقت المتوقع: $etaText", color = BGreen, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            Text("تقدير تقريبي حسب متوسط مدة المعاينة، وقد يتغير حسب سير العيادة.", color = BMuted, fontSize = 11.sp)
+        }
         Text(statusText, color = color, fontSize = 18.sp, fontWeight = FontWeight.Bold)
         if (msg.isNotEmpty()) Text(msg, color = BDanger)
         if (!pending) {
