@@ -63,6 +63,7 @@ fun openConversation(
                 "patientName" to patientName,
                 "appointmentId" to appt.id,
                 "lastMessage" to "",
+                "lastSenderId" to uid,
                 "lastAt" to FieldValue.serverTimestamp(),
                 "createdAt" to FieldValue.serverTimestamp()
             )).addOnSuccessListener {
@@ -150,6 +151,7 @@ fun ChatScreen(convId: String, onBack: () -> Unit) {
         ))
         batch.update(db.collection("conversations").document(convId), mapOf(
             "lastMessage" to text,
+            "lastSenderId" to uid,
             "lastAt" to FieldValue.serverTimestamp()
         ))
         batch.commit()
