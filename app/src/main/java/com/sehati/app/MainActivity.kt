@@ -371,7 +371,7 @@ fun MainShell(onGo: (String) -> Unit, onOpen: (Map<String, Any?>) -> Unit, onLog
                     showFirstGuide = false
                 }
             }
-            if (subscriptionExpired && (type == "doctor" || type == "clinic")) {
+            if (subscriptionExpired && !showFirstGuide && (type == "doctor" || type == "clinic")) {
                 AlertDialog(
                     onDismissRequest = { },
                     icon = { Icon(Icons.Filled.EventBusy, contentDescription = null, tint = Red) },
