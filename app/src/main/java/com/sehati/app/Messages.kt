@@ -53,9 +53,7 @@ fun openConversation(
             }
             val id = convIdOf(doctorId, uid)
             val ref = bDb.collection("conversations").document(id)
-            // لا نقرأ وثيقة غير موجودة أولاً: قواعد Firestore تسمح بقراءة محادثة
-            // موجودة للمشارك، لكنها لا تسمح بقراءة وثيقة غير موجودة.
-            // نحاول الإنشاء مباشرة؛ وإذا كانت المحادثة موجودة مسبقاً نقرأها بعد فشل الإنشاء.
+            // نتحقق من وجود المحادثة أولاً؛ القواعد تسمح للمريض بالتحقق من معرّف محادثته غير الموجودة دون كشف أي بيانات.
             ref.get().addOnSuccessListener { existing ->
                 if (existing.exists()) {
                     onReady(id)
