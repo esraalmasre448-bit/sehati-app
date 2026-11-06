@@ -266,6 +266,7 @@ fun MainShell(onGo: (String) -> Unit, onOpen: (Map<String, Any?>) -> Unit, onLog
     var name by remember { mutableStateOf("") }
     var type by remember { mutableStateOf("") }
     var isAdmin by remember { mutableStateOf(false) }
+    var showFirstGuide by remember { mutableStateOf(false) }
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val uid = auth.currentUser?.uid ?: ""
     val email = auth.currentUser?.email ?: ""
@@ -274,6 +275,17 @@ fun MainShell(onGo: (String) -> Unit, onOpen: (Map<String, Any?>) -> Unit, onLog
             db.collection("users").document(id).get().addOnSuccessListener { d ->
                 name = d.getString("name") ?: ""
                 type = d.getString("accountType") ?: ""
+                val prefs = ctx.getSharedPreferences("sehati_first_run", android.content.Context.MODE_PRIVATE)
+                if (!prefs.getBoolean("guide_seen_$id", false)) showFirstGuide = true
+                if (type == "doctor" || type == "clinic") {
+                    db.collection("doctors").document(id).get().addOnSuccessListener { doctor ->
+                        val complete = doctor.exists() &&
+                            !doctor.getString("name").isNullOrBlank() &&
+                            !doctor.getString("specialty").isNullOrBlank() &&
+                            !doctor.getString("city").isNullOrBlank()
+                        if (!complete) onGo("profile")
+                    }
+                }
             }
             db.collection("config").document("admin").get().addOnSuccessListener { d ->
                 isAdmin = d.getString("uid") == id
@@ -332,6 +344,13 @@ fun MainShell(onGo: (String) -> Unit, onOpen: (Map<String, Any?>) -> Unit, onLog
                 else MyAppointmentsContent(onFind = { onGo("search") })
                 4 -> NotifTab(ns.items, fresh)
                 else -> ProfileTab(name, email, typeLabel, onLogout, onPrivacy = { onGo("privacy") }, isAdmin = isAdmin, onAdmin = { onGo("admin") })
+            }
+            if (showFirstGuide && type.isNotBlank()) {
+                FirstRunGuide(type) {
+                    ctx.getSharedPreferences("sehati_first_run", android.content.Context.MODE_PRIVATE)
+                        .edit().putBoolean("guide_seen_$uid", true).apply()
+                    showFirstGuide = false
+                }
             }
         }
     }
