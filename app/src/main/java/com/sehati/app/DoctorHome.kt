@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -30,7 +31,7 @@ import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FieldValue
 import java.util.Date
 
-private val DTeal = Color(0xFFE5171F)
+private val DTeal = Color(0xFF29BDF4)
 
 /** الصفحة الرئيسية للطبيب. الصفحات الفرعية تُفتح داخلها بحالة محلية. */
 @Composable
@@ -113,13 +114,22 @@ private fun DoctorHomeContent(
         null -> "لم تحددي حالتك بعد"
     }
 
-    Column(
-        Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp)
-    ) {
+    // خلفية الطبيب ثابتة خلف المحتوى، ولا تتحرك مع تمرير البطاقات.
+    Box(Modifier.fillMaxSize()) {
+        Image(
+            painter = painterResource(R.drawable.medical_fixed_background),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize()
+        )
+        Box(Modifier.fillMaxSize().background(Color(0x99040B17)))
+        Column(
+            Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp)
+        ) {
         // الرأس
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Image(painterResource(R.drawable.ic_launcher), null, Modifier.size(40.dp))
@@ -261,6 +271,7 @@ private fun DoctorHomeContent(
                 DoctorServiceCard(Icons.Filled.Group, "قائمة المرضى", Modifier.weight(1f)) { onPatients() }
             }
             DoctorServiceCard(Icons.Filled.Description, "الوصفات الطبية", Modifier.fillMaxWidth()) { onGo("prescriptions") }
+        }
         }
     }
 }
