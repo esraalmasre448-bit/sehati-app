@@ -75,6 +75,8 @@ fun rememberNotifs(uid: String, type: String): NotifState {
     var appts by remember(uid, type) { mutableStateOf(listOf<Map<String, Any?>>()) }
     var prescriptions by remember(uid, type) { mutableStateOf(listOf<Map<String, Any?>>()) }
     var prescriptionsLoaded by remember(uid, type) { mutableStateOf(isDoc) }
+    var conversations by remember(uid, type) { mutableStateOf(listOf<Map<String, Any?>>()) }
+    var conversationsLoaded by remember(uid, type) { mutableStateOf(false) }
     var loaded by remember(uid, type) { mutableStateOf(false) }
     val queues: SnapshotStateMap<String, Long> = remember(uid, type) { mutableStateMapOf() }
     val today = remember { todayKey() }
@@ -98,7 +100,15 @@ fun rememberNotifs(uid: String, type: String): NotifState {
                     }
                 }
         } else null
-        onDispose { reg.remove(); rxReg?.remove() }
+        val convField = if (isDoc) "doctorId" else "patientId"
+        val convReg = bDb.collection("conversations").whereEqualTo(convField, uid).limit(100)
+            .addSnapshotListener { s, e ->
+                if (e == null) {
+                    conversations = s?.documents?.map { it.data.orEmpty() + ("id" to it.id) }.orEmpty()
+                    conversationsLoaded = true
+                }
+            }
+        onDispose { reg.remove(); rxReg?.remove(); convReg.remove() }
     }
 
     val queueIds = if (isDoc) emptyList() else appts
@@ -153,6 +163,25 @@ fun rememberNotifs(uid: String, type: String): NotifState {
             }
         }
     }
+    for (conversation in conversations) {
+        val senderId = conversation["lastSenderId"]?.toString().orEmpty()
+        val message = conversation["lastMessage"]?.toString().orEmpty()
+        if (senderId.isNotBlank() && senderId != uid && message.isNotBlank()) {
+            val id = conversation["id"]?.toString().orEmpty()
+            val other = if (isDoc) conversation["patientName"]?.toString().orEmpty()
+                else conversation["doctorName"]?.toString().orEmpty()
+            val ts = (conversation["lastAt"] as? Timestamp)?.toDate()?.time ?: 0L
+            out.add(
+                Notif(
+                    "message:$id:$ts",
+                    "رسالة جديدة من ${other.ifBlank { "مستخدم" }}",
+                    message,
+                    ts,
+                    false
+                )
+            )
+        }
+    }
     if (!isDoc) {
         for (p in prescriptions) {
             val id = p["id"]?.toString().orEmpty()
@@ -173,8 +202,8 @@ fun rememberNotifs(uid: String, type: String): NotifState {
     val ctx = LocalContext.current
     var known by remember(uid, type) { mutableStateOf<Set<String>?>(null) }
     val keysNow = out.map { it.key }.toSet()
-    LaunchedEffect(keysNow, loaded, prescriptionsLoaded) {
-        if (!loaded || !prescriptionsLoaded) return@LaunchedEffect
+    LaunchedEffect(keysNow, loaded, prescriptionsLoaded, conversationsLoaded) {
+        if (!loaded || !prescriptionsLoaded || !conversationsLoaded) return@LaunchedEffect
         val k = known
         if (k == null) {
             known = keysNow
