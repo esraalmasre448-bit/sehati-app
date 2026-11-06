@@ -114,15 +114,8 @@ private fun DoctorHomeContent(
         null -> "لم تحددي حالتك بعد"
     }
 
-    // خلفية الطبيب ثابتة خلف المحتوى، ولا تتحرك مع تمرير البطاقات.
-    Box(Modifier.fillMaxSize()) {
-        Image(
-            painter = painterResource(R.drawable.medical_fixed_background),
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize()
-        )
-        Box(Modifier.fillMaxSize().background(Color(0x99040B17)))
+    // الخلفية الثابتة موضوعة على مستوى التطبيق؛ نضيف تعتيماً خفيفاً للطبيب فقط.
+    Box(Modifier.fillMaxSize().background(Color(0x55040B17))) {
         Column(
             Modifier
                 .fillMaxSize()
