@@ -39,8 +39,16 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
-    buildFeatures { compose = true }
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
     composeOptions { kotlinCompilerExtensionVersion = "1.5.14" }
+    val pushWorkerUrl = (System.getenv("PUSH_WORKER_URL") ?: "")
+        .replace("\\", "\\\\").replace("\"", "\\\"")
+    defaultConfig {
+        buildConfigField("String", "PUSH_WORKER_URL", "\"$pushWorkerUrl\"")
+    }
 }
 dependencies {
     implementation(platform("androidx.compose:compose-bom:2024.06.00"))
@@ -51,4 +59,5 @@ dependencies {
     implementation(platform("com.google.firebase:firebase-bom:33.1.2"))
     implementation("com.google.firebase:firebase-auth-ktx")
     implementation("com.google.firebase:firebase-firestore-ktx")
+    implementation("com.google.firebase:firebase-messaging")
 }
