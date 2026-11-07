@@ -58,8 +58,20 @@ private val auth get() = FirebaseAuth.getInstance()
 private val db get() = FirebaseFirestore.getInstance()
 
 class MainActivity : ComponentActivity() {
+    var pendingConversationId by mutableStateOf<String?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        pendingConversationId = intent.getStringExtra("open_conv_id") ?: intent.getStringExtra("convId")
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        pendingConversationId = intent.getStringExtra("open_conv_id") ?: intent.getStringExtra("convId")
+    }
+
+
         setContent {
             val scheme = darkColorScheme(
                 primary = Red, onPrimary = OnAccent, secondary = Red,
@@ -114,6 +126,17 @@ fun App() {
         }
     }
     val ctx = androidx.compose.ui.platform.LocalContext.current
+    LaunchedEffect(loggedIn) {
+        if (loggedIn) PushTokenManager.sync(ctx)
+    }
+    val pendingConversation = (ctx as? MainActivity)?.pendingConversationId
+    LaunchedEffect(pendingConversation) {
+        if (!pendingConversation.isNullOrBlank()) {
+            chatId = pendingConversation
+            screen = "chat"
+            (ctx as? MainActivity)?.pendingConversationId = null
+        }
+    }
     var locked by remember { mutableStateOf(AppLockStore.enabled(ctx) && auth.currentUser != null) }
     val owner = androidx.compose.ui.platform.LocalLifecycleOwner.current
     DisposableEffect(owner) {
@@ -145,11 +168,13 @@ fun App() {
         loggedIn && locked -> LockScreen(
             onUnlock = { locked = false },
             onForgot = {
-                AppLockStore.clear(ctx)
-                auth.signOut()
-                loggedIn = false
-                locked = false
-                screen = "main"
+                PushTokenManager.unregister(ctx) {
+                    AppLockStore.clear(ctx)
+                    auth.signOut()
+                    loggedIn = false
+                    locked = false
+                    screen = "main"
+                }
             }
         )
         !loggedIn -> AuthFlow { loggedIn = true }
@@ -198,11 +223,13 @@ fun App() {
                 else { if (it == "search") initialQuery = ""; screen = it }
             },
             onLogout = {
-                AppLockStore.clear(ctx)
-                auth.signOut()
-                loggedIn = false
-                locked = false
-                screen = "main"
+                PushTokenManager.unregister(ctx) {
+                    AppLockStore.clear(ctx)
+                    auth.signOut()
+                    loggedIn = false
+                    locked = false
+                    screen = "main"
+                }
             }
         )
     }
