@@ -63,15 +63,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         pendingConversationId = intent.getStringExtra("open_conv_id") ?: intent.getStringExtra("convId")
-    }
-
-    override fun onNewIntent(intent: android.content.Intent) {
-        super.onNewIntent(intent)
-        setIntent(intent)
-        pendingConversationId = intent.getStringExtra("open_conv_id") ?: intent.getStringExtra("convId")
-    }
-
-
         setContent {
             val scheme = darkColorScheme(
                 primary = Red, onPrimary = OnAccent, secondary = Red,
@@ -81,20 +72,24 @@ class MainActivity : ComponentActivity() {
             )
             MaterialTheme(colorScheme = scheme) {
                 Box(Modifier.fillMaxSize()) {
-                    // خلفية طبية ثابتة على مستوى نافذة التطبيق؛ لا تتحرك مع محتوى الأقسام.
+                    // الخلفية الطبية ثابتة خلف جميع أقسام التطبيق.
                     Image(
                         painter = painterResource(R.drawable.medical_fixed_background),
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize()
                     )
-                    // الخلفية شفافة جزئياً فقط؛ عناصر الواجهة والنصوص تبقى بوضوحها الكامل.
                     Surface(Modifier.fillMaxSize(), color = Color.Transparent) { App() }
                 }
             }
         }
-        // اطلب إذن الإشعارات بعد تجهيز واجهة التطبيق، مرة واحدة على Android 13+.
         NotificationPermission.prepareAndRequest(this)
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        pendingConversationId = intent.getStringExtra("open_conv_id") ?: intent.getStringExtra("convId")
     }
 }
 
