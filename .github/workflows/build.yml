@@ -12,6 +12,7 @@ on:
       - main
 env:
   KS_PASS: ${{ secrets.KS_PASS }}
+  PUSH_WORKER_URL: ${{ secrets.PUSH_WORKER_URL }}
 permissions:
   contents: write
 jobs:
