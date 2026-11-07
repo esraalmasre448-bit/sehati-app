@@ -133,7 +133,8 @@ fun ChatScreen(convId: String, onBack: () -> Unit) {
         sendErr = ""
         val db = bDb
         val batch = db.batch()
-        batch.set(db.collection("messages").document(), mapOf(
+        val messageRef = db.collection("messages").document()
+        batch.set(messageRef, mapOf(
             "convId" to convId,
             "senderId" to uid,
             "text" to text,
@@ -145,7 +146,11 @@ fun ChatScreen(convId: String, onBack: () -> Unit) {
             "lastAt" to FieldValue.serverTimestamp()
         ))
         batch.commit()
-            .addOnSuccessListener { input = ""; sending = false }
+            .addOnSuccessListener {
+                input = ""
+                sending = false
+                PushSender.sendAfterMessage(convId, messageRef.id)
+            }
             .addOnFailureListener { sending = false; sendErr = "تعذر الإرسال، تحقق من الإنترنت" }
     }
 
