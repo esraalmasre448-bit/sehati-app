@@ -3,6 +3,9 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("com.google.gms.google-services")
 }
+val pushWorkerUrl = (System.getenv("PUSH_WORKER_URL") ?: "")
+    .replace("\\", "\\\\").replace("\"", "\\\"")
+
 android {
     namespace = "com.sehati.app"
     compileSdk = 34
@@ -12,6 +15,7 @@ android {
         targetSdk = 34
         versionCode = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
         versionName = "1.0." + (System.getenv("GITHUB_RUN_NUMBER") ?: "0")
+        buildConfigField("String", "PUSH_WORKER_URL", "\"$pushWorkerUrl\"")
     }
     signingConfigs {
         create("fixed") {
@@ -44,11 +48,6 @@ android {
         buildConfig = true
     }
     composeOptions { kotlinCompilerExtensionVersion = "1.5.14" }
-    val pushWorkerUrl = (System.getenv("PUSH_WORKER_URL") ?: "")
-        .replace("\\", "\\\\").replace("\"", "\\\"")
-    defaultConfig {
-        buildConfigField("String", "PUSH_WORKER_URL", "\"$pushWorkerUrl\"")
-    }
 }
 dependencies {
     implementation(platform("androidx.compose:compose-bom:2024.06.00"))
