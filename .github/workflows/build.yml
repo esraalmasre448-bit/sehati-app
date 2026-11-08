@@ -87,6 +87,7 @@ jobs:
       - name: Prepare direct APK
         run: cp app/build/outputs/apk/release/*.apk sehati.apk
       - name: Upload signed APK build artifact
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: sehati-release-apk-${{ github.run_number }}
