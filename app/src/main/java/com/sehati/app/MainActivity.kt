@@ -94,16 +94,16 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun NotificationWatcher() {
-    val uid = auth.currentUser?.uid.orEmpty()
+private fun NotificationWatcher(uid: String): NotifState {
     var type by remember(uid) { mutableStateOf("") }
     LaunchedEffect(uid) {
+        type = ""
         if (uid.isNotBlank()) {
             db.collection("users").document(uid).get()
                 .addOnSuccessListener { type = it.getString("accountType").orEmpty() }
         }
     }
-    rememberNotifs(uid, type)
+    return rememberNotifs(uid, type)
 }
 
 @Composable
@@ -121,6 +121,7 @@ fun App() {
         }
     }
     val ctx = androidx.compose.ui.platform.LocalContext.current
+    val notificationState = NotificationWatcher(if (loggedIn) auth.currentUser?.uid.orEmpty() else "")
     LaunchedEffect(loggedIn) {
         if (loggedIn) PushTokenManager.sync(ctx)
     }
@@ -156,7 +157,6 @@ fun App() {
             else -> "main"
         }
     }
-    if (loggedIn && !locked && screen != "main") NotificationWatcher()
     val sel = selected
     when {
         splash -> Splash()
@@ -212,6 +212,7 @@ fun App() {
             convId = chatId, onBack = { screen = "messages" }
         )
         else -> MainShell(
+            notificationState = notificationState,
             onOpen = { selected = it; screen = "detail" },
             onGo = {
                 if (it.startsWith("search:")) { initialQuery = it.removePrefix("search:"); screen = "search" }
@@ -297,7 +298,7 @@ fun Splash() {
 }
 
 @Composable
-fun MainShell(onGo: (String) -> Unit, onOpen: (Map<String, Any?>) -> Unit, onLogout: () -> Unit) {
+fun MainShell(notificationState: NotifState, onGo: (String) -> Unit, onOpen: (Map<String, Any?>) -> Unit, onLogout: () -> Unit) {
     var tab by remember { mutableIntStateOf(0) }
     var name by remember { mutableStateOf("") }
     var type by remember { mutableStateOf("") }
@@ -347,7 +348,7 @@ fun MainShell(onGo: (String) -> Unit, onOpen: (Map<String, Any?>) -> Unit, onLog
             onDispose { registration.remove() }
         }
     }
-    val ns = rememberNotifs(uid, type)
+    val ns = notificationState
     var seen by remember(uid) { mutableStateOf(loadSeen(ctx, uid)) }
     var fresh by remember { mutableStateOf(setOf<String>()) }
     LaunchedEffect(ns.loaded, ns.items.size) {
