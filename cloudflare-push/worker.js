@@ -119,8 +119,7 @@ async function sendFcm(projectId, accessToken, token, title, body, convId, messa
       body: JSON.stringify({
         message: {
           token,
-          notification: { title, body },
-          data: { type: "chat", convId, messageId },
+          data: { type: "chat", title, body, convId, messageId },
           android: {
             priority: "HIGH",
             notification: { channel_id: "sehati_general", sound: "default" }
