@@ -5,6 +5,7 @@ import android.app.Activity
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.graphics.BitmapFactory
 import android.content.pm.PackageManager
 import android.media.RingtoneManager
 import android.os.Build
@@ -87,7 +88,8 @@ private fun postLocalNotification(ctx: Context, id: Int, title: String, body: St
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     )
     val notification = NotificationCompat.Builder(ctx, "sehati_general")
-        .setSmallIcon(R.drawable.ic_launcher)
+        .setSmallIcon(R.drawable.ic_stat_sehati)
+        .setLargeIcon(BitmapFactory.decodeResource(ctx.resources, R.drawable.ic_launcher))
         .setContentTitle(title)
         .setContentText(body)
         .setContentIntent(pending)
