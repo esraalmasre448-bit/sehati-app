@@ -128,8 +128,8 @@ class SehatiMessagingService : FirebaseMessagingService() {
 
     override fun onMessageReceived(message: RemoteMessage) {
         super.onMessageReceived(message)
-        val title = message.notification?.title ?: "رسالة جديدة"
-        val body = message.notification?.body ?: "وصلتك رسالة جديدة"
+        val title = message.data["title"] ?: message.notification?.title ?: "رسالة جديدة"
+        val body = message.data["body"] ?: message.notification?.body ?: "وصلتك رسالة جديدة"
         val convId = message.data["convId"].orEmpty()
 
         val open = Intent(this, MainActivity::class.java).apply {
