@@ -3,6 +3,7 @@ package com.sehati.app
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.graphics.BitmapFactory
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -143,6 +144,7 @@ class SehatiMessagingService : FirebaseMessagingService() {
         )
         val notification = NotificationCompat.Builder(this, "sehati_general")
             .setSmallIcon(R.drawable.ic_stat_sehati)
+            .setLargeIcon(BitmapFactory.decodeResource(resources, R.drawable.ic_launcher))
             .setContentTitle(title)
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
