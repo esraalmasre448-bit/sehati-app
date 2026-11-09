@@ -232,27 +232,39 @@ fun rememberNotifs(uid: String, type: String): NotifState {
         }
     }
     val ctx = LocalContext.current
-    var known by remember(uid, type) { mutableStateOf<Set<String>?>(null) }
     val keysNow = out.map { it.key }.toSet()
+    val notifiedPrefs = remember(uid, type) {
+        ctx.getSharedPreferences("sehati_notif", Context.MODE_PRIVATE)
+    }
+    val notifiedKey = "notified_${uid}_${type}"
     LaunchedEffect(keysNow, loaded, prescriptionsLoaded, conversationsLoaded) {
         if (!loaded || !prescriptionsLoaded || !conversationsLoaded) return@LaunchedEffect
-        val k = known
-        if (k == null) {
-            known = keysNow
-        } else {
-            val added = (keysNow - k).filter { isDoc || !it.endsWith(":C") }
-            known = keysNow
-            // إشعارات الرسائل تأتي عبر FCM حتى عندما يكون التطبيق مغلقاً؛
-            // لا نكررها محلياً هنا عند فتح التطبيق.
-            val localAdded = added.filterNot { it.startsWith("message:") }
-            if (localAdded.isNotEmpty()) {
-                localAdded.forEach { key ->
-                    out.firstOrNull { it.key == key }?.let { item ->
-                        postLocalNotification(ctx, key.hashCode(), item.title, item.body)
-                    }
+
+        // Persist handled notification keys to prevent repeated sounds when
+        // navigating between screens, recreating composables, or reopening the app.
+        val saved = notifiedPrefs.getStringSet(notifiedKey, null)
+        val previous = saved?.toSet()
+        if (previous == null) {
+            notifiedPrefs.edit().putStringSet(notifiedKey, keysNow).apply()
+            return@LaunchedEffect
+        }
+
+        val added = (keysNow - previous).filter { isDoc || !it.endsWith(":C") }
+        val allHandled = previous + keysNow
+        notifiedPrefs.edit()
+            .putStringSet(notifiedKey, allHandled.toList().takeLast(600).toSet())
+            .apply()
+
+        // Chat messages arrive through FCM; do not duplicate them locally.
+        val localAdded = added.filterNot { it.startsWith("message:") }
+        if (localAdded.isNotEmpty()) {
+            localAdded.forEach { key ->
+                out.firstOrNull { it.key == key }?.let { item ->
+                    postLocalNotification(ctx, key.hashCode(), item.title, item.body)
                 }
-                playTone(ctx)
             }
+            // Play the selected notification tone only once per batch.
+            playTone(ctx)
         }
     }
     return NotifState(out.sortedByDescending { it.ts }, loaded)
