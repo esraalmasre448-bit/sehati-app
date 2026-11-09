@@ -4,16 +4,22 @@ This Worker sends Firebase Cloud Messaging (FCM) notifications after an authenti
 
 ## One-time setup
 
-1. Create a free Cloudflare account and create a Worker named `sehati-chat-push`.
-2. Deploy `worker.js` as the Worker source. The endpoint used by the app is `https://YOUR-WORKER.YOUR-SUBDOMAIN.workers.dev/send`.
-3. In Firebase Console, open Project settings → Service accounts → Generate new private key. Keep the downloaded JSON private; never commit it or send it in chat.
-4. In Google Cloud Console for the same Firebase project, enable the **Firebase Cloud Messaging API**. Give the service account the permissions needed to read Firestore documents and send FCM messages (Cloud Datastore access plus Firebase Cloud Messaging API send permission). Use a dedicated service account with the minimum required roles where possible.
-5. In the Cloudflare Worker settings, add these variables/secrets:
-   - Secret `FIREBASE_SERVICE_ACCOUNT_JSON`: paste the complete service-account JSON.
-   - Variable `FIREBASE_PROJECT_ID`: the Firebase project ID (from Project settings).
-   - Variable `FIREBASE_WEB_API_KEY`: the Web API key from Project settings → General → Your apps (this is the app's public Firebase API key).
-6. In GitHub → Settings → Secrets and variables → Actions, add repository secret `PUSH_WORKER_URL` with the Worker base URL, for example `https://sehati-chat-push.example.workers.dev` (no `/send` suffix).
-7. Run the Build APK workflow on the feature branch after the Worker and secret are configured. The Android app embeds only the public Worker URL; the service-account private key stays in Cloudflare.
+The repository includes a GitHub Actions workflow that deploys the Worker for you. You do not need to paste or edit the Worker source in the Cloudflare dashboard.
+
+1. Create a free Cloudflare account and open **My Profile → API Tokens → Create Token**. Use a custom token with the minimum required account permissions: **Workers Scripts: Edit** and **Account Settings: Read**. Restrict it to the account that will host Sehati's Worker.
+2. Copy the Cloudflare **Account ID** from the account's Workers & Pages overview.
+3. In Firebase Console, open **Project settings → Service accounts → Generate new private key**. Keep the downloaded JSON private; never commit it or send it in chat.
+4. In Google Cloud Console for the same Firebase project, enable the **Firebase Cloud Messaging API**. Give the service account the minimum roles needed to read Firestore and send FCM messages (Cloud Datastore User and Firebase Cloud Messaging API Admin). Do not grant Owner or Editor.
+5. In GitHub → **Settings → Secrets and variables → Actions**, add these repository secrets:
+   - `CLOUDFLARE_API_TOKEN`: the token from step 1.
+   - `CLOUDFLARE_ACCOUNT_ID`: the Account ID from step 2.
+   - `FIREBASE_SERVICE_ACCOUNT_JSON`: the complete downloaded service-account JSON.
+   - `FIREBASE_PROJECT_ID`: the Firebase project ID. It must match the `project_id` inside the service-account JSON.
+   - `FIREBASE_WEB_API_KEY`: the Web API key from Firebase Project settings → General → Your apps.
+6. In GitHub → **Actions**, run **Deploy Chat Push Worker** on `main`. The workflow validates the inputs, deploys `cloudflare-push/worker.js`, and stores the Firebase values as encrypted Worker secrets. It never prints the service-account JSON.
+7. Open the successful deployment run and copy the Worker base URL shown in the Wrangler deployment output. It looks like `https://sehati-chat-push.YOUR-SUBDOMAIN.workers.dev`.
+8. Back in GitHub → **Settings → Secrets and variables → Actions**, add repository secret `PUSH_WORKER_URL` with that base URL **without** the `/send` suffix.
+9. Run **Build APK** on `main`. This embeds only the public Worker URL in the APK; the service-account private key remains in Cloudflare.
 
 ## What it does
 
@@ -21,13 +27,14 @@ This Worker sends Firebase Cloud Messaging (FCM) notifications after an authenti
 - Reads the referenced message and conversation using the service account.
 - Verifies that the authenticated sender is a participant in that conversation and owns the message.
 - Finds all registered FCM devices for the other participant and sends a high-priority notification.
-- Uses the existing `sehati_general` Android notification channel, which already has sound and vibration.
+- Uses the existing `sehati_general` Android notification channel, which has sound and vibration.
 - Does not expose service-account credentials or let a client choose an arbitrary recipient.
 
 ## Important
 
 - FCM delivery is free. Cloudflare Workers has a free tier, subject to Cloudflare's current limits.
-- The Firestore service account is privileged. Store it only as a Cloudflare Worker secret and restrict/delete the key if it is ever exposed.
-- The app registers one token per installation in `fcmTokens`. The Firestore rules in this branch restrict each user to their own token documents.
-- Android 13+ requires notification permission. The app already requests it; users must allow it in Android settings.
-- The push relay is not active until the Worker is deployed and the GitHub Actions secret `PUSH_WORKER_URL` is set.
+- The Firestore service account is privileged. Store its JSON only as a GitHub Actions secret used by the deployment workflow, which installs it as a Cloudflare Worker secret. Never commit it or paste it into chat.
+- If the key is ever exposed, revoke it in Google Cloud immediately and generate a replacement.
+- The app registers one token per installation in `fcmTokens`; the Firestore rules restrict each user to their own token documents.
+- Android 13+ requires notification permission. Users must allow it in Android settings.
+- Chat push delivery is not active until the Worker is deployed, `PUSH_WORKER_URL` is saved, and a release APK is built with that URL.
