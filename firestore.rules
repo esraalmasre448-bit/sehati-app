@@ -7,8 +7,11 @@ service cloud.firestore {
    return signedIn() && exists(adminDoc()) && get(adminDoc()).data.uid == request.auth.uid;
   }
   function subActive(uid) {
-   let s = get(/databases/$(database)/documents/subscriptions/$(uid)).data;
-   return s.status == 'ACTIVE' && s.expiresAt > request.time;
+   let p = /databases/$(database)/documents/subscriptions/$(uid);
+   return exists(p)
+    && get(p).data.status == 'ACTIVE'
+    && get(p).data.expiresAt is timestamp
+    && get(p).data.expiresAt > request.time;
   }
   function doctorApproved(uid) {
    return exists(/databases/$(database)/documents/doctors/$(uid))
