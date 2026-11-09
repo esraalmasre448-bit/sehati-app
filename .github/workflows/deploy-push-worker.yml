@@ -1,0 +1,72 @@
+name: Deploy Chat Push Worker
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+      FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+      FIREBASE_WEB_API_KEY: ${{ secrets.FIREBASE_WEB_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Validate required deployment secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          for key in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID FIREBASE_SERVICE_ACCOUNT_JSON FIREBASE_PROJECT_ID FIREBASE_WEB_API_KEY; do
+            if [[ -z "${!key}" ]]; then
+              echo "::error::Missing GitHub Actions secret: $key"
+              exit 1
+            fi
+          done
+          python3 - <<'PY'
+          import json, os, sys
+          try:
+              data = json.loads(os.environ["FIREBASE_SERVICE_ACCOUNT_JSON"])
+          except Exception:
+              print("::error::FIREBASE_SERVICE_ACCOUNT_JSON is not valid JSON")
+              sys.exit(1)
+          required = ("client_email", "private_key", "token_uri", "project_id")
+          if any(not data.get(key) for key in required):
+              print("::error::Firebase service account JSON is missing required fields")
+              sys.exit(1)
+          if data["project_id"] != os.environ["FIREBASE_PROJECT_ID"]:
+              print("::error::FIREBASE_PROJECT_ID does not match the service account project_id")
+              sys.exit(1)
+          print("Firebase service account JSON validated; secret contents were not printed.")
+          PY
+
+      - name: Install Wrangler
+        run: npm install --global wrangler@4
+
+      - name: Deploy Worker
+        run: wrangler deploy --config cloudflare-push/wrangler.toml
+
+      - name: Configure Firebase Worker secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" | wrangler secret put FIREBASE_SERVICE_ACCOUNT_JSON --config cloudflare-push/wrangler.toml
+          printf '%s' "$FIREBASE_PROJECT_ID" | wrangler secret put FIREBASE_PROJECT_ID --config cloudflare-push/wrangler.toml
+          printf '%s' "$FIREBASE_WEB_API_KEY" | wrangler secret put FIREBASE_WEB_API_KEY --config cloudflare-push/wrangler.toml
+
+      - name: Deployment summary
+        run: |
+          {
+            echo "## Sehati chat push Worker"
+            echo "Worker deployment completed."
+            echo "Copy the workers.dev URL shown in the Deploy Worker step, then save it as the GitHub Actions secret PUSH_WORKER_URL (without the /send suffix)."
+          } >> "$GITHUB_STEP_SUMMARY"
