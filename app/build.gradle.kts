@@ -3,6 +3,9 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("com.google.gms.google-services")
 }
+val pushWorkerUrl = (System.getenv("PUSH_WORKER_URL") ?: "")
+    .replace("\\", "\\\\").replace("\"", "\\\"")
+
 android {
     namespace = "com.sehati.app"
     compileSdk = 34
@@ -12,6 +15,7 @@ android {
         targetSdk = 34
         versionCode = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
         versionName = "1.0." + (System.getenv("GITHUB_RUN_NUMBER") ?: "0")
+        buildConfigField("String", "PUSH_WORKER_URL", "\"$pushWorkerUrl\"")
     }
     signingConfigs {
         create("fixed") {
@@ -39,7 +43,10 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
-    buildFeatures { compose = true }
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
     composeOptions { kotlinCompilerExtensionVersion = "1.5.14" }
 }
 dependencies {
@@ -51,4 +58,5 @@ dependencies {
     implementation(platform("com.google.firebase:firebase-bom:33.1.2"))
     implementation("com.google.firebase:firebase-auth-ktx")
     implementation("com.google.firebase:firebase-firestore-ktx")
+    implementation("com.google.firebase:firebase-messaging")
 }

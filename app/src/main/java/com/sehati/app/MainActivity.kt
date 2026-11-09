@@ -58,8 +58,11 @@ private val auth get() = FirebaseAuth.getInstance()
 private val db get() = FirebaseFirestore.getInstance()
 
 class MainActivity : ComponentActivity() {
+    var pendingConversationId by mutableStateOf<String?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        pendingConversationId = intent.getStringExtra("open_conv_id") ?: intent.getStringExtra("convId")
         setContent {
             val scheme = darkColorScheme(
                 primary = Red, onPrimary = OnAccent, secondary = Red,
@@ -69,34 +72,38 @@ class MainActivity : ComponentActivity() {
             )
             MaterialTheme(colorScheme = scheme) {
                 Box(Modifier.fillMaxSize()) {
-                    // خلفية طبية ثابتة على مستوى نافذة التطبيق؛ لا تتحرك مع محتوى الأقسام.
+                    // الخلفية الطبية ثابتة خلف جميع أقسام التطبيق.
                     Image(
                         painter = painterResource(R.drawable.medical_fixed_background),
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize()
                     )
-                    // الخلفية شفافة جزئياً فقط؛ عناصر الواجهة والنصوص تبقى بوضوحها الكامل.
                     Surface(Modifier.fillMaxSize(), color = Color.Transparent) { App() }
                 }
             }
         }
-        // اطلب إذن الإشعارات بعد تجهيز واجهة التطبيق، مرة واحدة على Android 13+.
         NotificationPermission.prepareAndRequest(this)
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        pendingConversationId = intent.getStringExtra("open_conv_id") ?: intent.getStringExtra("convId")
     }
 }
 
 @Composable
-private fun NotificationWatcher() {
-    val uid = auth.currentUser?.uid.orEmpty()
+private fun NotificationWatcher(uid: String): NotifState {
     var type by remember(uid) { mutableStateOf("") }
     LaunchedEffect(uid) {
+        type = ""
         if (uid.isNotBlank()) {
             db.collection("users").document(uid).get()
                 .addOnSuccessListener { type = it.getString("accountType").orEmpty() }
         }
     }
-    rememberNotifs(uid, type)
+    return rememberNotifs(uid, type)
 }
 
 @Composable
@@ -114,6 +121,18 @@ fun App() {
         }
     }
     val ctx = androidx.compose.ui.platform.LocalContext.current
+    val notificationState = NotificationWatcher(if (loggedIn) auth.currentUser?.uid.orEmpty() else "")
+    LaunchedEffect(loggedIn) {
+        if (loggedIn) PushTokenManager.sync(ctx)
+    }
+    val pendingConversation = (ctx as? MainActivity)?.pendingConversationId
+    LaunchedEffect(pendingConversation) {
+        if (!pendingConversation.isNullOrBlank()) {
+            chatId = pendingConversation
+            screen = "chat"
+            (ctx as? MainActivity)?.pendingConversationId = null
+        }
+    }
     var locked by remember { mutableStateOf(AppLockStore.enabled(ctx) && auth.currentUser != null) }
     val owner = androidx.compose.ui.platform.LocalLifecycleOwner.current
     DisposableEffect(owner) {
@@ -138,18 +157,19 @@ fun App() {
             else -> "main"
         }
     }
-    if (loggedIn && !locked && screen != "main") NotificationWatcher()
     val sel = selected
     when {
         splash -> Splash()
         loggedIn && locked -> LockScreen(
             onUnlock = { locked = false },
             onForgot = {
-                AppLockStore.clear(ctx)
-                auth.signOut()
-                loggedIn = false
-                locked = false
-                screen = "main"
+                PushTokenManager.unregister(ctx) {
+                    AppLockStore.clear(ctx)
+                    auth.signOut()
+                    loggedIn = false
+                    locked = false
+                    screen = "main"
+                }
             }
         )
         !loggedIn -> AuthFlow { loggedIn = true }
@@ -192,17 +212,20 @@ fun App() {
             convId = chatId, onBack = { screen = "messages" }
         )
         else -> MainShell(
+            notificationState = notificationState,
             onOpen = { selected = it; screen = "detail" },
             onGo = {
                 if (it.startsWith("search:")) { initialQuery = it.removePrefix("search:"); screen = "search" }
                 else { if (it == "search") initialQuery = ""; screen = it }
             },
             onLogout = {
-                AppLockStore.clear(ctx)
-                auth.signOut()
-                loggedIn = false
-                locked = false
-                screen = "main"
+                PushTokenManager.unregister(ctx) {
+                    AppLockStore.clear(ctx)
+                    auth.signOut()
+                    loggedIn = false
+                    locked = false
+                    screen = "main"
+                }
             }
         )
     }
@@ -275,7 +298,7 @@ fun Splash() {
 }
 
 @Composable
-fun MainShell(onGo: (String) -> Unit, onOpen: (Map<String, Any?>) -> Unit, onLogout: () -> Unit) {
+fun MainShell(notificationState: NotifState, onGo: (String) -> Unit, onOpen: (Map<String, Any?>) -> Unit, onLogout: () -> Unit) {
     var tab by remember { mutableIntStateOf(0) }
     var name by remember { mutableStateOf("") }
     var type by remember { mutableStateOf("") }
@@ -325,7 +348,7 @@ fun MainShell(onGo: (String) -> Unit, onOpen: (Map<String, Any?>) -> Unit, onLog
             onDispose { registration.remove() }
         }
     }
-    val ns = rememberNotifs(uid, type)
+    val ns = notificationState
     var seen by remember(uid) { mutableStateOf(loadSeen(ctx, uid)) }
     var fresh by remember { mutableStateOf(setOf<String>()) }
     LaunchedEffect(ns.loaded, ns.items.size) {

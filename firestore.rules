@@ -354,6 +354,18 @@ service cloud.firestore {
      || get(/databases/$(database)/documents/conversations/$(request.resource.data.convId)).data.doctorId == request.auth.uid);
    allow update, delete: if false;
   }
+  // رموز FCM خاصة بكل جهاز؛ لا يستطيع المستخدم قراءة أو تعديل رموز الآخرين.
+  match /fcmTokens/{id} {
+   allow read: if signedIn() && resource.data.uid == request.auth.uid;
+   allow create, update: if signedIn()
+    && request.resource.data.keys().hasOnly(['uid','token','updatedAt'])
+    && request.resource.data.uid == request.auth.uid
+    && request.resource.data.token is string
+    && request.resource.data.token.size() > 0
+    && request.resource.data.token.size() <= 4096
+    && request.resource.data.updatedAt == request.time;
+   allow delete: if signedIn() && resource.data.uid == request.auth.uid;
+  }
   match /slots/{id} {
    allow read, create, update: if false;
    allow delete: if signedIn() && (

@@ -49,10 +49,12 @@ fun AdminPaymentScreen(onBack: () -> Unit) {
                 sham = d.getString("sham") ?: ""
                 notes = d.getString("notes") ?: ""
                 qr = d.getString("qr") ?: ""
-                p1 = d.getString("price1") ?: ""
-                p3 = d.getString("price3") ?: ""
-                p6 = d.getString("price6") ?: ""
-                p12 = d.getString("price12") ?: ""
+                // اعتماد قائمة الأسعار الجديدة المتفق عليها (بدون خصومات).
+                // كل قيمة تعرض العملتين لتجنب اختلاف القديمة والجديدة.
+                p1 = "1,000 ليرة سورية جديدة (100,000 ليرة سورية قديمة)"
+                p3 = "3,000 ليرة سورية جديدة (300,000 ليرة سورية قديمة)"
+                p6 = "6,000 ليرة سورية جديدة (600,000 ليرة سورية قديمة)"
+                p12 = "12,000 ليرة سورية جديدة (1,200,000 ليرة سورية قديمة)"
             }
             loaded = true
         }.addOnFailureListener {

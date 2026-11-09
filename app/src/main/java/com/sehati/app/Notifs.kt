@@ -5,6 +5,7 @@ import android.app.Activity
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.graphics.BitmapFactory
 import android.content.pm.PackageManager
 import android.media.RingtoneManager
 import android.os.Build
@@ -87,7 +88,8 @@ private fun postLocalNotification(ctx: Context, id: Int, title: String, body: St
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     )
     val notification = NotificationCompat.Builder(ctx, "sehati_general")
-        .setSmallIcon(R.drawable.ic_launcher)
+        .setSmallIcon(R.drawable.ic_stat_sehati)
+        .setLargeIcon(BitmapFactory.decodeResource(ctx.resources, R.drawable.ic_launcher))
         .setContentTitle(title)
         .setContentText(body)
         .setContentIntent(pending)
@@ -240,13 +242,13 @@ fun rememberNotifs(uid: String, type: String): NotifState {
         } else {
             val added = (keysNow - k).filter { isDoc || !it.endsWith(":C") }
             known = keysNow
-            if (added.isNotEmpty()) {
-                added.forEach { key ->
+            // إشعارات الرسائل تأتي عبر FCM حتى عندما يكون التطبيق مغلقاً؛
+            // لا نكررها محلياً هنا عند فتح التطبيق.
+            val localAdded = added.filterNot { it.startsWith("message:") }
+            if (localAdded.isNotEmpty()) {
+                localAdded.forEach { key ->
                     out.firstOrNull { it.key == key }?.let { item ->
-                        val safeBody = if (key.startsWith("message:"))
-                            "وصلتك رسالة جديدة. افتح التطبيق للاطلاع عليها."
-                        else item.body
-                        postLocalNotification(ctx, key.hashCode(), item.title, safeBody)
+                        postLocalNotification(ctx, key.hashCode(), item.title, item.body)
                     }
                 }
                 playTone(ctx)
