@@ -301,8 +301,8 @@ service cloud.firestore {
     && request.resource.data.patientName.size() <= 120
     && request.resource.data.createdAt == request.time;
    allow update: if false;
-   allow delete: if signedIn() && (resource.data.patientId == request.auth.uid
-    || resource.data.doctorId == request.auth.uid);
+   // الوصفات والسجلات الطبية غير قابلة للحذف من حساب المريض أو الطبيب.
+   allow delete: if false;
   }
   match /conversations/{id} {
    allow read: if signedIn() && (
