@@ -25,11 +25,11 @@ const env = await initializeTestEnvironment({
   }
 });
 
-const patientId = "patient-1";
-const doctorId = "doctor-1";
-const outsiderId = "outsider-1";
-const adminId = "admin-1";
-const unapprovedDoctorId = "doctor-2";
+const patientId = "patient1";
+const doctorId = "doctor1";
+const outsiderId = "outsider1";
+const adminId = "admin1";
+const unapprovedDoctorId = "doctor2";
 const date = "2099-01-01";
 const appointmentId = `${doctorId}_${date}_${patientId}`;
 const conversationId = `${doctorId}_${patientId}`;
