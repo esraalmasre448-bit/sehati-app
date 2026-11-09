@@ -9,6 +9,7 @@ import {
   setDoc,
   updateDoc,
   getDoc,
+  deleteDoc,
   runTransaction,
   serverTimestamp,
   Timestamp
@@ -168,9 +169,8 @@ try {
     text: "tamper"
   }));
   await assertFails(updateDoc(rxRef, { text: "doctor edit" }));
-  await assertFails(updateDoc(doc(patient, "prescriptions", "rx-1"), {
-    deleted: true
-  }));
+  await assertFails(deleteDoc(doc(patient, "prescriptions", "rx-1")));
+  await assertFails(deleteDoc(rxRef));
 
   // An unapproved doctor cannot expose their profile or approve themselves.
   await assertFails(getDoc(doc(patient, "doctors", unapprovedDoctorId)));
