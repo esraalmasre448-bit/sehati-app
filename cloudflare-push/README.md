@@ -12,8 +12,8 @@ The repository includes a GitHub Actions workflow that deploys the Worker for yo
 4. In Firebase Console, open **Project settings → Service accounts → Generate new private key**. Keep the downloaded JSON private; never commit it or send it in chat.
 5. In Google Cloud Console for the same Firebase project, enable the **Firebase Cloud Messaging API**. Give the service account the minimum roles needed to read Firestore and send FCM messages (Cloud Datastore User and Firebase Cloud Messaging API Admin). Do not grant Owner or Editor.
 6. In GitHub → **Settings → Secrets and variables → Actions**, add these repository secrets:
-   - `CLOUDFLARE_API_TOKEN`: the token from step 1.
-   - `CLOUDFLARE_ACCOUNT_ID`: the Account ID from step 2.
+   - `CLOUDFLARE_API_TOKEN`: the token from step 2.
+   - `CLOUDFLARE_ACCOUNT_ID`: the Account ID from step 3.
    - `FIREBASE_SERVICE_ACCOUNT_JSON`: the complete downloaded service-account JSON.
    - `FIREBASE_PROJECT_ID`: the Firebase project ID. It must match the `project_id` inside the service-account JSON.
    - `FIREBASE_WEB_API_KEY`: the Web API key from Firebase Project settings → General → Your apps.
