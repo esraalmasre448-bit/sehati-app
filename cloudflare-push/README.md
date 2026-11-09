@@ -9,8 +9,8 @@ The repository includes a GitHub Actions workflow that deploys the Worker for yo
 1. Create a free Cloudflare account. Open **Workers & Pages → Create → Worker**, name it exactly `sehati-chat-push`, and deploy the starter Worker once. The deployment workflow updates this existing Worker; it does not need permission to create or delete Workers.
 2. Create a Cloudflare API token. Give it **Workers Editor** scoped only to the `sehati-chat-push` Worker (or the legacy **Workers Scripts: Edit** permission scoped to that Worker), plus **Account Settings: Read** if Wrangler requests account metadata. Do not grant account-wide Admin.
 3. Copy the Cloudflare **Account ID** from the account's Workers & Pages overview.
-4. In Firebase Console, open **Project settings → Service accounts → Generate new private key**. Keep the downloaded JSON private; never commit it or send it in chat.
-5. In Google Cloud Console for the same Firebase project, enable the **Firebase Cloud Messaging API**. Give the service account the minimum roles needed to read Firestore and send FCM messages (Cloud Datastore User and Firebase Cloud Messaging API Admin). Do not grant Owner or Editor.
+4. In Google Cloud Console for the same Firebase project, open **IAM & Admin → Service Accounts → Create service account**. Name it `sehati-push-worker`. Create a JSON key for this dedicated account and keep the file private; never commit it or send it in chat. Do not use a broad Owner/Editor service account.
+5. Enable the **Firebase Cloud Messaging API**. Grant the dedicated service account **Cloud Datastore Viewer** (read-only Firestore access) and **Firebase Cloud Messaging API Admin** (permission to send FCM messages). These are the minimum practical predefined roles for this Worker; do not grant Owner or Editor.
 6. In GitHub → **Settings → Secrets and variables → Actions**, add these repository secrets:
    - `CLOUDFLARE_API_TOKEN`: the token from step 2.
    - `CLOUDFLARE_ACCOUNT_ID`: the Account ID from step 3.
