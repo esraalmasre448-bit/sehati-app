@@ -395,8 +395,11 @@ fun DoctorDashboardContent(onBack: (() -> Unit)? = null) {
                             "appointmentId" to (nf["id"] ?: ""), "kind" to noteKind,
                             "text" to noteText.trim(), "createdAt" to FieldValue.serverTimestamp()
                         )
-                    ).addOnSuccessListener { noteBusy = false; noteFor = null }
-                        .addOnFailureListener { noteBusy = false; noteMsg = "تعذر الحفظ، تحقق من الإنترنت واشتراكك" }
+                    ).addOnSuccessListener { saved ->
+                        noteBusy = false
+                        noteFor = null
+                        PushSender.notifyPrescription(saved.id)
+                    }.addOnFailureListener { noteBusy = false; noteMsg = "تعذر الحفظ، تحقق من الإنترنت واشتراكك" }
                 }) { Text("حفظ وإرسال للمريض") }
             },
             dismissButton = { TextButton(enabled = !noteBusy, onClick = { noteFor = null }) { Text("إلغاء") } }
