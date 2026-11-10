@@ -291,13 +291,19 @@ private fun SearchDoctorCard(d: Map<String, Any?>, onClick: () -> Unit) {
             val fee = "${d["fee"] ?: ""}"
             if (fee.isNotBlank()) Text("كشفية: $fee", color = BMuted, fontSize = 12.sp)
         }
-        when (d["available"]) {
-            true -> StatusPill("متاح", BGreen)
-            false -> {
-                val nextShift = nextWorkShiftLabel(d)
-                StatusPill(nextShift ?: "غير متاح", BMuted)
-            }
-            else -> {}
+        val currentPlaceName = d["currentWorkPlaceName"]?.toString().orEmpty()
+            .ifBlank { if (d["currentWorkLocationId"] == "hospital") "المشفى" else "العيادة" }
+        when {
+            d["locationStatus"] == "AT_WORK" -> StatusPill("في $currentPlaceName", BGreen)
+            d["locationStatus"] == "OFFSITE" -> StatusPill(
+                nextWorkShiftLabel(d) ?: "خارج موقعي العمل",
+                BMuted
+            )
+            d["available"] == true -> StatusPill("متاح", BGreen)
+            d["available"] == false -> StatusPill(
+                nextWorkShiftLabel(d) ?: "غير متاح",
+                BMuted
+            )
         }
     }
 }
