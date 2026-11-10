@@ -76,6 +76,16 @@ fun ClinicSettingsScreen(onBack: () -> Unit) {
                         location = if (lat != null && lng != null) "$lat,$lng" else d.getString("mapLink").orEmpty()
                     )
                 }
+                if (key == "hospital") {
+                    val legacyName = d.getString("hospitalName").orEmpty()
+                    val legacyHours = d.getString("hospitalHours").orEmpty()
+                    val match = Regex("""(\\d{1,2})\\s*:?\\s*(?:00)?\\s*[-–]\\s*(\\d{1,2})""").find(legacyHours)
+                    return WorkPlaceDraft(
+                        name = legacyName,
+                        start = match?.groupValues?.get(1) ?: "9",
+                        end = match?.groupValues?.get(2) ?: "17"
+                    )
+                }
                 return WorkPlaceDraft()
             }
             clinic = readPlace("clinic", true)
