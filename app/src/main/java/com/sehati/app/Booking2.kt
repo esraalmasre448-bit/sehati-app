@@ -278,6 +278,7 @@ fun DoctorDashboardContent(onBack: (() -> Unit)? = null) {
                     onClick = {
                         bDb.collection("queues").document("${uid}_$date")
                             .update("current", current + 1)
+                            .addOnSuccessListener { PushSender.notifyQueueAdvanced(date) }
                             .addOnFailureListener { msg = "تعذر تحديث الدور، تحقق من الإنترنت واشتراكك" }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = BRed, contentColor = BOnAccent),
