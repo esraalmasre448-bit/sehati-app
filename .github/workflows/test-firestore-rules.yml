@@ -1,6 +1,9 @@
 name: Test Firestore Rules
 
 on:
+  push:
+    branches:
+      - feature/doctor-workplace-geofencing
   pull_request:
     branches:
       - main
