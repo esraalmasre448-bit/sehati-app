@@ -137,7 +137,7 @@ class DoctorWorkplaceGeofenceReceiver : BroadcastReceiver() {
                         "locationUpdatedAt" to FieldValue.serverTimestamp()
                     )
                 )
-            } else if (currentId in ids) {
+            } else if (!currentId.isNullOrBlank() && ids.contains(currentId)) {
                 ref.update(
                     mapOf(
                         "currentWorkLocationId" to FieldValue.delete(),
