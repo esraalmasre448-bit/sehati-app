@@ -92,7 +92,7 @@ private fun DoctorHomeContent(
                     val list = s.documents.map { it.data.orEmpty() }
                     todayN = list.count { it["date"] == today && it["status"] != "CANCELLED" }
                     newN = list.count {
-                        it["status"] == "CONFIRMED" && (it["createdAt"] as? Timestamp)?.toDate()?.after(dayAgo) == true
+                        it["status"] == "PENDING" && (it["createdAt"] as? Timestamp)?.toDate()?.after(dayAgo) == true
                     }
                 }
             }
