@@ -150,33 +150,39 @@ class DoctorWorkplaceGeofenceReceiver : BroadcastReceiver() {
         if (ids.isEmpty()) return
         val pending = goAsync()
         val ref = FirebaseFirestore.getInstance().collection("doctors").document(uid)
-        ref.get().addOnSuccessListener { snapshot ->
-            val currentId = snapshot.getString("currentWorkLocationId")
-            if (transition == Geofence.GEOFENCE_TRANSITION_ENTER) {
-                val id = ids.first()
-                val places = snapshot.get("workLocations") as? Map<*, *>
-                val place = places?.get(id) as? Map<*, *>
-                val name = place?.get("name")?.toString().orEmpty()
-                    .ifBlank { if (id == "hospital") "المشفى" else "العيادة" }
-                ref.update(
-                    mapOf(
-                        "currentWorkLocationId" to id,
-                        "currentWorkPlaceName" to name,
-                        "locationStatus" to "AT_WORK",
-                        "locationUpdatedAt" to FieldValue.serverTimestamp()
+        ref.get()
+            .addOnSuccessListener { snapshot ->
+                val currentId = snapshot.getString("currentWorkLocationId")
+                val updateTask = if (transition == Geofence.GEOFENCE_TRANSITION_ENTER) {
+                    val id = ids.first()
+                    val places = snapshot.get("workLocations") as? Map<*, *>
+                    val place = places?.get(id) as? Map<*, *>
+                    val name = place?.get("name")?.toString().orEmpty()
+                        .ifBlank { if (id == "hospital") "المشفى" else "العيادة" }
+                    ref.update(
+                        mapOf(
+                            "currentWorkLocationId" to id,
+                            "currentWorkPlaceName" to name,
+                            "locationStatus" to "AT_WORK",
+                            "locationUpdatedAt" to FieldValue.serverTimestamp()
+                        )
                     )
-                )
-            } else if (!currentId.isNullOrBlank() && ids.contains(currentId)) {
-                ref.update(
-                    mapOf(
-                        "currentWorkLocationId" to FieldValue.delete(),
-                        "currentWorkPlaceName" to FieldValue.delete(),
-                        "locationStatus" to "OFFSITE",
-                        "locationUpdatedAt" to FieldValue.serverTimestamp()
+                } else if (!currentId.isNullOrBlank() && ids.contains(currentId)) {
+                    ref.update(
+                        mapOf(
+                            "currentWorkLocationId" to FieldValue.delete(),
+                            "currentWorkPlaceName" to FieldValue.delete(),
+                            "locationStatus" to "OFFSITE",
+                            "locationUpdatedAt" to FieldValue.serverTimestamp()
+                        )
                     )
-                )
+                } else {
+                    null
+                }
+                if (updateTask == null) pending.finish()
+                else updateTask.addOnCompleteListener { pending.finish() }
             }
-        }.addOnCompleteListener { pending.finish() }
+            .addOnFailureListener { pending.finish() }
     }
 }
 
