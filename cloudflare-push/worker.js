@@ -304,8 +304,7 @@ async function sendQueueNotifications(projectId, accessToken, senderUid, input) 
   const current = numeric(queue, "current");
   const docs = await firestoreQuery(projectId, accessToken, "appointments", [
     { fieldFilter: { field: { fieldPath: "doctorId" }, op: "EQUAL", value: { stringValue: senderUid } } },
-    { fieldFilter: { field: { fieldPath: "date" }, op: "EQUAL", value: { stringValue: date } } },
-    { fieldFilter: { field: { fieldPath: "status" }, op: "EQUAL", value: { stringValue: "CONFIRMED" } } }
+    { fieldFilter: { field: { fieldPath: "date" }, op: "EQUAL", value: { stringValue: date } } }
   ]);
 
   const upcoming = docs
@@ -313,9 +312,13 @@ async function sendQueueNotifications(projectId, accessToken, senderUid, input) 
       id: doc.name.split("/").pop(),
       patientUid: str(doc, "patientId"),
       number: numeric(doc, "number"),
+      status: str(doc, "status"),
       doctorName: str(doc, "doctorName") || "الطبيب"
     }))
-    .filter(item => item.patientUid && item.number >= current + 1 && item.number <= current + 3);
+    .filter(item =>
+      item.status === "CONFIRMED" && item.patientUid &&
+      item.number >= current + 1 && item.number <= current + 3
+    );
 
   const sends = await Promise.all(upcoming.map(item => {
     const offset = item.number - current;
