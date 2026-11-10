@@ -92,7 +92,9 @@ async function firestoreQuery(projectId, accessToken, collectionId, filters) {
       body: JSON.stringify({
         structuredQuery: {
           from: [{ collectionId }],
-          where: { compositeFilter: { op: "AND", filters } },
+          where: filters.length === 1
+            ? filters[0]
+            : { compositeFilter: { op: "AND", filters } },
           limit: 500
         }
       })
