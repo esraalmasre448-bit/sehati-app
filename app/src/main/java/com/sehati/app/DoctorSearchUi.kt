@@ -24,6 +24,7 @@ import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.Query
 import kotlinx.coroutines.delay
+import java.util.Calendar
 
 private fun searchError(e: Exception): String =
     when ((e as? FirebaseFirestoreException)?.code) {
@@ -224,6 +225,33 @@ private fun FilterChipBox(label: String, value: String, active: Boolean, modifie
     }
 }
 
+
+private fun nextWorkShiftLabel(d: Map<String, Any?>): String? {
+    val places = d["workLocations"] as? Map<*, *> ?: return null
+    val candidates = listOf("clinic" to "العيادة", "hospital" to "المشفى").mapNotNull { (key, label) ->
+        val p = places[key] as? Map<*, *> ?: return@mapNotNull null
+        val name = p["name"]?.toString().orEmpty().ifBlank { label }
+        val start = (p["startHour"] as? Number)?.toInt() ?: return@mapNotNull null
+        val end = (p["endHour"] as? Number)?.toInt() ?: return@mapNotNull null
+        val days = (p["workDays"] as? List<*>)?.mapNotNull { (it as? Number)?.toInt() }?.toSet().orEmpty()
+        if (days.isEmpty()) return@mapNotNull null
+        Triple(name, start * 60, Pair(end * 60, days))
+    }
+    if (candidates.isEmpty()) return null
+    val now = Calendar.getInstance()
+    val nowMinutes = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE)
+    for (offset in 0..7) {
+        val day = (now.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, offset) }
+        val dayOfWeek = day.get(Calendar.DAY_OF_WEEK)
+        val possible = candidates.filter { dayOfWeek in it.third.second && (offset > 0 || it.second > nowMinutes) }
+            .minByOrNull { it.second } ?: continue
+        val dayName = WEEK_DAYS.firstOrNull { it.first == dayOfWeek }?.second ?: "القادم"
+        val hour = possible.second / 60
+        return "الدوام القادم: ${possible.first}، $dayName ${"%02d:00".format(hour)}"
+    }
+    return null
+}
+
 /** بطاقة نتيجة: الصورة (يمين في RTL)، الاسم والتخصص والمكان، وحالة التوفر إن كانت مسجلة. بدون تقييمات أو مسافات وهمية. */
 @Composable
 private fun SearchDoctorCard(d: Map<String, Any?>, onClick: () -> Unit) {
@@ -254,7 +282,10 @@ private fun SearchDoctorCard(d: Map<String, Any?>, onClick: () -> Unit) {
         }
         when (d["available"]) {
             true -> StatusPill("متاح", BGreen)
-            false -> StatusPill("غير متاح", BMuted)
+            false -> {
+                val nextShift = nextWorkShiftLabel(d)
+                StatusPill(nextShift ?: "غير متاح", BMuted)
+            }
             else -> {}
         }
     }
