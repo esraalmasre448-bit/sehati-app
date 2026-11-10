@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -36,6 +37,11 @@ private val DTeal = Color(0xFF29BDF4)
 /** الصفحة الرئيسية للطبيب. الصفحات الفرعية تُفتح داخلها بحالة محلية. */
 @Composable
 fun DoctorHome(name: String, unread: Int, onGo: (String) -> Unit, onTab: (Int) -> Unit) {
+    val context = LocalContext.current
+    val doctorUid = bAuth.currentUser?.uid.orEmpty()
+    LaunchedEffect(doctorUid) {
+        if (doctorUid.isNotBlank()) DoctorWorkplaceGeofencing.sync(context, doctorUid)
+    }
     var page by remember { mutableStateOf("home") }
     BackHandler(enabled = page != "home") { page = "home" }
     when (page) {
