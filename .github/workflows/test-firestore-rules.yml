@@ -1,9 +1,6 @@
 name: Test Firestore Rules
 
 on:
-  push:
-    branches:
-      - feature/animated-heartbeat-splash
   pull_request:
     branches:
       - main
