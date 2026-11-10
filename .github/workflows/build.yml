@@ -10,6 +10,7 @@ on:
       - security/firestore-rules-fix-2026-10-31
       - security/firestore-rules-fix-verified-2026-10-31
       - feature/bidirectional-chat-push-notifications
+      - feature/animated-heartbeat-splash
       - main
 env:
   KS_PASS: ${{ secrets.KS_PASS }}
