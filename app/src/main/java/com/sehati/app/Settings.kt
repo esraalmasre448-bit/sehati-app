@@ -136,7 +136,9 @@ fun ClinicSettingsScreen(onBack: () -> Unit) {
         Field(bio, { bio = it }, "نبذة عنك (تظهر للمريض)")
         if (msg.isNotEmpty()) Text(msg, color = if (ok) BGreen else BDanger)
         RedButton("حفظ مواقع العمل والدوام", enabled = !busy) {
-            val error = validPlace(clinic, "العيادة") ?: validPlace(hospital, "المشفى")
+            val hospitalConfigured = hospital.name.isNotBlank() || hospital.location.isNotBlank() ||
+                hospital.start != "9" || hospital.end != "17" || hospital.days != (1..7).toSet()
+            val error = validPlace(clinic, "العيادة") ?: if (hospitalConfigured) validPlace(hospital, "المشفى") else null
             if (error != null) {
                 ok = false
                 msg = error
@@ -159,13 +161,15 @@ fun ClinicSettingsScreen(onBack: () -> Unit) {
             }
             val clinicData = placeData(clinic)
             val data = mutableMapOf<String, Any>(
-                "workLocations" to mapOf("clinic" to clinicData, "hospital" to placeData(hospital)),
+                "workLocations" to if (hospitalConfigured) mapOf("clinic" to clinicData, "hospital" to placeData(hospital)) else mapOf("clinic" to clinicData),
                 "bio" to bio.trim(),
                 "clinicName" to clinic.name.trim(),
                 "startHour" to clinic.start.trim().toInt(),
                 "endHour" to clinic.end.trim().toInt(),
                 "slotMinutes" to clinic.step,
                 "workDays" to clinic.days.sorted(),
+                "hospitalName" to if (hospitalConfigured) hospital.name.trim() else "",
+                "hospitalHours" to if (hospitalConfigured) (hospital.start + ":00 - " + hospital.end + ":00") else "",
                 "locationUpdatedAt" to FieldValue.serverTimestamp()
             )
             val clinicLL = parseLatLng(clinic.location)
