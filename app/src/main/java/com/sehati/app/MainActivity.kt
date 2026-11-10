@@ -60,6 +60,16 @@ private val db get() = FirebaseFirestore.getInstance()
 class MainActivity : ComponentActivity() {
     var pendingConversationId by mutableStateOf<String?>(null)
 
+    override fun onStart() {
+        super.onStart()
+        AppVisibility.foreground = true
+    }
+
+    override fun onStop() {
+        AppVisibility.foreground = false
+        super.onStop()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         pendingConversationId = intent.getStringExtra("open_conv_id") ?: intent.getStringExtra("convId")

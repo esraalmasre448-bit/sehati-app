@@ -18,6 +18,10 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.util.UUID
 
+object AppVisibility {
+    @Volatile var foreground: Boolean = false
+}
+
 /**
  * Registers one FCM token per installation. A user can have several phones;
  * each installation has a separate document and can only write its own token.
@@ -76,9 +80,9 @@ object PushTokenManager {
     }
 }
 
-/** Sends only an authenticated message reference; the worker reads the message itself. */
+/** Sends authenticated event references; the Worker verifies the caller and reads the source data. */
 object PushSender {
-    fun sendAfterMessage(convId: String, messageId: String) {
+    private fun post(path: String, payload: org.json.JSONObject) {
         val endpoint = BuildConfig.PUSH_WORKER_URL.trim().trimEnd('/')
         if (endpoint.isBlank()) {
             Log.w("SehatiPush", "PUSH_WORKER_URL is not configured; push delivery is disabled")
@@ -90,7 +94,7 @@ object PushSender {
             Thread {
                 var connection: HttpURLConnection? = null
                 try {
-                    connection = (URL("$endpoint/send").openConnection() as HttpURLConnection).apply {
+                    connection = (URL(endpoint + path).openConnection() as HttpURLConnection).apply {
                         requestMethod = "POST"
                         connectTimeout = 10000
                         readTimeout = 15000
@@ -98,17 +102,14 @@ object PushSender {
                         setRequestProperty("Authorization", "Bearer $idToken")
                         setRequestProperty("Content-Type", "application/json; charset=utf-8")
                     }
-                    val payload = org.json.JSONObject()
-                        .put("convId", convId)
-                        .put("messageId", messageId)
-                        .toString()
-                    connection.outputStream.use { it.write(payload.toByteArray(Charsets.UTF_8)) }
+                    val body = payload.toString()
+                    connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
                     val status = connection.responseCode
                     if (status !in 200..299) {
-                        Log.w("SehatiPush", "Push relay returned HTTP $status")
+                        Log.w("SehatiPush", "Push relay returned HTTP $status for $path")
                     }
                 } catch (e: Exception) {
-                    Log.w("SehatiPush", "Push relay request failed", e)
+                    Log.w("SehatiPush", "Push relay request failed for $path", e)
                 } finally {
                     connection?.disconnect()
                 }
@@ -117,9 +118,31 @@ object PushSender {
             Log.w("SehatiPush", "Could not obtain Firebase ID token", e)
         }
     }
+
+    fun sendAfterMessage(convId: String, messageId: String) {
+        post(
+            "/send",
+            org.json.JSONObject().put("convId", convId).put("messageId", messageId)
+        )
+    }
+
+    fun notifyAppointment(appointmentId: String, event: String) {
+        post(
+            "/notify-appointment",
+            org.json.JSONObject().put("appointmentId", appointmentId).put("event", event)
+        )
+    }
+
+    fun notifyQueueAdvanced(date: String) {
+        post("/notify-queue", org.json.JSONObject().put("date", date))
+    }
+
+    fun notifyPrescription(prescriptionId: String) {
+        post("/notify-prescription", org.json.JSONObject().put("prescriptionId", prescriptionId))
+    }
 }
 
-/** Receives FCM while the app is foregrounded and displays a sound notification. */
+/** Displays FCM alerts when the app is backgrounded; foreground alerts use the in-app watcher. */
 class SehatiMessagingService : FirebaseMessagingService() {
     override fun onNewToken(token: String) {
         super.onNewToken(token)
@@ -128,9 +151,17 @@ class SehatiMessagingService : FirebaseMessagingService() {
 
     override fun onMessageReceived(message: RemoteMessage) {
         super.onMessageReceived(message)
-        val title = message.data["title"] ?: message.notification?.title ?: "رسالة جديدة"
-        val body = message.data["body"] ?: message.notification?.body ?: "وصلتك رسالة جديدة"
+        val type = message.data["type"].orEmpty()
+        // Chat alerts are intentionally shown in the system tray even while chatting.
+        // Appointment and queue alerts are shown locally by the watcher while foregrounded.
+        if (AppVisibility.foreground && type != "chat") return
+
+        val title = message.data["title"] ?: message.notification?.title ?: "إشعار جديد"
+        val body = message.data["body"] ?: message.notification?.body ?: "لديك تحديث جديد"
         val convId = message.data["convId"].orEmpty()
+        val reference = convId.ifBlank {
+            message.data["appointmentId"] ?: message.data["date"].orEmpty()
+        }
 
         val open = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
@@ -138,7 +169,7 @@ class SehatiMessagingService : FirebaseMessagingService() {
         }
         val pending = PendingIntent.getActivity(
             this,
-            convId.hashCode(),
+            reference.hashCode(),
             open,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -151,7 +182,7 @@ class SehatiMessagingService : FirebaseMessagingService() {
             .setContentIntent(pending)
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+            .setCategory(if (type == "chat") NotificationCompat.CATEGORY_MESSAGE else NotificationCompat.CATEGORY_STATUS)
             .build()
 
         try {

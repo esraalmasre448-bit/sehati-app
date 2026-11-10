@@ -1,0 +1,23 @@
+name: Validate Chat Push Worker
+on:
+  pull_request:
+    paths:
+      - "cloudflare-push/**"
+      - ".github/workflows/test-push-worker.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "cloudflare-push/**"
+      - ".github/workflows/test-push-worker.yml"
+
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate Worker JavaScript syntax
+        run: node --check cloudflare-push/worker.js

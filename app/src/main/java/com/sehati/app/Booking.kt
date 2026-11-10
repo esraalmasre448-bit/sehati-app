@@ -151,7 +151,10 @@ private fun book(
             number
         }.addOnSuccessListener { n ->
             if (n < 0) onResult(false, "هذا الموعد انحجز للتو، اختر وقتًا آخر")
-            else onResult(true, "تم حجز موعدك الساعة ${slotLabel(slot)} بتاريخ $date. رقمك بالدور: $n")
+            else {
+                PushSender.notifyAppointment(id, "booking_created")
+                onResult(true, "تم حجز موعدك الساعة ${slotLabel(slot)} بتاريخ $date. رقمك بالدور: $n")
+            }
         }.addOnFailureListener {
             onResult(false, "تعذر الحجز. تحقق من الإنترنت، أو أن الطبيب غير متاح للحجز حاليًا")
         }
@@ -165,7 +168,16 @@ fun setStatus(id: String, status: String, freeSlot: Boolean, onDone: (Boolean) -
     // الإلغاء يحدّث حالة الموعد فقط.
     bDb.collection("appointments").document(id)
         .update("status", status)
-        .addOnSuccessListener { onDone(true) }
+        .addOnSuccessListener {
+            val event = when (status) {
+                "CONFIRMED" -> "booking_approved"
+                "CANCELLED" -> "appointment_cancelled"
+                "DONE" -> "appointment_done"
+                else -> null
+            }
+            if (event != null) PushSender.notifyAppointment(id, event)
+            onDone(true)
+        }
         .addOnFailureListener { onDone(false) }
 }
 

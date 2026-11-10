@@ -2,6 +2,12 @@ name: Deploy Chat Push Worker
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "cloudflare-push/**"
+      - ".github/workflows/deploy-push-worker.yml"
 
 permissions:
   contents: read
