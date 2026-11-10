@@ -266,6 +266,32 @@ async function sendAppointmentNotification(projectId, accessToken, senderUid, in
   return json(result);
 }
 
+async function sendPrescriptionNotification(projectId, accessToken, senderUid, input) {
+  const prescriptionId = typeof input.prescriptionId === "string" ? input.prescriptionId : "";
+  if (!/^[A-Za-z0-9_-]{3,180}$/.test(prescriptionId)) {
+    return json({ error: "invalid_prescription" }, 400);
+  }
+  const prescription = await firestoreGet(
+    projectId, accessToken, "prescriptions/" + encodeURIComponent(prescriptionId)
+  );
+  if (!prescription) return json({ error: "not_found" }, 404);
+
+  const doctorUid = str(prescription, "doctorId");
+  const patientUid = str(prescription, "patientId");
+  if (!doctorUid || !patientUid || senderUid !== doctorUid) {
+    return json({ error: "forbidden" }, 403);
+  }
+  const kind = str(prescription, "kind");
+  const doctorName = str(prescription, "doctorName") || "طبيبك";
+  const title = kind === "lab" ? "طلب تحاليل جديد" : "وصفة طبية جديدة";
+  const body = "أرسل " + doctorName + " مستنداً طبياً جديداً. افتح وصفاتك الطبية للاطلاع عليه.";
+  const result = await notifyUser(
+    projectId, accessToken, patientUid, title, body,
+    { type: "prescription", prescriptionId }
+  );
+  return json(result);
+}
+
 async function sendQueueNotifications(projectId, accessToken, senderUid, input) {
   const date = typeof input.date === "string" ? input.date : "";
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return json({ error: "invalid_date" }, 400);
@@ -316,7 +342,7 @@ export default {
   async fetch(request, env) {
     const path = new URL(request.url).pathname;
     if (request.method !== "POST" ||
-        !["/send", "/notify-appointment", "/notify-queue"].includes(path)) {
+        !["/send", "/notify-appointment", "/notify-prescription", "/notify-queue"].includes(path)) {
       return json({ error: "not_found" }, 404);
     }
     const authorization = request.headers.get("authorization") || "";
@@ -335,6 +361,7 @@ export default {
 
       if (path === "/send") return await sendChatNotification(projectId, accessToken, senderUid, input);
       if (path === "/notify-appointment") return await sendAppointmentNotification(projectId, accessToken, senderUid, input);
+      if (path === "/notify-prescription") return await sendPrescriptionNotification(projectId, accessToken, senderUid, input);
       return await sendQueueNotifications(projectId, accessToken, senderUid, input);
     } catch (error) {
       console.error("Push relay error:", error?.message || "unknown");
