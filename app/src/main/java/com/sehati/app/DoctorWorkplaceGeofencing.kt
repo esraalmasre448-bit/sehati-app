@@ -77,6 +77,21 @@ object DoctorWorkplaceGeofencing {
             }
     }
 
+    fun remove(context: Context) {
+        val app = context.applicationContext
+        try {
+            LocationServices.getGeofencingClient(app)
+                .removeGeofences(geofencePendingIntent(app))
+                .addOnCompleteListener {
+                    app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                        .edit().remove(PREF_UID).apply()
+                }
+        } catch (_: SecurityException) {
+            app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .edit().remove(PREF_UID).apply()
+        }
+    }
+
     private fun geofencePendingIntent(context: Context): PendingIntent {
         val intent = Intent(context, DoctorWorkplaceGeofenceReceiver::class.java)
         val flags = PendingIntent.FLAG_UPDATE_CURRENT or
@@ -133,5 +148,14 @@ class DoctorWorkplaceGeofenceReceiver : BroadcastReceiver() {
                 )
             }
         }.addOnCompleteListener { pending.finish() }
+    }
+}
+
+
+class DoctorWorkplaceGeofenceBootReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
+        val uid = DoctorWorkplaceGeofencing.savedDoctorUid(context)
+        if (uid.isNotBlank()) DoctorWorkplaceGeofencing.sync(context, uid)
     }
 }
