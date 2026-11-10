@@ -2,6 +2,9 @@ package com.sehati.app
 
 import android.Manifest
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings as AndroidSettings
 import android.content.pm.PackageManager
 import android.location.LocationManager
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -44,6 +47,7 @@ fun ClinicSettingsScreen(onBack: () -> Unit) {
     var msg by remember { mutableStateOf("") }
     var ok by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
+    var showAutoLocationInfo by remember { mutableStateOf(false) }
 
     LaunchedEffect(uid) {
         if (uid.isBlank()) return@LaunchedEffect
@@ -114,6 +118,16 @@ fun ClinicSettingsScreen(onBack: () -> Unit) {
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) useGps() else { ok = false; msg = "لم يتم منح إذن الموقع" }
     }
+    val appSettingsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        if (DoctorWorkplaceGeofencing.hasBackgroundPermission(ctx)) {
+            DoctorWorkplaceGeofencing.sync(ctx, uid)
+            msg = "تم تفعيل إذن الموقع بالخلفية؛ سيُحدَّث مكانك عند دخول نطاق العيادة أو المشفى والخروج منه."
+            ok = true
+        } else {
+            msg = "لم يتم تفعيل إذن الموقع طوال الوقت. يمكنك تفعيله لاحقاً من إعدادات التطبيق."
+            ok = false
+        }
+    }
 
     fun validPlace(p: WorkPlaceDraft, label: String): String? {
         if (p.name.isBlank()) return "اكتب اسم $label"
@@ -123,6 +137,33 @@ fun ClinicSettingsScreen(onBack: () -> Unit) {
         if (p.days.isEmpty()) return "اختر يوماً واحداً على الأقل لدوام $label"
         if (p.location.isNotBlank() && parseLatLng(p.location) == null && !isMapsLink(p.location)) return "موقع $label يجب أن يكون رابط خرائط https أو إحداثيات مثل 33.51,36.29"
         return null
+    }
+
+    if (showAutoLocationInfo) {
+        AlertDialog(
+            onDismissRequest = { showAutoLocationInfo = false },
+            title = { Text("إذن الموقع طوال الوقت", color = Color.White) },
+            text = {
+                Text(
+                    "حتى يعرف التطبيق أنك دخلت العيادة أو المشفى أو خرجت منه عندما يكون مغلقاً، افتح إعدادات التطبيق ثم الأذونات ثم الموقع واختر «السماح طوال الوقت» أو Allow all the time. لن نسجل مسارك أو نرسل إحداثيات متكررة؛ نستخدم نطاقاً حول موقعي العمل فقط.",
+                    color = BMuted
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showAutoLocationInfo = false
+                    appSettingsLauncher.launch(
+                        Intent(AndroidSettings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${ctx.packageName}"))
+                    )
+                }) { Text("فتح إعدادات الأذونات", color = BRed) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAutoLocationInfo = false }) {
+                    Text("لاحقاً", color = BMuted)
+                }
+            },
+            containerColor = BBg
+        )
     }
 
     Column(
@@ -143,6 +184,15 @@ fun ClinicSettingsScreen(onBack: () -> Unit) {
             val granted = ContextCompat.checkSelfPermission(ctx, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
             if (granted) useGps() else launcher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
         })
+        OutlinedButton(
+            onClick = { showAutoLocationInfo = true },
+            modifier = Modifier.fillMaxWidth().height(50.dp)
+        ) { Text("تفعيل تحديد موقعي تلقائياً بالخلفية", color = Color.White) }
+        Text(
+            "يلزم هذا الإذن حتى يتغير مكانك تلقائياً عند دخول العيادة أو المشفى أو الخروج منه، حتى لو كان التطبيق مغلقاً. لا نحفظ مسارك؛ نحفظ فقط مكان العمل الحالي أو أنك خارج الموقعين.",
+            color = BMuted,
+            fontSize = 12.sp
+        )
         Field(bio, { bio = it }, "نبذة عنك (تظهر للمريض)")
         if (msg.isNotEmpty()) Text(msg, color = if (ok) BGreen else BDanger)
         RedButton("حفظ مواقع العمل والدوام", enabled = !busy) {
@@ -204,7 +254,18 @@ fun ClinicSettingsScreen(onBack: () -> Unit) {
                     msg = "احفظ ملفك المهني أولاً (الاسم والاختصاص والمدينة)"
                 } else {
                     bDb.collection("doctors").document(uid).set(data, SetOptions.merge())
-                        .addOnSuccessListener { busy = false; ok = true; msg = "تم حفظ موقعي العيادة والمشفى ودوامهما" }
+                        .addOnSuccessListener {
+                            busy = false
+                            ok = true
+                            if (DoctorWorkplaceGeofencing.hasForegroundPermission(ctx) &&
+                                DoctorWorkplaceGeofencing.hasBackgroundPermission(ctx)
+                            ) {
+                                DoctorWorkplaceGeofencing.sync(ctx, uid)
+                                msg = "تم حفظ موقعي العيادة والمشفى والدوام وتحديث مناطق التحديد التلقائي."
+                            } else {
+                                msg = "تم حفظ المواقع والدوام. فعّل إذن الموقع طوال الوقت لتحديث مكانك تلقائياً."
+                            }
+                        }
                         .addOnFailureListener { busy = false; ok = false; msg = "تعذر الحفظ؛ تحقق من صلاحيات Firestore وحاول مجدداً" }
                 }
             }.addOnFailureListener { busy = false; ok = false; msg = "تعذر تحميل ملف الطبيب" }
