@@ -1,6 +1,23 @@
 package com.sehati.app
 
 import android.os.Bundle
+import android.content.Context
+import android.media.AudioAttributes
+import android.media.AudioFormat
+import android.media.AudioTrack
+import android.os.Handler
+import android.os.Looper
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.math.PI
+import kotlin.math.exp
+import kotlin.math.sin
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.draw.scale
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -158,7 +175,7 @@ fun App() {
         owner.lifecycle.addObserver(obs)
         onDispose { owner.lifecycle.removeObserver(obs) }
     }
-    LaunchedEffect(Unit) { delay(1500); splash = false }
+    LaunchedEffect(Unit) { delay(3100); splash = false }
     BackHandler(enabled = screen != "main") {
         screen = when (screen) {
             "detail" -> "search"
@@ -289,21 +306,175 @@ fun AdminGate(onBack: () -> Unit) {
 }
 
 @Composable
+private fun startSplashHeartbeat(context: Context): () -> Unit {
+    val sampleRate = 22050
+    val totalSamples = (sampleRate * 2.9).toInt()
+    val pcm = ShortArray(totalSamples)
+    val pulses = listOf(0.10, 0.27, 0.92, 1.09, 1.74, 1.91, 2.56, 2.73)
+    pulses.forEachIndexed { index, start ->
+        val duration = if (index % 2 == 0) 0.13 else 0.11
+        val startSample = (start * sampleRate).toInt()
+        val count = (duration * sampleRate).toInt()
+        for (i in 0 until count) {
+            val t = i.toDouble() / sampleRate
+            val envelope = exp(-19.0 * t) * (1.0 - exp(-90.0 * t))
+            val frequency = if (index % 2 == 0) 58.0 else 72.0
+            val wave = sin(2.0 * PI * frequency * t) * 0.72 +
+                sin(2.0 * PI * frequency * 1.72 * t) * 0.28
+            val at = startSample + i
+            if (at in pcm.indices) {
+                val mixed = pcm[at].toDouble() + wave * envelope * 10500.0
+                pcm[at] = mixed.coerceIn(-32768.0, 32767.0).toInt().toShort()
+            }
+        }
+    }
+    val released = AtomicBoolean(false)
+    var track: AudioTrack? = null
+    fun release() {
+        if (released.compareAndSet(false, true)) {
+            try {
+                track?.let {
+                    if (it.playState == AudioTrack.PLAYSTATE_PLAYING) it.stop()
+                    it.release()
+                }
+            } catch (_: Exception) { }
+            track = null
+        }
+    }
+    return try {
+        val audio = AudioTrack.Builder()
+            .setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build()
+            )
+            .setAudioFormat(
+                AudioFormat.Builder()
+                    .setSampleRate(sampleRate)
+                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                    .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                    .build()
+            )
+            .setBufferSizeInBytes(pcm.size * 2)
+            .setTransferMode(AudioTrack.MODE_STATIC)
+            .build()
+        track = audio
+        audio.setVolume(0.48f)
+        val written = audio.write(pcm, 0, pcm.size)
+        if (written > 0) audio.play() else release()
+        Handler(Looper.getMainLooper()).postDelayed({ release() }, 3300L)
+        ::release
+    } catch (_: Exception) {
+        release()
+        {}
+    }
+}
+
+@Composable
 fun Splash() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var soundEnabled by remember { mutableStateOf(true) }
+    val pulse = rememberInfiniteTransition(label = "heart-pulse")
+    val heartScale by pulse.animateFloat(
+        initialValue = 0.94f,
+        targetValue = 1.08f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(430, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "heart-scale"
+    )
+    val ringAlpha by pulse.animateFloat(
+        initialValue = 0.12f,
+        targetValue = 0.42f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(650, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "heart-ring"
+    )
+    DisposableEffect(soundEnabled) {
+        val stopSound = if (soundEnabled) startSplashHeartbeat(context) else null
+        onDispose { stopSound?.invoke() }
+    }
     Column(
-        Modifier.fillMaxSize().background(Bg).padding(32.dp),
+        Modifier.fillMaxSize().background(Bg).padding(28.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Image(painterResource(R.drawable.ic_launcher), null, Modifier.size(230.dp))
-        Spacer(Modifier.height(16.dp))
-        Text(stringResource(R.string.tagline), color = Muted, fontSize = 16.sp)
-        Spacer(Modifier.height(32.dp))
+        Box(
+            modifier = Modifier.size(250.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Box(
+                Modifier.size(222.dp)
+                    .border(2.dp, Red.copy(alpha = ringAlpha), CircleShape)
+            )
+            Box(
+                Modifier.size(194.dp)
+                    .border(1.dp, Red.copy(alpha = ringAlpha * 0.7f), CircleShape)
+            )
+            Image(
+                painterResource(R.drawable.ic_launcher),
+                contentDescription = "شعار الطريق إلى صحتي",
+                modifier = Modifier.size(166.dp).scale(heartScale)
+            )
+        }
+        Spacer(Modifier.height(18.dp))
+        Text(
+            "الطريق إلى صحتي",
+            color = Color.White,
+            fontSize = 25.sp,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(Modifier.height(10.dp))
+        Text(
+            stringResource(R.string.tagline),
+            color = Muted,
+            fontSize = 16.sp,
+            textAlign = TextAlign.Center
+        )
+        Spacer(Modifier.height(25.dp))
+        androidx.compose.foundation.Canvas(
+            modifier = Modifier.fillMaxWidth().height(48.dp)
+        ) {
+            val mid = size.height / 2f
+            val points = listOf(
+                0.00f to 0.50f, 0.12f to 0.50f, 0.19f to 0.50f,
+                0.24f to 0.18f, 0.29f to 0.88f, 0.35f to 0.08f,
+                0.41f to 0.50f, 0.53f to 0.50f, 0.60f to 0.50f,
+                0.65f to 0.18f, 0.70f to 0.88f, 0.76f to 0.08f,
+                0.82f to 0.50f, 1.00f to 0.50f
+            )
+            val path = androidx.compose.ui.graphics.Path()
+            points.forEachIndexed { index, point ->
+                val x = size.width * point.first
+                val y = mid + (point.second - 0.5f) * size.height * 0.9f
+                if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
+            }
+            drawPath(
+                path = path,
+                color = Red.copy(alpha = 0.9f),
+                style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.5f)
+            )
+        }
+        Spacer(Modifier.height(20.dp))
         LinearProgressIndicator(
-            modifier = Modifier.fillMaxWidth(0.6f), color = Red, trackColor = Line
+            modifier = Modifier.fillMaxWidth(0.62f),
+            color = Red,
+            trackColor = Line
         )
         Spacer(Modifier.height(8.dp))
         Text(stringResource(R.string.loading), color = Muted, fontSize = 13.sp)
+        Spacer(Modifier.height(12.dp))
+        TextButton(onClick = { soundEnabled = !soundEnabled }) {
+            Text(
+                if (soundEnabled) "كتم صوت النبض" else "تشغيل صوت النبض",
+                color = Muted,
+                fontSize = 13.sp
+            )
+        }
     }
 }
 
