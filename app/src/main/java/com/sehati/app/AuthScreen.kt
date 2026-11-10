@@ -463,8 +463,8 @@ fun AuthFlow(onDone: () -> Unit) {
             title = { Text("تأكيد البريد الإلكتروني", color = Color.White) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("أرسلنا رابط تحقق إلى $verificationEmail. افتح بريدك الإلكتروني واضغط الرابط، ثم ارجع إلى التطبيق.", color = Muted)
-                    Text("إذا لم تجد الرسالة، افحص مجلد الرسائل غير المرغوبة (Spam).", color = Muted, fontSize = 13.sp)
+                    Text("البريد المسجل في الحساب: $verificationEmail. افتح رسالة التحقق واضغط الرابط، ثم ارجع إلى التطبيق.", color = Muted)
+                    Text("إذا لم تصلك الرسالة، افحص مجلد Spam أو اضغط إعادة إرسال الرابط.", color = Muted, fontSize = 13.sp)
                     if (verificationMsg.isNotEmpty()) {
                         Text(
                             verificationMsg,
