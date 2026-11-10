@@ -79,7 +79,7 @@ fun ClinicSettingsScreen(onBack: () -> Unit) {
                 if (key == "hospital") {
                     val legacyName = d.getString("hospitalName").orEmpty()
                     val legacyHours = d.getString("hospitalHours").orEmpty()
-                    val match = Regex("""(\\d{1,2})\\s*:?\\s*(?:00)?\\s*[-–]\\s*(\\d{1,2})""").find(legacyHours)
+                    val match = Regex("""(\d{1,2})\s*:?\s*(?:00)?\s*[-–]\s*(\d{1,2})""").find(legacyHours)
                     return WorkPlaceDraft(
                         name = legacyName,
                         start = match?.groupValues?.get(1) ?: "9",
@@ -189,6 +189,10 @@ fun ClinicSettingsScreen(onBack: () -> Unit) {
                 data["mapLink"] = FieldValue.delete()
             } else if (clinic.location.isNotBlank()) {
                 data["mapLink"] = clinic.location.trim()
+                data["lat"] = FieldValue.delete()
+                data["lng"] = FieldValue.delete()
+            } else {
+                data["mapLink"] = FieldValue.delete()
                 data["lat"] = FieldValue.delete()
                 data["lng"] = FieldValue.delete()
             }
