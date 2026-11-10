@@ -153,7 +153,70 @@ fun AuthFlow(onDone: () -> Unit) {
     var resetOk by remember { mutableStateOf(false) }
     var resetBusy by remember { mutableStateOf(false) }
     var seniorMode by remember { mutableStateOf(false) }
-        fun finishAccountSetup(user: com.google.firebase.auth.FirebaseUser) {
+    var showEmailVerification by remember { mutableStateOf(false) }
+    var verificationEmail by remember { mutableStateOf("") }
+    var verificationMsg by remember { mutableStateOf("") }
+    var verificationBusy by remember { mutableStateOf(false) }
+
+    fun sendVerificationLink(user: com.google.firebase.auth.FirebaseUser) {
+        verificationEmail = user.email ?: email.trim()
+        showEmailVerification = true
+        verificationBusy = true
+        busy = false
+        verificationMsg = "جارٍ إرسال رابط التحقق..."
+        user.sendEmailVerification()
+            .addOnSuccessListener {
+                verificationBusy = false
+                verificationMsg = "تم إرسال رابط التحقق إلى $verificationEmail. افتح بريدك واضغط الرابط، ثم ارجع إلى التطبيق."
+            }
+            .addOnFailureListener {
+                verificationBusy = false
+                verificationMsg = authError(it)
+            }
+    }
+
+    fun continueAfterEmailVerification() {
+        val current = auth.currentUser
+        if (current == null) {
+            verificationMsg = "انتهت جلسة الدخول. سجّل الدخول مجدداً."
+            return
+        }
+        verificationBusy = true
+        verificationMsg = "جارٍ التحقق من البريد..."
+        current.reload()
+            .addOnSuccessListener {
+                val refreshed = auth.currentUser
+                if (refreshed?.isEmailVerified != true) {
+                    verificationBusy = false
+                    verificationMsg = "لم يتم تأكيد البريد بعد. افتح رابط التحقق من بريدك ثم حاول مجدداً."
+                    return@addOnSuccessListener
+                }
+                refreshed.getIdToken(true)
+                    .addOnSuccessListener {
+                        db.collection("users").document(refreshed.uid)
+                            .update("emailVerified", true)
+                            .addOnSuccessListener {
+                                verificationBusy = false
+                                showEmailVerification = false
+                                onDone()
+                            }
+                            .addOnFailureListener {
+                                verificationBusy = false
+                                verificationMsg = "تم توثيق البريد، لكن تعذر تحديث ملف الحساب. حاول المتابعة مجدداً."
+                            }
+                    }
+                    .addOnFailureListener {
+                        verificationBusy = false
+                        verificationMsg = "تم توثيق البريد، لكن تعذر تحديث جلسة الدخول. حاول مجدداً."
+                    }
+            }
+            .addOnFailureListener {
+                verificationBusy = false
+                verificationMsg = "تعذر فحص البريد الآن. تحقق من الإنترنت وحاول مجدداً."
+            }
+    }
+
+    fun finishAccountSetup(user: com.google.firebase.auth.FirebaseUser) {
         busy = true
         val profile = mapOf(
             "name" to name.trim(),
@@ -176,15 +239,13 @@ fun AuthFlow(onDone: () -> Unit) {
                         "startedAt" to FieldValue.serverTimestamp(),
                         "expiresAt" to com.google.firebase.Timestamp(endDate)
                     )).addOnSuccessListener {
-                        busy = false
-                        onDone()
+                        sendVerificationLink(user)
                     }.addOnFailureListener {
                         busy = false
                         msg = "تم إنشاء الحساب، لكن تعذر تجهيز ملف الاشتراك التجريبي. سجّل الدخول مجدداً أو تواصل مع الدعم."
                     }
                 } else {
-                    busy = false
-                    onDone()
+                    sendVerificationLink(user)
                 }
             }
             .addOnFailureListener {
@@ -320,8 +381,38 @@ fun AuthFlow(onDone: () -> Unit) {
                             db.collection("users").document(user.uid).get()
                                 .addOnSuccessListener { profile ->
                                     if (profile.exists()) {
-                                        busy = false
-                                        onDone()
+                                        user.reload()
+                                            .addOnSuccessListener {
+                                                val refreshed = auth.currentUser
+                                                if (refreshed?.isEmailVerified == true) {
+                                                    refreshed.getIdToken(true)
+                                                        .addOnSuccessListener {
+                                                            db.collection("users").document(refreshed.uid)
+                                                                .update("emailVerified", true)
+                                                                .addOnSuccessListener {
+                                                                    busy = false
+                                                                    onDone()
+                                                                }
+                                                                .addOnFailureListener {
+                                                                    busy = false
+                                                                    msg = "تم توثيق البريد، لكن تعذر تحديث ملف الحساب. حاول مجدداً."
+                                                                }
+                                                        }
+                                                        .addOnFailureListener {
+                                                            busy = false
+                                                            msg = "تعذر تحديث جلسة الدخول. حاول مجدداً."
+                                                        }
+                                                } else {
+                                                    busy = false
+                                                    verificationEmail = refreshed?.email ?: e
+                                                    verificationMsg = "هذا الحساب يحتاج إلى تأكيد البريد الإلكتروني قبل الدخول."
+                                                    showEmailVerification = true
+                                                }
+                                            }
+                                            .addOnFailureListener {
+                                                busy = false
+                                                msg = "تعذر فحص حالة البريد. تحقق من الإنترنت وحاول مجدداً."
+                                            }
                                     } else if (profile.metadata.isFromCache) {
                                         auth.signOut()
                                         busy = false
@@ -363,6 +454,55 @@ fun AuthFlow(onDone: () -> Unit) {
             )
         }
         }
+    }
+
+    if (showEmailVerification) {
+        AlertDialog(
+            onDismissRequest = { },
+            containerColor = CardC,
+            title = { Text("تأكيد البريد الإلكتروني", color = Color.White) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("أرسلنا رابط تحقق إلى $verificationEmail. افتح بريدك الإلكتروني واضغط الرابط، ثم ارجع إلى التطبيق.", color = Muted)
+                    Text("إذا لم تجد الرسالة، افحص مجلد الرسائل غير المرغوبة (Spam).", color = Muted, fontSize = 13.sp)
+                    if (verificationMsg.isNotEmpty()) {
+                        Text(
+                            verificationMsg,
+                            color = if (verificationMsg.startsWith("تم إرسال")) Good else Danger
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !verificationBusy,
+                    onClick = { continueAfterEmailVerification() }
+                ) { Text("تحققت من بريدي، متابعة", color = Red) }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(
+                        enabled = !verificationBusy,
+                        onClick = {
+                            val current = auth.currentUser
+                            if (current == null) {
+                                verificationMsg = "سجّل الدخول مجدداً لإعادة إرسال الرابط."
+                            } else {
+                                sendVerificationLink(current)
+                            }
+                        }
+                    ) { Text("إعادة إرسال الرابط", color = Red) }
+                    TextButton(
+                        enabled = !verificationBusy,
+                        onClick = {
+                            auth.signOut()
+                            showEmailVerification = false
+                            verificationMsg = ""
+                        }
+                    ) { Text("تسجيل الخروج", color = Muted) }
+                }
+            }
+        )
     }
 
     if (showReset) {
