@@ -33,6 +33,24 @@ import androidx.compose.ui.unit.sp
 
 private fun sxHm(min: Int): String = "%02d:%02d".format(min / 60, min % 60)
 
+private fun openWorkPlaceRoute(ctx: android.content.Context, place: Map<*, *>?, fallbackName: String): String? {
+    if (place == null) return "لم يضف الطبيب موقع $fallbackName بعد"
+    val lat = (place["lat"] as? Number)?.toDouble()
+    val lng = (place["lng"] as? Number)?.toDouble()
+    val link = place["mapLink"]?.toString().orEmpty()
+    val name = place["name"]?.toString().orEmpty().ifBlank { fallbackName }
+    val uri = when {
+        lat != null && lng != null -> Uri.parse("https://www.google.com/maps/dir/?api=1&destination=$lat,$lng")
+        link.startsWith("https://") -> Uri.parse(link)
+        name.isNotBlank() -> Uri.parse("https://www.google.com/maps/search/?api=1&query=" + Uri.encode(name))
+        else -> return "لم يحدد الطبيب موقع $fallbackName بعد"
+    }
+    return try {
+        ctx.startActivity(Intent(Intent.ACTION_VIEW, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        null
+    } catch (_: Exception) { "تعذر فتح الخرائط على هذا الجهاز" }
+}
+
 @Composable
 private fun SxInfoRow(label: String, value: Any?, icon: ImageVector) {
     val v = value?.toString().orEmpty()
@@ -149,10 +167,34 @@ fun DoctorDetailFull(d: Map<String, Any?>, onBack: () -> Unit, onBook: () -> Uni
         } else {
             SxInfoRow("المدينة", d["city"], Icons.Filled.LocationOn)
             SxInfoRow("العنوان", d["address"], Icons.Filled.LocationOn)
-            OutlinedButton(
-                onClick = { msg = openRoute(ctx, d) ?: "" },
-                modifier = Modifier.fillMaxWidth().height(52.dp)
-            ) { Text("الطريق إلى العيادة", color = Color.White) }
+            val places = d["workLocations"] as? Map<*, *>
+            val clinicPlace = places?.get("clinic") as? Map<*, *>
+            val hospitalPlace = places?.get("hospital") as? Map<*, *>
+            if (clinicPlace != null) {
+                SxInfoRow("موقع العيادة", clinicPlace["name"], Icons.Filled.Business)
+                SxInfoRow("دوام العيادة", "${clinicPlace["startHour"]}:00 - ${clinicPlace["endHour"]}:00", Icons.Filled.Schedule)
+                val days = (clinicPlace["workDays"] as? List<*>)?.mapNotNull { (it as? Number)?.toInt() }?.toSet().orEmpty()
+                if (days.isNotEmpty()) SxInfoRow("أيام العيادة", workDaysLabel(days), Icons.Filled.CalendarMonth)
+                OutlinedButton(onClick = { msg = openWorkPlaceRoute(ctx, clinicPlace, "العيادة") ?: "" },
+                    modifier = Modifier.fillMaxWidth().height(50.dp)) {
+                    Text("الاتجاهات إلى العيادة", color = Color.White)
+                }
+            } else {
+                OutlinedButton(onClick = { msg = openRoute(ctx, d) ?: "" },
+                    modifier = Modifier.fillMaxWidth().height(50.dp)) {
+                    Text("الطريق إلى العيادة", color = Color.White)
+                }
+            }
+            if (hospitalPlace != null) {
+                SxInfoRow("موقع المشفى", hospitalPlace["name"], Icons.Filled.LocalHospital)
+                SxInfoRow("دوام المشفى", "${hospitalPlace["startHour"]}:00 - ${hospitalPlace["endHour"]}:00", Icons.Filled.Schedule)
+                val days = (hospitalPlace["workDays"] as? List<*>)?.mapNotNull { (it as? Number)?.toInt() }?.toSet().orEmpty()
+                if (days.isNotEmpty()) SxInfoRow("أيام المشفى", workDaysLabel(days), Icons.Filled.CalendarMonth)
+                OutlinedButton(onClick = { msg = openWorkPlaceRoute(ctx, hospitalPlace, "المشفى") ?: "" },
+                    modifier = Modifier.fillMaxWidth().height(50.dp)) {
+                    Text("الاتجاهات إلى المشفى", color = Color.White)
+                }
+            }
         }
 
         // أرقام اليوم الحقيقية من وثيقة الطابور
