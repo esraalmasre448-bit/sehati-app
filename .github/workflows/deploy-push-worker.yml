@@ -21,6 +21,7 @@ jobs:
       FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
       FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
       FIREBASE_WEB_API_KEY: ${{ secrets.FIREBASE_WEB_API_KEY }}
+      PUSH_WORKER_URL: ${{ secrets.PUSH_WORKER_URL }}
     steps:
       - uses: actions/checkout@v4
 
@@ -32,7 +33,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for key in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID FIREBASE_SERVICE_ACCOUNT_JSON FIREBASE_PROJECT_ID FIREBASE_WEB_API_KEY; do
+          for key in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID FIREBASE_SERVICE_ACCOUNT_JSON FIREBASE_PROJECT_ID FIREBASE_WEB_API_KEY PUSH_WORKER_URL; do
             if [[ -z "${!key}" ]]; then
               echo "::error::Missing GitHub Actions secret: $key"
               exit 1
@@ -69,10 +70,24 @@ jobs:
           printf '%s' "$FIREBASE_PROJECT_ID" | wrangler secret put FIREBASE_PROJECT_ID --config cloudflare-push/wrangler.toml
           printf '%s' "$FIREBASE_WEB_API_KEY" | wrangler secret put FIREBASE_WEB_API_KEY --config cloudflare-push/wrangler.toml
 
+      - name: Smoke-test authenticated Worker endpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          status=$(curl -sS -o /tmp/worker-smoke.json -w "%{http_code}" \
+            -X POST "${PUSH_WORKER_URL%/}/notify-queue" \
+            -H "Content-Type: application/json" -d '{}')
+          if [[ "$status" != "401" ]]; then
+            cat /tmp/worker-smoke.json
+            echo "::error::Worker smoke test expected HTTP 401 without authentication, received $status"
+            exit 1
+          fi
+          echo "Worker is reachable and rejects unauthenticated requests."
+
       - name: Deployment summary
         run: |
           {
             echo "## Sehati chat push Worker"
-            echo "Worker deployment completed."
-            echo "Copy the workers.dev URL shown in the Deploy Worker step, then save it as the GitHub Actions secret PUSH_WORKER_URL (without the /send suffix)."
+            echo "Worker deployment and unauthenticated endpoint smoke test completed."
+            echo "The PUSH_WORKER_URL secret is configured."
           } >> "$GITHUB_STEP_SUMMARY"

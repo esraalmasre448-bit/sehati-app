@@ -317,17 +317,17 @@ async function sendQueueNotifications(projectId, accessToken, senderUid, input) 
     }))
     .filter(item =>
       item.status === "CONFIRMED" && item.patientUid &&
-      item.number >= current + 1 && item.number <= current + 3
+      item.number >= current && item.number <= current + 3
     );
 
   const sends = await Promise.all(upcoming.map(item => {
     const offset = item.number - current;
-    const title = offset === 1 ? "حان دورك" : "دورك قريب";
-    const body = offset === 1
+    const title = offset === 0 ? "حان دورك" : "دورك قريب";
+    const body = offset === 0
       ? "تفضّل بالدخول إلى " + item.doctorName
-      : offset === 2
+      : offset === 1
         ? "أنت التالي عند " + item.doctorName
-        : "بقي شخصان قبلك عند " + item.doctorName;
+        : "بقي " + (offset - 1) + " قبلك عند " + item.doctorName;
     return notifyUser(
       projectId, accessToken, item.patientUid, title, body,
       { type: "queue", appointmentId: item.id, date, doctorId: senderUid, queueNumber: item.number }
