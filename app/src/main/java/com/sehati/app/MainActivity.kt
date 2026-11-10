@@ -305,7 +305,6 @@ fun AdminGate(onBack: () -> Unit) {
     }
 }
 
-@Composable
 private fun startSplashHeartbeat(context: Context): () -> Unit {
     val sampleRate = 22050
     val totalSamples = (sampleRate * 2.9).toInt()
