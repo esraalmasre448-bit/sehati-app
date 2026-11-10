@@ -33,14 +33,31 @@ object DoctorWorkplaceGeofencing {
         Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ||
             context.checkSelfPermission(Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED
 
+    private fun markOffsite(uid: String, onComplete: (() -> Unit)? = null) {
+        FirebaseFirestore.getInstance().collection("doctors").document(uid).update(
+            mapOf(
+                "currentWorkLocationId" to FieldValue.delete(),
+                "currentWorkPlaceName" to FieldValue.delete(),
+                "locationStatus" to "OFFSITE",
+                "locationUpdatedAt" to FieldValue.serverTimestamp()
+            )
+        ).addOnCompleteListener { onComplete?.invoke() }
+    }
+
     fun sync(context: Context, uid: String, onComplete: (() -> Unit)? = null) {
         val app = context.applicationContext
-        if (uid.isBlank() || !hasForegroundPermission(app) || !hasBackgroundPermission(app)) {
+        if (uid.isBlank()) {
             onComplete?.invoke()
             return
         }
+        if (!hasForegroundPermission(app) || !hasBackgroundPermission(app)) {
+            remove(app)
+            markOffsite(uid, onComplete)
+            return
+        }
 
-        FirebaseFirestore.getInstance().collection("doctors").document(uid).get()
+        val doctorRef = FirebaseFirestore.getInstance().collection("doctors").document(uid)
+        doctorRef.get()
             .addOnSuccessListener { doc ->
                 if (!doc.exists()) {
                     onComplete?.invoke()
@@ -65,7 +82,9 @@ object DoctorWorkplaceGeofencing {
                 val client = LocationServices.getGeofencingClient(app)
                 val pendingIntent = geofencePendingIntent(app)
                 if (geofences.isEmpty()) {
-                    client.removeGeofences(pendingIntent).addOnCompleteListener { onComplete?.invoke() }
+                    client.removeGeofences(pendingIntent).addOnCompleteListener {
+                        markOffsite(uid, onComplete)
+                    }
                     return@addOnSuccessListener
                 }
                 val request = GeofencingRequest.Builder()
@@ -73,13 +92,15 @@ object DoctorWorkplaceGeofencing {
                     .addGeofences(geofences)
                     .build()
 
-                client.removeGeofences(pendingIntent).addOnCompleteListener {
-                    client.addGeofences(request, pendingIntent)
-                        .addOnSuccessListener {
-                            app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-                                .edit().putString(PREF_UID, uid).apply()
-                        }
-                        .addOnCompleteListener { onComplete?.invoke() }
+                markOffsite(uid) {
+                    client.removeGeofences(pendingIntent).addOnCompleteListener {
+                        client.addGeofences(request, pendingIntent)
+                            .addOnSuccessListener {
+                                app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                                    .edit().putString(PREF_UID, uid).apply()
+                            }
+                            .addOnCompleteListener { onComplete?.invoke() }
+                    }
                 }
             }
             .addOnFailureListener { onComplete?.invoke() }
