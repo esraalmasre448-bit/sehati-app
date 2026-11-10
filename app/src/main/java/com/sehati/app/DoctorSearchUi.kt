@@ -277,6 +277,16 @@ private fun SearchDoctorCard(d: Map<String, Any?>, onClick: () -> Unit) {
                     Text(place, color = BMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
+            val currentPlace = if (d["locationStatus"] == "AT_WORK") {
+                d["currentWorkPlaceName"]?.toString().orEmpty()
+                    .ifBlank { if (d["currentWorkLocationId"] == "hospital") "المشفى" else "العيادة" }
+            } else ""
+            if (currentPlace.isNotBlank()) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Icon(Icons.Filled.MyLocation, null, tint = BGreen, modifier = Modifier.size(14.dp))
+                    Text("متواجد حالياً في $currentPlace", color = BGreen, fontSize = 12.sp)
+                }
+            }
             val fee = "${d["fee"] ?: ""}"
             if (fee.isNotBlank()) Text("كشفية: $fee", color = BMuted, fontSize = 12.sp)
         }
