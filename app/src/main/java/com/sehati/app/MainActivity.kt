@@ -110,7 +110,6 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
-        NotificationPermission.prepareAndRequest(this)
     }
 
     override fun onNewIntent(intent: android.content.Intent) {
@@ -148,6 +147,9 @@ fun App() {
         }
     }
     val ctx = androidx.compose.ui.platform.LocalContext.current
+    LaunchedEffect(splash) {
+        if (!splash) (ctx as? MainActivity)?.let { NotificationPermission.prepareAndRequest(it) }
+    }
     val notificationState = NotificationWatcher(if (loggedIn) auth.currentUser?.uid.orEmpty() else "")
     LaunchedEffect(loggedIn) {
         if (loggedIn) PushTokenManager.sync(ctx)
