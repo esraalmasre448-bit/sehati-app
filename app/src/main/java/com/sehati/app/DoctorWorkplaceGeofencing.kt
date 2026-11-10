@@ -33,13 +33,19 @@ object DoctorWorkplaceGeofencing {
         Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ||
             context.checkSelfPermission(Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED
 
-    fun sync(context: Context, uid: String) {
+    fun sync(context: Context, uid: String, onComplete: (() -> Unit)? = null) {
         val app = context.applicationContext
-        if (uid.isBlank() || !hasForegroundPermission(app) || !hasBackgroundPermission(app)) return
+        if (uid.isBlank() || !hasForegroundPermission(app) || !hasBackgroundPermission(app)) {
+            onComplete?.invoke()
+            return
+        }
 
         FirebaseFirestore.getInstance().collection("doctors").document(uid).get()
             .addOnSuccessListener { doc ->
-                if (!doc.exists()) return@addOnSuccessListener
+                if (!doc.exists()) {
+                    onComplete?.invoke()
+                    return@addOnSuccessListener
+                }
                 val places = doc.get("workLocations") as? Map<*, *> ?: emptyMap<Any, Any>()
                 val geofences = listOf("clinic", "hospital").mapNotNull { id ->
                     val place = places[id] as? Map<*, *> ?: return@mapNotNull null
@@ -59,7 +65,7 @@ object DoctorWorkplaceGeofencing {
                 val client = LocationServices.getGeofencingClient(app)
                 val pendingIntent = geofencePendingIntent(app)
                 if (geofences.isEmpty()) {
-                    client.removeGeofences(pendingIntent)
+                    client.removeGeofences(pendingIntent).addOnCompleteListener { onComplete?.invoke() }
                     return@addOnSuccessListener
                 }
                 val request = GeofencingRequest.Builder()
@@ -73,8 +79,10 @@ object DoctorWorkplaceGeofencing {
                             app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
                                 .edit().putString(PREF_UID, uid).apply()
                         }
+                        .addOnCompleteListener { onComplete?.invoke() }
                 }
             }
+            .addOnFailureListener { onComplete?.invoke() }
     }
 
     fun remove(context: Context) {
@@ -156,6 +164,9 @@ class DoctorWorkplaceGeofenceBootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
         val uid = DoctorWorkplaceGeofencing.savedDoctorUid(context)
-        if (uid.isNotBlank()) DoctorWorkplaceGeofencing.sync(context, uid)
+        if (uid.isNotBlank()) {
+            val pending = goAsync()
+            DoctorWorkplaceGeofencing.sync(context, uid) { pending.finish() }
+        }
     }
 }
