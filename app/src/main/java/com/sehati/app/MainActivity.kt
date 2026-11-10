@@ -319,12 +319,12 @@ private fun startSplashHeartbeat(context: Context): () -> Unit {
         for (i in 0 until count) {
             val t = i.toDouble() / sampleRate
             val envelope = exp(-19.0 * t) * (1.0 - exp(-90.0 * t))
-            val frequency = if (index % 2 == 0) 58.0 else 72.0
+            val frequency = if (index % 2 == 0) 68.0 else 88.0
             val wave = sin(2.0 * PI * frequency * t) * 0.72 +
                 sin(2.0 * PI * frequency * 1.72 * t) * 0.28
             val at = startSample + i
             if (at in pcm.indices) {
-                val mixed = pcm[at].toDouble() + wave * envelope * 10500.0
+                val mixed = pcm[at].toDouble() + wave * envelope * 22000.0
                 pcm[at] = mixed.coerceIn(-32768.0, 32767.0).toInt().toShort()
             }
         }
@@ -361,7 +361,7 @@ private fun startSplashHeartbeat(context: Context): () -> Unit {
             .setTransferMode(AudioTrack.MODE_STATIC)
             .build()
         track = audio
-        audio.setVolume(0.48f)
+        audio.setVolume(0.62f)
         val written = audio.write(pcm, 0, pcm.size)
         if (written > 0) audio.play() else release()
         Handler(Looper.getMainLooper()).postDelayed({ release() }, 3300L)
