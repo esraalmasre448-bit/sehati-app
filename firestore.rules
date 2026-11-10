@@ -31,7 +31,29 @@ service cloud.firestore {
   }
   function docKeys() {
    return ['uid','name','specialty','clinicName','city','address','hours','fee','updatedAt',
-       'startHour','endHour','slotMinutes','bio','lat','lng','mapLink','locationUpdatedAt','photo','emergency','hospitalName','hospitalHours','available','availableUpdatedAt','workDays'];
+       'startHour','endHour','slotMinutes','bio','lat','lng','mapLink','locationUpdatedAt','photo','emergency','hospitalName','hospitalHours','available','availableUpdatedAt','workDays','workLocations'];
+  }
+  function validWorkPlace(p) {
+   return p is map
+    && p.keys().hasOnly(['name','startHour','endHour','workDays','slotMinutes','lat','lng','mapLink'])
+    && p.name is string && p.name.size() > 0 && p.name.size() <= 120
+    && p.startHour is int && p.startHour >= 0 && p.startHour <= 23
+    && p.endHour is int && p.endHour >= 1 && p.endHour <= 24
+    && p.startHour < p.endHour
+    && p.workDays is list && p.workDays.size() > 0 && p.workDays.size() <= 7
+    && p.slotMinutes is int && p.slotMinutes >= 10 && p.slotMinutes <= 180
+    && (!('lat' in p) || (p.lat is number && p.lat >= -90 && p.lat <= 90))
+    && (!('lng' in p) || (p.lng is number && p.lng >= -180 && p.lng <= 180))
+    && (!('mapLink' in p) || (p.mapLink is string && p.mapLink.size() <= 2048));
+  }
+  function workLocationsOk() {
+   return !('workLocations' in request.resource.data)
+    || (request.resource.data.workLocations is map
+     && request.resource.data.workLocations.keys().hasOnly(['clinic','hospital'])
+     && 'clinic' in request.resource.data.workLocations
+     && validWorkPlace(request.resource.data.workLocations.clinic)
+     && (!('hospital' in request.resource.data.workLocations)
+       || validWorkPlace(request.resource.data.workLocations.hospital)));
   }
   function photoOk() {
    return !('photo' in request.resource.data)
@@ -95,7 +117,8 @@ service cloud.firestore {
     && userType() in ['doctor','clinic']
     && request.resource.data.keys().hasOnly(docKeys())
     && request.resource.data.uid == id
-    && photoOk();
+    && photoOk()
+    && workLocationsOk();
    allow update: if signedIn() && (
     (request.auth.uid == id && userType() in ['doctor','clinic']
      && resource.data.uid == id
@@ -103,7 +126,8 @@ service cloud.firestore {
      && request.resource.data.diff(resource.data).affectedKeys().hasOnly(docKeys().concat(['phone','emergencyPhone']))
      && !('phone' in request.resource.data)
      && !('emergencyPhone' in request.resource.data)
-     && photoOk())
+     && photoOk()
+     && workLocationsOk())
     || (isAdmin()
      && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['approved','approvedBy','approvedAt'])));
    allow delete: if isAdmin() || (signedIn() && request.auth.uid == id);
