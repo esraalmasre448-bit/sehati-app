@@ -151,8 +151,21 @@ fun App() {
         if (!splash) (ctx as? MainActivity)?.let { NotificationPermission.prepareAndRequest(it) }
     }
     val notificationState = NotificationWatcher(if (loggedIn) auth.currentUser?.uid.orEmpty() else "")
-    LaunchedEffect(loggedIn) {
-        if (loggedIn) PushTokenManager.sync(ctx)
+    val activeUid = if (loggedIn) auth.currentUser?.uid.orEmpty() else ""
+    LaunchedEffect(activeUid) {
+        if (activeUid.isNotBlank()) {
+            PushTokenManager.sync(ctx)
+            db.collection("users").document(activeUid).get()
+                .addOnSuccessListener { user ->
+                    val accountType = user.getString("accountType").orEmpty()
+                    if (accountType in listOf("doctor", "clinic") &&
+                        DoctorWorkplaceGeofencing.hasForegroundPermission(ctx) &&
+                        DoctorWorkplaceGeofencing.hasBackgroundPermission(ctx)
+                    ) {
+                        DoctorWorkplaceGeofencing.sync(ctx, activeUid)
+                    }
+                }
+        }
     }
     val pendingConversation = (ctx as? MainActivity)?.pendingConversationId
     LaunchedEffect(pendingConversation) {
