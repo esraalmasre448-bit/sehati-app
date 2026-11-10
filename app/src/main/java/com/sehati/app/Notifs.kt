@@ -169,7 +169,9 @@ fun rememberNotifs(uid: String, type: String): NotifState {
         val number = (a["number"] as? Number)?.toLong() ?: 0L
         if (isDoc) {
             val who = a["patientName"]?.toString().orEmpty()
-            if (status == "CONFIRMED") {
+            if (status == "PENDING") {
+                out.add(Notif("$id:P", "طلب حجز جديد", "رقم $number - $who - $date الساعة $time", ts, false))
+            } else if (status == "CONFIRMED") {
                 out.add(Notif("$id:C", "حجز جديد", "رقم $number - $who - $date الساعة $time", ts, false))
             } else if (status == "CANCELLED") {
                 out.add(Notif("$id:X", "حجز ملغى", "$who - $date الساعة $time", ts, false))
@@ -249,14 +251,17 @@ fun rememberNotifs(uid: String, type: String): NotifState {
             return@LaunchedEffect
         }
 
-        val added = (keysNow - previous).filter { isDoc || !it.endsWith(":C") }
+        val added = keysNow - previous
         val allHandled = previous + keysNow
         notifiedPrefs.edit()
             .putStringSet(notifiedKey, allHandled.toList().takeLast(600).toSet())
             .apply()
 
         // Chat messages arrive through FCM; do not duplicate them locally.
-        val localAdded = added.filterNot { it.startsWith("message:") }
+        val localAdded = if (AppVisibility.foreground) added.filterNot {
+            it.startsWith("message:") ||
+                (isDoc && it.endsWith(":C") && previous.contains(it.removeSuffix(":C") + ":P"))
+        } else emptyList()
         if (localAdded.isNotEmpty()) {
             localAdded.forEach { key ->
                 out.firstOrNull { it.key == key }?.let { item ->
