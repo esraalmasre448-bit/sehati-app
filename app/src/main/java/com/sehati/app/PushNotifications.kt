@@ -136,6 +136,10 @@ object PushSender {
     fun notifyQueueAdvanced(date: String) {
         post("/notify-queue", org.json.JSONObject().put("date", date))
     }
+
+    fun notifyPrescription(prescriptionId: String) {
+        post("/notify-prescription", org.json.JSONObject().put("prescriptionId", prescriptionId))
+    }
 }
 
 /** Displays FCM alerts when the app is backgrounded; foreground alerts use the in-app watcher. */
