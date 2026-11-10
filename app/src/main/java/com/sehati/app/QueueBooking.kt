@@ -99,10 +99,14 @@ private fun bookByQueue(
                     true,
                     "لديك حجز مسبق عند هذا الطبيب بهذا اليوم. رقمك: ${p.getOrElse(1) { "" }} — الوقت التقريبي: ${p.getOrElse(2) { "" }}"
                 )
-                else -> onResult(
-                    true,
-                    "تم إرسال طلب الحجز للطبيب. سيصبح موعدك مؤكداً بعد موافقته. رقم الدور المبدئي: ${p.getOrElse(1) { "" }} — الوقت التقديري: ${p.getOrElse(2) { "" }} بتاريخ $date"
-                )
+                "OK" -> {
+                    PushSender.notifyAppointment(apptRef.id, "booking_requested")
+                    onResult(
+                        true,
+                        "تم إرسال طلب الحجز للطبيب. سيصبح موعدك مؤكداً بعد موافقته. رقم الدور المبدئي: ${p.getOrElse(1) { "" }} — الوقت التقديري: ${p.getOrElse(2) { "" }} بتاريخ $date"
+                    )
+                }
+                else -> onResult(false, "تعذر تحديد نتيجة الحجز. افتح مواعيدك للتحقق قبل إعادة المحاولة.")
             }
         }.addOnFailureListener { e ->
             val code = (e as? com.google.firebase.firestore.FirebaseFirestoreException)?.code
