@@ -53,7 +53,7 @@ object PushTokenManager {
 
     private fun saveToken(context: Context, uid: String, token: String) {
         if (token.isBlank()) return
-        val docId = "\${uid}_\${installationId(context)}"
+        val docId = "${uid}_${installationId(context)}"
         FirebaseFirestore.getInstance().collection("fcmTokens").document(docId)
             .set(
                 mapOf(
@@ -73,7 +73,7 @@ object PushTokenManager {
             onComplete()
             return
         }
-        val docId = "\${uid}_\${installationId(context)}"
+        val docId = "${uid}_${installationId(context)}"
         FirebaseFirestore.getInstance().collection("fcmTokens").document(docId)
             .delete()
             .addOnCompleteListener { onComplete() }
