@@ -367,7 +367,8 @@ private fun startSplashHeartbeat(context: Context): () -> Unit {
         ::release
     } catch (_: Exception) {
         release()
-        {}
+        val noOp: () -> Unit = {}
+        noOp
     }
 }
 
