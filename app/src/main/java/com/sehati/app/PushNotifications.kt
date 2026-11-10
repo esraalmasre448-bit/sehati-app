@@ -68,6 +68,7 @@ object PushTokenManager {
 
     /** Delete this installation's old account token before signing out. */
     fun unregister(context: Context, onComplete: () -> Unit) {
+        DoctorWorkplaceGeofencing.remove(context)
         val uid = FirebaseAuth.getInstance().currentUser?.uid
         if (uid.isNullOrBlank()) {
             onComplete()
