@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -277,16 +278,32 @@ private fun SearchDoctorCard(d: Map<String, Any?>, onClick: () -> Unit) {
                     Text(place, color = BMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
+            val currentPlace = if (d["locationStatus"] == "AT_WORK") {
+                d["currentWorkPlaceName"]?.toString().orEmpty()
+                    .ifBlank { if (d["currentWorkLocationId"] == "hospital") "المشفى" else "العيادة" }
+            } else ""
+            if (currentPlace.isNotBlank()) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Icon(Icons.Filled.MyLocation, null, tint = BGreen, modifier = Modifier.size(14.dp))
+                    Text("متواجد حالياً في $currentPlace", color = BGreen, fontSize = 12.sp)
+                }
+            }
             val fee = "${d["fee"] ?: ""}"
             if (fee.isNotBlank()) Text("كشفية: $fee", color = BMuted, fontSize = 12.sp)
         }
-        when (d["available"]) {
-            true -> StatusPill("متاح", BGreen)
-            false -> {
-                val nextShift = nextWorkShiftLabel(d)
-                StatusPill(nextShift ?: "غير متاح", BMuted)
-            }
-            else -> {}
+        val currentPlaceName = d["currentWorkPlaceName"]?.toString().orEmpty()
+            .ifBlank { if (d["currentWorkLocationId"] == "hospital") "المشفى" else "العيادة" }
+        when {
+            d["locationStatus"] == "AT_WORK" -> StatusPill("في $currentPlaceName", BGreen)
+            d["locationStatus"] == "OFFSITE" -> StatusPill(
+                nextWorkShiftLabel(d) ?: "خارج موقعي العمل",
+                BMuted
+            )
+            d["available"] == true -> StatusPill("متاح", BGreen)
+            d["available"] == false -> StatusPill(
+                nextWorkShiftLabel(d) ?: "غير متاح",
+                BMuted
+            )
         }
     }
 }
