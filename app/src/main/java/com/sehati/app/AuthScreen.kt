@@ -239,13 +239,15 @@ fun AuthFlow(onDone: () -> Unit) {
                         "startedAt" to FieldValue.serverTimestamp(),
                         "expiresAt" to com.google.firebase.Timestamp(endDate)
                     )).addOnSuccessListener {
-                        sendVerificationLink(user)
+                        busy = false
+                        onDone()
                     }.addOnFailureListener {
                         busy = false
                         msg = "تم إنشاء الحساب، لكن تعذر تجهيز ملف الاشتراك التجريبي. سجّل الدخول مجدداً أو تواصل مع الدعم."
                     }
                 } else {
-                    sendVerificationLink(user)
+                    busy = false
+                    onDone()
                 }
             }
             .addOnFailureListener {
@@ -381,38 +383,8 @@ fun AuthFlow(onDone: () -> Unit) {
                             db.collection("users").document(user.uid).get()
                                 .addOnSuccessListener { profile ->
                                     if (profile.exists()) {
-                                        user.reload()
-                                            .addOnSuccessListener {
-                                                val refreshed = auth.currentUser
-                                                if (refreshed?.isEmailVerified == true) {
-                                                    refreshed.getIdToken(true)
-                                                        .addOnSuccessListener {
-                                                            db.collection("users").document(refreshed.uid)
-                                                                .update("emailVerified", true)
-                                                                .addOnSuccessListener {
-                                                                    busy = false
-                                                                    onDone()
-                                                                }
-                                                                .addOnFailureListener {
-                                                                    busy = false
-                                                                    msg = "تم توثيق البريد، لكن تعذر تحديث ملف الحساب. حاول مجدداً."
-                                                                }
-                                                        }
-                                                        .addOnFailureListener {
-                                                            busy = false
-                                                            msg = "تعذر تحديث جلسة الدخول. حاول مجدداً."
-                                                        }
-                                                } else {
-                                                    busy = false
-                                                    verificationEmail = refreshed?.email ?: e
-                                                    verificationMsg = "هذا الحساب يحتاج إلى تأكيد البريد الإلكتروني قبل الدخول."
-                                                    showEmailVerification = true
-                                                }
-                                            }
-                                            .addOnFailureListener {
-                                                busy = false
-                                                msg = "تعذر فحص حالة البريد. تحقق من الإنترنت وحاول مجدداً."
-                                            }
+                                        busy = false
+                                        onDone()
                                     } else if (profile.metadata.isFromCache) {
                                         auth.signOut()
                                         busy = false
