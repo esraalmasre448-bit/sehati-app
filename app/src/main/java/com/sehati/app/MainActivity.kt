@@ -40,6 +40,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
@@ -479,7 +482,10 @@ fun Splash() {
                     painterResource(R.drawable.ic_launcher),
                     contentDescription = "شعار الطريق إلى صحتي",
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier.size(174.dp).scale(heartScale).clip(CircleShape)
+                    modifier = Modifier.graphicsLayer {
+                        blendMode = BlendMode.Screen
+                        compositingStrategy = CompositingStrategy.Offscreen
+                    }.size(174.dp).scale(heartScale).clip(CircleShape)
                 )
                 // Four small diagnostic markers around the core.
                 listOf(0, 1, 2, 3).forEach { index ->
