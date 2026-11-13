@@ -17,6 +17,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -472,8 +473,8 @@ fun Splash() {
                 Image(
                     painterResource(R.drawable.ic_launcher),
                     contentDescription = "شعار الطريق إلى صحتي",
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier.size(174.dp).scale(heartScale)
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.size(174.dp).scale(heartScale).clip(CircleShape)
                 )
                 // Four small diagnostic markers around the core.
                 listOf(0, 1, 2, 3).forEach { index ->
