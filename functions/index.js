@@ -153,3 +153,6 @@ exports.verifyEmailVerificationCode = onCall({
   await getAuth().updateUser(uid, { emailVerified: true });
   return { success: true, verified: true };
 });
+
+// Authenticated NOETRAX integration bridge (status-only until data scopes are approved).
+require("./noetraxBridge");
