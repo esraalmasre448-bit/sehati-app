@@ -399,6 +399,11 @@ fun Splash() {
         animationSpec = infiniteRepeatable(tween(5200, easing = androidx.compose.animation.core.LinearEasing)),
         label = "orbit"
     )
+    val ecgProgress by motion.animateFloat(
+        initialValue = 0f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(1900, easing = androidx.compose.animation.core.LinearEasing)),
+        label = "ecg-trace"
+    )
     DisposableEffect(soundEnabled) {
         val stopSound = if (soundEnabled) startSplashHeartbeat(context) else null
         onDispose { stopSound?.invoke() }
@@ -522,13 +527,42 @@ fun Splash() {
                     val yy = mid + (point.second - 0.5f) * size.height * 0.88f
                     if (index == 0) path.moveTo(x, yy) else path.lineTo(x, yy)
                 }
+                // Dim ECG guide remains visible while the bright heartbeat trace sweeps across it.
                 drawPath(
-                    path, Color(0xFFFF5368),
+                    path, Color(0x55FF5368),
                     style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.2f)
                 )
                 drawPath(
-                    path, Color(0x55FF5368),
+                    path, Color(0x22FF5368),
                     style = androidx.compose.ui.graphics.drawscope.Stroke(width = 10f)
+                )
+                val activePath = androidx.compose.ui.graphics.Path()
+                val endX = size.width * ecgProgress
+                var started = false
+                points.forEachIndexed { index, point ->
+                    val x = size.width * point.first
+                    val yy = mid + (point.second - 0.5f) * size.height * 0.88f
+                    if (x <= endX) {
+                        if (!started) {
+                            activePath.moveTo(x, yy)
+                            started = true
+                        } else activePath.lineTo(x, yy)
+                    } else if (index > 0 && started) {
+                        val previous = points[index - 1]
+                        val previousX = size.width * previous.first
+                        val previousY = mid + (previous.second - 0.5f) * size.height * 0.88f
+                        val fraction = ((endX - previousX) / (x - previousX)).coerceIn(0f, 1f)
+                        activePath.lineTo(endX, previousY + (yy - previousY) * fraction)
+                        return@forEachIndexed
+                    }
+                }
+                drawPath(
+                    activePath, Color(0xFFFF5368),
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.8f)
+                )
+                drawPath(
+                    activePath, Color(0x99FF5368),
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 11f)
                 )
             }
             Spacer(Modifier.height(23.dp))
