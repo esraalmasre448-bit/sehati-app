@@ -18,6 +18,12 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.draw.scale
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -480,8 +486,42 @@ fun Splash() {
                 Image(
                     painterResource(R.drawable.ic_launcher),
                     contentDescription = "شعار الطريق إلى صحتي",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.size(174.dp).scale(heartScale).clip(CircleShape)
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .size(190.dp)
+                        .scale(heartScale)
+                        .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                        .drawWithContent {
+                            drawContent()
+                            // Clear only the baked blue rounded-square frame and its glow.
+                            drawRoundRect(
+                                color = Color.Transparent,
+                                topLeft = Offset(size.width * 0.07f, size.height * 0.07f),
+                                size = Size(size.width * 0.86f, size.height * 0.86f),
+                                cornerRadius = CornerRadius(size.width * 0.18f, size.height * 0.18f),
+                                style = Stroke(width = size.width * 0.105f),
+                                blendMode = BlendMode.Clear
+                            )
+                            // Add a restrained red accent on the upper-left corner.
+                            drawArc(
+                                color = Color(0x44FF3045),
+                                startAngle = 180f,
+                                sweepAngle = 90f,
+                                useCenter = false,
+                                topLeft = Offset(size.width * 0.07f, size.height * 0.07f),
+                                size = Size(size.width * 0.36f, size.height * 0.36f),
+                                style = Stroke(width = size.width * 0.045f)
+                            )
+                            drawArc(
+                                color = Color(0xFFFF4054),
+                                startAngle = 180f,
+                                sweepAngle = 90f,
+                                useCenter = false,
+                                topLeft = Offset(size.width * 0.07f, size.height * 0.07f),
+                                size = Size(size.width * 0.36f, size.height * 0.36f),
+                                style = Stroke(width = size.width * 0.012f)
+                            )
+                        }
                 )
                 // Four small diagnostic markers around the core.
                 listOf(0, 1, 2, 3).forEach { index ->
