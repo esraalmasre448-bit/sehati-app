@@ -377,106 +377,189 @@ private fun startSplashHeartbeat(context: Context): () -> Unit {
 fun Splash() {
     val context = androidx.compose.ui.platform.LocalContext.current
     var soundEnabled by remember { mutableStateOf(true) }
-    val pulse = rememberInfiniteTransition(label = "heart-pulse")
-    val heartScale by pulse.animateFloat(
-        initialValue = 0.94f,
-        targetValue = 1.08f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(430, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
+    val motion = rememberInfiniteTransition(label = "cinematic-splash")
+    val heartScale by motion.animateFloat(
+        initialValue = 0.94f, targetValue = 1.075f,
+        animationSpec = infiniteRepeatable(tween(520, easing = FastOutSlowInEasing), RepeatMode.Reverse),
         label = "heart-scale"
     )
-    val ringAlpha by pulse.animateFloat(
-        initialValue = 0.12f,
-        targetValue = 0.42f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(650, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "heart-ring"
+    val ringAlpha by motion.animateFloat(
+        initialValue = 0.12f, targetValue = 0.48f,
+        animationSpec = infiniteRepeatable(tween(1100, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "ring-alpha"
+    )
+    val scanY by motion.animateFloat(
+        initialValue = 0f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(1900, easing = androidx.compose.animation.core.LinearEasing)),
+        label = "scan-sweep"
+    )
+    val orbit by motion.animateFloat(
+        initialValue = 0f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(5200, easing = androidx.compose.animation.core.LinearEasing)),
+        label = "orbit"
     )
     DisposableEffect(soundEnabled) {
         val stopSound = if (soundEnabled) startSplashHeartbeat(context) else null
         onDispose { stopSound?.invoke() }
     }
-    Column(
-        Modifier.fillMaxSize().background(Bg).padding(28.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+    Box(
+        Modifier.fillMaxSize().background(
+            androidx.compose.ui.graphics.Brush.radialGradient(
+                colors = listOf(Color(0xFF193B59), Color(0xFF0A1728), Color(0xFF050A12)),
+                radius = 1050f
+            )
+        )
     ) {
-        Box(
-            modifier = Modifier.size(250.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Box(
-                Modifier.size(222.dp)
-                    .border(2.dp, Red.copy(alpha = ringAlpha), CircleShape)
+        androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
+            val w = size.width
+            val h = size.height
+            val center = androidx.compose.ui.geometry.Offset(w / 2f, h * 0.39f)
+            // Soft medical-blue aura and a subtle red pulse halo.
+            drawCircle(
+                brush = androidx.compose.ui.graphics.Brush.radialGradient(
+                    listOf(Color(0x5538BDF8), Color(0x001D4B70)),
+                    center = center, radius = w * 0.62f
+                ),
+                radius = w * 0.62f, center = center
             )
-            Box(
-                Modifier.size(194.dp)
-                    .border(1.dp, Red.copy(alpha = ringAlpha * 0.7f), CircleShape)
+            drawCircle(
+                color = Color(0x18FF334F),
+                radius = w * (0.23f + ringAlpha * 0.12f),
+                center = center
             )
-            Image(
-                painterResource(R.drawable.ic_launcher),
-                contentDescription = "شعار الطريق إلى صحتي",
-                modifier = Modifier.size(166.dp).scale(heartScale)
+            // Moving diagnostic scan beam.
+            val y = h * (0.12f + scanY * 0.72f)
+            drawRect(
+                brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+                    colors = listOf(Color.Transparent, Color(0x2238BDF8), Color.Transparent),
+                    startY = y - 34f, endY = y + 34f
+                ),
+                topLeft = androidx.compose.ui.geometry.Offset(0f, y - 34f),
+                size = androidx.compose.ui.geometry.Size(w, 68f)
             )
-        }
-        Spacer(Modifier.height(18.dp))
-        Text(
-            "الطريق إلى صحتي",
-            color = Color.White,
-            fontSize = 25.sp,
-            fontWeight = FontWeight.Bold
-        )
-        Spacer(Modifier.height(10.dp))
-        Text(
-            stringResource(R.string.tagline),
-            color = Muted,
-            fontSize = 16.sp,
-            textAlign = TextAlign.Center
-        )
-        Spacer(Modifier.height(25.dp))
-        androidx.compose.foundation.Canvas(
-            modifier = Modifier.fillMaxWidth().height(48.dp)
-        ) {
-            val mid = size.height / 2f
-            val points = listOf(
-                0.00f to 0.50f, 0.12f to 0.50f, 0.19f to 0.50f,
-                0.24f to 0.18f, 0.29f to 0.88f, 0.35f to 0.08f,
-                0.41f to 0.50f, 0.53f to 0.50f, 0.60f to 0.50f,
-                0.65f to 0.18f, 0.70f to 0.88f, 0.76f to 0.08f,
-                0.82f to 0.50f, 1.00f to 0.50f
-            )
-            val path = androidx.compose.ui.graphics.Path()
-            points.forEachIndexed { index, point ->
-                val x = size.width * point.first
-                val y = mid + (point.second - 0.5f) * size.height * 0.9f
-                if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
+            // Fine orbital particles.
+            for (i in 0 until 28) {
+                val angle = (i / 28f) * (2f * Math.PI.toFloat()) + orbit * 2f * Math.PI.toFloat()
+                val radius = w * (0.30f + (i % 4) * 0.018f)
+                val x = center.x + kotlin.math.cos(angle) * radius
+                val py = center.y + kotlin.math.sin(angle) * radius * 0.78f
+                drawCircle(
+                    color = if (i % 5 == 0) Color(0xAAFF5368) else Color(0x7756C9F5),
+                    radius = if (i % 5 == 0) 3.2f else 1.7f,
+                    center = androidx.compose.ui.geometry.Offset(x, py)
+                )
             }
-            drawPath(
-                path = path,
-                color = Red.copy(alpha = 0.9f),
-                style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.5f)
-            )
         }
-        Spacer(Modifier.height(20.dp))
-        LinearProgressIndicator(
-            modifier = Modifier.fillMaxWidth(0.62f),
-            color = Red,
-            trackColor = Line
-        )
-        Spacer(Modifier.height(8.dp))
-        Text(stringResource(R.string.loading), color = Muted, fontSize = 13.sp)
-        Spacer(Modifier.height(12.dp))
-        TextButton(onClick = { soundEnabled = !soundEnabled }) {
+        Column(
+            Modifier.fillMaxSize().padding(horizontal = 28.dp, vertical = 34.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Spacer(Modifier.weight(0.45f))
+            Box(Modifier.size(286.dp), contentAlignment = Alignment.Center) {
+                Box(
+                    Modifier.size(276.dp)
+                        .border(1.dp, Color(0x3338BDF8), CircleShape)
+                )
+                Box(
+                    Modifier.size(246.dp)
+                        .border(1.5.dp, Color(0x66FF5368).copy(alpha = ringAlpha), CircleShape)
+                )
+                Box(
+                    Modifier.size(214.dp)
+                        .border(1.dp, Color(0x5538BDF8), CircleShape)
+                )
+                Image(
+                    painterResource(R.drawable.ic_launcher),
+                    contentDescription = "شعار الطريق إلى صحتي",
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.size(174.dp).scale(heartScale)
+                )
+                // Four small diagnostic markers around the core.
+                listOf(0, 1, 2, 3).forEach { index ->
+                    Box(
+                        Modifier.offset(
+                            x = when (index) { 0 -> 0.dp; 1 -> 124.dp; 2 -> 0.dp; else -> (-124).dp },
+                            y = when (index) { 0 -> (-124).dp; 1 -> 0.dp; 2 -> 124.dp; else -> 0.dp }
+                        ).size(7.dp).background(
+                            if (index % 2 == 0) Color(0xFFFF5368) else Color(0xFF56C9F5),
+                            CircleShape
+                        )
+                    )
+                }
+            }
+            Spacer(Modifier.height(22.dp))
             Text(
-                if (soundEnabled) "كتم صوت النبض" else "تشغيل صوت النبض",
-                color = Muted,
-                fontSize = 13.sp
+                "الطريق إلى صحتي",
+                color = Color.White,
+                fontSize = 29.sp,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = 0.4.sp
             )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                stringResource(R.string.tagline),
+                color = Color(0xFFC7D9E9),
+                fontSize = 15.sp,
+                textAlign = TextAlign.Center
+            )
+            Spacer(Modifier.height(28.dp))
+            androidx.compose.foundation.Canvas(
+                modifier = Modifier.fillMaxWidth().height(58.dp)
+            ) {
+                val mid = size.height / 2f
+                val points = listOf(
+                    0.00f to 0.50f, 0.12f to 0.50f, 0.19f to 0.50f,
+                    0.24f to 0.18f, 0.29f to 0.88f, 0.35f to 0.08f,
+                    0.41f to 0.50f, 0.53f to 0.50f, 0.60f to 0.50f,
+                    0.65f to 0.18f, 0.70f to 0.88f, 0.76f to 0.08f,
+                    0.82f to 0.50f, 1.00f to 0.50f
+                )
+                val path = androidx.compose.ui.graphics.Path()
+                points.forEachIndexed { index, point ->
+                    val x = size.width * point.first
+                    val yy = mid + (point.second - 0.5f) * size.height * 0.88f
+                    if (index == 0) path.moveTo(x, yy) else path.lineTo(x, yy)
+                }
+                drawPath(
+                    path, Color(0xFFFF5368),
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.2f)
+                )
+                drawPath(
+                    path, Color(0x55FF5368),
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 10f)
+                )
+            }
+            Spacer(Modifier.height(23.dp))
+            LinearProgressIndicator(
+                modifier = Modifier.fillMaxWidth(0.64f).height(3.dp),
+                color = Color(0xFF56C9F5),
+                trackColor = Color(0x334D7898)
+            )
+            Spacer(Modifier.height(10.dp))
+            Text(
+                "جارٍ تجهيز رحلتك الصحية",
+                color = Color(0xFF9CB8CC),
+                fontSize = 12.sp,
+                letterSpacing = 1.sp
+            )
+            Spacer(Modifier.height(10.dp))
+            TextButton(onClick = { soundEnabled = !soundEnabled }) {
+                Text(
+                    if (soundEnabled) "كتم صوت النبض" else "تشغيل صوت النبض",
+                    color = Color(0xFFB7D6E9),
+                    fontSize = 12.sp
+                )
+            }
+            Spacer(Modifier.weight(0.35f))
         }
+        Text(
+            "CARE • CONNECT • LIVE HEALTHIER",
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp),
+            color = Color(0x557FA6C0),
+            fontSize = 9.sp,
+            letterSpacing = 2.sp
+        )
     }
 }
 
