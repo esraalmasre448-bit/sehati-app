@@ -430,7 +430,7 @@ fun Splash() {
     Box(
         Modifier.fillMaxSize().background(
             androidx.compose.ui.graphics.Brush.verticalGradient(
-                listOf(Color(0xFF07101D), Color(0xFF102A42), Color(0xFF050A12))
+                listOf(Color(0xFF08111D), Color(0xFF13283A), Color(0xFF07101A))
             )
         )
     ) {
@@ -478,26 +478,20 @@ fun Splash() {
                         ), CircleShape
                     )
                 )
-                Box(
-                    Modifier.size(238.dp).graphicsLayer {
-                        shadowElevation = 34.dp.toPx()
-                        shape = CircleShape
-                        clip = false
-                    }.background(Color(0xFF071321), CircleShape)
-                    .border(1.dp, Color(0x6649BFF2), CircleShape)
-                )
                 Image(
                     painter = painterResource(R.drawable.ic_launcher),
-                    contentDescription = "شعار الطريق إلى صحتي",
+                    contentDescription = "شعار الطريق الصحي",
                     contentScale = ContentScale.Fit,
-                    modifier = Modifier.size(224.dp).graphicsLayer {
+                    modifier = Modifier.size(270.dp).graphicsLayer {
+                        blendMode = BlendMode.Screen
+                        compositingStrategy = CompositingStrategy.Offscreen
                         scaleX = logoScale
                         scaleY = logoScale
                         rotationY = logoTilt
                         rotationX = -logoTilt * 0.45f
                         cameraDistance = 22f * density
-                        shadowElevation = 30.dp.toPx()
-                        shape = CircleShape
+                        shadowElevation = 0.dp.toPx()
+                        shape = RoundedCornerShape(0.dp)
                     }
                 )
                 // Moving specular highlight adds depth without changing the approved logo artwork.
@@ -516,7 +510,7 @@ fun Splash() {
             }
             Spacer(Modifier.height(18.dp))
             Text(
-                "الطريق إلى صحتي",
+                "الطريق الصحي",
                 modifier = Modifier.graphicsLayer {
                     alpha = titleReveal
                     translationY = (1f - titleReveal) * 28.dp.toPx()
@@ -530,7 +524,7 @@ fun Splash() {
             )
             Spacer(Modifier.height(8.dp))
             Text(
-                "صحتك.. أولويتي",
+                "معك... دائماً نحو الأفضل",
                 modifier = Modifier.graphicsLayer {
                     alpha = titleReveal * 0.88f
                     translationY = (1f - titleReveal) * 18.dp.toPx()
