@@ -186,7 +186,7 @@ fun App() {
         owner.lifecycle.addObserver(obs)
         onDispose { owner.lifecycle.removeObserver(obs) }
     }
-    LaunchedEffect(Unit) { delay(3100); splash = false }
+    LaunchedEffect(Unit) { delay(6200); splash = false }
     BackHandler(enabled = screen != "main") {
         screen = when (screen) {
             "detail" -> "search"
