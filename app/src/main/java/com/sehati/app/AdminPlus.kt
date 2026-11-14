@@ -41,7 +41,7 @@ import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.SetOptions
 import java.io.ByteArrayOutputStream
 
-private const val DEV_TAGLINE = "مؤسس ومطوّر الطريق إلى صحتي"
+private const val DEV_TAGLINE = "مؤسس ومطوّر الطريق الصحي"
 private const val GITHUB_URL = "https://github.com/esraalmasre448-bit/sehati-app"
 private const val FIREBASE_URL = "https://console.firebase.google.com/"
 
@@ -218,7 +218,7 @@ private fun AdminHome(name: String, photo: String?, onPage: (String) -> Unit) {
 
         SehatiHero(
             eyebrow = "مركز التحكم",
-            title = "إدارة الطريق إلى صحتي",
+            title = "إدارة الطريق الصحي",
             subtitle = "نظرة واضحة على المستخدمين والحجوزات وأدوات تشغيل المنصة.",
             icon = Icons.Filled.Dashboard
         )
