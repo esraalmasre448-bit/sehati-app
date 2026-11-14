@@ -385,32 +385,30 @@ private fun startSplashHeartbeat(context: Context): () -> Unit {
 @Composable
 fun Splash() {
     val context = androidx.compose.ui.platform.LocalContext.current
+    val motion = rememberInfiniteTransition(label = "premium-splash")
     var soundEnabled by remember { mutableStateOf(true) }
-    val motion = rememberInfiniteTransition(label = "cinematic-splash")
-    val heartScale by motion.animateFloat(
-        initialValue = 0.94f, targetValue = 1.075f,
-        animationSpec = infiniteRepeatable(tween(520, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "heart-scale"
+    val reveal by motion.animateFloat(
+        initialValue = 0.96f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2600, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "logo-breathe"
     )
-    val ringAlpha by motion.animateFloat(
-        initialValue = 0.12f, targetValue = 0.48f,
-        animationSpec = infiniteRepeatable(tween(1100, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "ring-alpha"
+    val halo by motion.animateFloat(
+        initialValue = 0.16f, targetValue = 0.34f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2200, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "halo"
     )
-    val scanY by motion.animateFloat(
+    val sweep by motion.animateFloat(
         initialValue = 0f, targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(1900, easing = androidx.compose.animation.core.LinearEasing)),
-        label = "scan-sweep"
-    )
-    val orbit by motion.animateFloat(
-        initialValue = 0f, targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(5200, easing = androidx.compose.animation.core.LinearEasing)),
-        label = "orbit"
-    )
-    val ecgProgress by motion.animateFloat(
-        initialValue = 0f, targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(1900, easing = androidx.compose.animation.core.LinearEasing)),
-        label = "ecg-trace"
+        animationSpec = infiniteRepeatable(
+            animation = tween(3200, easing = androidx.compose.animation.core.LinearEasing)
+        ),
+        label = "light-sweep"
     )
     DisposableEffect(soundEnabled) {
         val stopSound = if (soundEnabled) startSplashHeartbeat(context) else null
@@ -419,227 +417,127 @@ fun Splash() {
     Box(
         Modifier.fillMaxSize().background(
             androidx.compose.ui.graphics.Brush.radialGradient(
-                colors = listOf(Color(0xFF193B59), Color(0xFF0A1728), Color(0xFF050A12)),
-                radius = 1050f
+                colors = listOf(
+                    Color(0xFF163B58), Color(0xFF0B1B2D), Color(0xFF050A12)
+                ),
+                radius = 1250f
             )
         )
     ) {
         androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
-            val w = size.width
-            val h = size.height
-            val center = androidx.compose.ui.geometry.Offset(w / 2f, h * 0.39f)
-            // Soft medical-blue aura and a subtle red pulse halo.
+            val center = Offset(size.width / 2f, size.height * 0.43f)
+            val glowRadius = size.width * (0.42f + halo * 0.12f)
             drawCircle(
                 brush = androidx.compose.ui.graphics.Brush.radialGradient(
-                    listOf(Color(0x5538BDF8), Color(0x001D4B70)),
-                    center = center, radius = w * 0.62f
+                    colors = listOf(Color(0x4438BDF8), Color(0x0038BDF8)),
+                    center = center, radius = glowRadius
                 ),
-                radius = w * 0.62f, center = center
+                radius = glowRadius, center = center
             )
-            drawCircle(
-                color = Color(0x18FF334F),
-                radius = w * (0.23f + ringAlpha * 0.12f),
-                center = center
-            )
-            // Moving diagnostic scan beam.
-            val y = h * (0.12f + scanY * 0.72f)
+            // A single soft light passes behind the mark; no busy orbital rings.
+            val beamY = size.height * (0.18f + sweep * 0.58f)
             drawRect(
                 brush = androidx.compose.ui.graphics.Brush.verticalGradient(
-                    colors = listOf(Color.Transparent, Color(0x2238BDF8), Color.Transparent),
-                    startY = y - 34f, endY = y + 34f
+                    colors = listOf(Color.Transparent, Color(0x1838BDF8), Color.Transparent),
+                    startY = beamY - 48f, endY = beamY + 48f
                 ),
-                topLeft = androidx.compose.ui.geometry.Offset(0f, y - 34f),
-                size = androidx.compose.ui.geometry.Size(w, 68f)
+                topLeft = Offset(0f, beamY - 48f),
+                size = Size(size.width, 96f)
             )
-            // Fine orbital particles.
-            for (i in 0 until 28) {
-                val angle = (i / 28f) * (2f * Math.PI.toFloat()) + orbit * 2f * Math.PI.toFloat()
-                val radius = w * (0.30f + (i % 4) * 0.018f)
-                val x = center.x + kotlin.math.cos(angle) * radius
-                val py = center.y + kotlin.math.sin(angle) * radius * 0.78f
+            // Sparse, slow-moving particles keep the background cinematic and quiet.
+            for (i in 0 until 18) {
+                val phase = i * 0.73f + sweep * 0.7f
+                val x = size.width * (0.10f + ((i * 37) % 80) / 100f)
+                val y = size.height * (0.16f + ((i * 29) % 68) / 100f)
+                val drift = kotlin.math.sin(phase) * 5f
                 drawCircle(
-                    color = if (i % 5 == 0) Color(0xAAFF5368) else Color(0x7756C9F5),
-                    radius = if (i % 5 == 0) 3.2f else 1.7f,
-                    center = androidx.compose.ui.geometry.Offset(x, py)
+                    color = if (i % 6 == 0) Color(0x66FF5268) else Color(0x445BC8F2),
+                    radius = if (i % 6 == 0) 2.2f else 1.2f,
+                    center = Offset(x + drift, y)
                 )
             }
         }
         Column(
-            Modifier.fillMaxSize().padding(horizontal = 28.dp, vertical = 34.dp),
+            modifier = Modifier.fillMaxSize().padding(horizontal = 30.dp, vertical = 38.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Spacer(Modifier.weight(0.45f))
-            Box(Modifier.size(286.dp), contentAlignment = Alignment.Center) {
+            Spacer(Modifier.weight(0.9f))
+            Box(
+                modifier = Modifier.size(270.dp),
+                contentAlignment = Alignment.Center
+            ) {
                 Box(
-                    Modifier.size(276.dp)
-                        .border(1.dp, Color(0x3338BDF8), CircleShape)
-                )
-                Box(
-                    Modifier.size(246.dp)
-                        .border(1.5.dp, Color(0x66FF5368).copy(alpha = ringAlpha), CircleShape)
-                )
-                Box(
-                    Modifier.size(214.dp)
-                        .border(1.dp, Color(0x5538BDF8), CircleShape)
+                    Modifier.size(250.dp).background(
+                        androidx.compose.ui.graphics.Brush.radialGradient(
+                            listOf(Color(0x2238BDF8), Color.Transparent)
+                        ),
+                        CircleShape
+                    )
                 )
                 Image(
-                    painterResource(R.drawable.ic_launcher),
+                    painter = painterResource(R.drawable.ic_launcher),
                     contentDescription = "شعار الطريق إلى صحتي",
                     contentScale = ContentScale.Fit,
                     modifier = Modifier
-                        .size(190.dp)
-                        .scale(heartScale)
-                        .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
-                        .drawWithContent {
-                            drawContent()
-                            // Clear only the baked blue rounded-square frame and its glow.
-                            drawRoundRect(
-                                color = Color.Transparent,
-                                topLeft = Offset(size.width * 0.07f, size.height * 0.07f),
-                                size = Size(size.width * 0.86f, size.height * 0.86f),
-                                cornerRadius = CornerRadius(size.width * 0.18f, size.height * 0.18f),
-                                style = Stroke(width = size.width * 0.105f),
-                                blendMode = BlendMode.Clear
-                            )
-                            // Add a restrained red accent on the upper-left corner.
-                            drawArc(
-                                color = Color(0x44FF3045),
-                                startAngle = 180f,
-                                sweepAngle = 90f,
-                                useCenter = false,
-                                topLeft = Offset(size.width * 0.07f, size.height * 0.07f),
-                                size = Size(size.width * 0.36f, size.height * 0.36f),
-                                style = Stroke(width = size.width * 0.045f)
-                            )
-                            drawArc(
-                                color = Color(0xFFFF4054),
-                                startAngle = 180f,
-                                sweepAngle = 90f,
-                                useCenter = false,
-                                topLeft = Offset(size.width * 0.07f, size.height * 0.07f),
-                                size = Size(size.width * 0.36f, size.height * 0.36f),
-                                style = Stroke(width = size.width * 0.012f)
-                            )
+                        .size(226.dp)
+                        .graphicsLayer {
+                            scaleX = reveal
+                            scaleY = reveal
+                            shadowElevation = 22.dp.toPx()
                         }
                 )
-                // Four small diagnostic markers around the core.
-                listOf(0, 1, 2, 3).forEach { index ->
-                    Box(
-                        Modifier.offset(
-                            x = when (index) { 0 -> 0.dp; 1 -> 124.dp; 2 -> 0.dp; else -> (-124).dp },
-                            y = when (index) { 0 -> (-124).dp; 1 -> 0.dp; 2 -> 124.dp; else -> 0.dp }
-                        ).size(7.dp).background(
-                            if (index % 2 == 0) Color(0xFFFF5368) else Color(0xFF56C9F5),
-                            CircleShape
-                        )
-                    )
+            }
+            Spacer(Modifier.height(22.dp))
+            // The logo already contains the Arabic name and tagline: do not repeat them.
+            androidx.compose.foundation.Canvas(
+                modifier = Modifier.width(132.dp).height(24.dp)
+            ) {
+                val mid = size.height / 2f
+                val path = androidx.compose.ui.graphics.Path().apply {
+                    moveTo(0f, mid)
+                    lineTo(size.width * 0.34f, mid)
+                    lineTo(size.width * 0.43f, mid)
+                    lineTo(size.width * 0.49f, size.height * 0.12f)
+                    lineTo(size.width * 0.55f, size.height * 0.88f)
+                    lineTo(size.width * 0.61f, size.height * 0.30f)
+                    lineTo(size.width * 0.67f, mid)
+                    lineTo(size.width, mid)
                 }
+                drawPath(
+                    path, Color(0x66FF5268),
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.2f)
+                )
+                drawPath(
+                    path, Color(0xAAFF5268),
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 5.5f)
+                )
             }
             Spacer(Modifier.height(22.dp))
             Text(
-                "الطريق إلى صحتي",
-                color = Color.White,
-                fontSize = 29.sp,
-                fontWeight = FontWeight.ExtraBold,
-                letterSpacing = 0.4.sp
+                "جارٍ تجهيز تجربتك الصحية",
+                color = Color(0xFFB5C9D9),
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                letterSpacing = 0.3.sp
             )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                stringResource(R.string.tagline),
-                color = Color(0xFFC7D9E9),
-                fontSize = 15.sp,
-                textAlign = TextAlign.Center
-            )
-            Spacer(Modifier.height(28.dp))
-            androidx.compose.foundation.Canvas(
-                modifier = Modifier.fillMaxWidth().height(58.dp)
-            ) {
-                val mid = size.height / 2f
-                val points = listOf(
-                    0.00f to 0.50f, 0.12f to 0.50f, 0.19f to 0.50f,
-                    0.24f to 0.18f, 0.29f to 0.88f, 0.35f to 0.08f,
-                    0.41f to 0.50f, 0.53f to 0.50f, 0.60f to 0.50f,
-                    0.65f to 0.18f, 0.70f to 0.88f, 0.76f to 0.08f,
-                    0.82f to 0.50f, 1.00f to 0.50f
-                )
-                val path = androidx.compose.ui.graphics.Path()
-                points.forEachIndexed { index, point ->
-                    val x = size.width * point.first
-                    val yy = mid + (point.second - 0.5f) * size.height * 0.88f
-                    if (index == 0) path.moveTo(x, yy) else path.lineTo(x, yy)
-                }
-                // Dim ECG guide remains visible while the bright heartbeat trace sweeps across it.
-                drawPath(
-                    path, Color(0x55FF5368),
-                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.2f)
-                )
-                drawPath(
-                    path, Color(0x22FF5368),
-                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 10f)
-                )
-                val activePath = androidx.compose.ui.graphics.Path()
-                val endX = size.width * ecgProgress
-                var started = false
-                points.forEachIndexed { index, point ->
-                    val x = size.width * point.first
-                    val yy = mid + (point.second - 0.5f) * size.height * 0.88f
-                    if (x <= endX) {
-                        if (!started) {
-                            activePath.moveTo(x, yy)
-                            started = true
-                        } else activePath.lineTo(x, yy)
-                    } else if (index > 0 && started) {
-                        val previous = points[index - 1]
-                        val previousX = size.width * previous.first
-                        val previousY = mid + (previous.second - 0.5f) * size.height * 0.88f
-                        val fraction = ((endX - previousX) / (x - previousX)).coerceIn(0f, 1f)
-                        activePath.lineTo(endX, previousY + (yy - previousY) * fraction)
-                        return@forEachIndexed
-                    }
-                }
-                drawPath(
-                    activePath, Color(0xFFFF5368),
-                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.8f)
-                )
-                drawPath(
-                    activePath, Color(0x99FF5368),
-                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 11f)
-                )
-            }
-            Spacer(Modifier.height(23.dp))
+            Spacer(Modifier.height(16.dp))
             LinearProgressIndicator(
-                modifier = Modifier.fillMaxWidth(0.64f).height(3.dp),
+                modifier = Modifier.width(112.dp).height(2.dp),
                 color = Color(0xFF56C9F5),
-                trackColor = Color(0x334D7898)
+                trackColor = Color(0x3356C9F5)
             )
-            Spacer(Modifier.height(10.dp))
-            Text(
-                "جارٍ تجهيز رحلتك الصحية",
-                color = Color(0xFF9CB8CC),
-                fontSize = 12.sp,
-                letterSpacing = 1.sp
-            )
-            Spacer(Modifier.height(10.dp))
-            TextButton(onClick = { soundEnabled = !soundEnabled }) {
-                Text(
-                    if (soundEnabled) "كتم صوت النبض" else "تشغيل صوت النبض",
-                    color = Color(0xFFB7D6E9),
-                    fontSize = 12.sp
-                )
-            }
-            Spacer(Modifier.weight(0.35f))
+            Spacer(Modifier.weight(0.9f))
         }
         Text(
-            "CARE • CONNECT • LIVE HEALTHIER",
-            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp),
+            "CARE  •  CONNECT  •  LIVE HEALTHIER",
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 22.dp),
             color = Color(0x557FA6C0),
-            fontSize = 9.sp,
+            fontSize = 8.sp,
             letterSpacing = 2.sp
         )
     }
 }
-
 @Composable
 fun MainShell(notificationState: NotifState, onGo: (String) -> Unit, onOpen: (Map<String, Any?>) -> Unit, onLogout: () -> Unit) {
     var tab by remember { mutableIntStateOf(0) }
