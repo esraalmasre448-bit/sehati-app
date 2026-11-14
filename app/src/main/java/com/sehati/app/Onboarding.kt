@@ -28,7 +28,7 @@ fun FirstRunGuide(accountType: String, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         icon = { Icon(Icons.Filled.Explore, contentDescription = null) },
-        title = { Text(if (index == 0) "أهلاً بك في الطريق إلى صحتي" else "دليل الاستخدام") },
+        title = { Text(if (index == 0) "أهلاً بك في الطريق الصحي" else "دليل الاستخدام") },
         text = {
             androidx.compose.foundation.layout.Column {
                 Text("الخطوة ${index + 1} من ${steps.size}", fontWeight = FontWeight.Bold)
