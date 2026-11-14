@@ -385,30 +385,37 @@ private fun startSplashHeartbeat(context: Context): () -> Unit {
 @Composable
 fun Splash() {
     val context = androidx.compose.ui.platform.LocalContext.current
-    val motion = rememberInfiniteTransition(label = "premium-splash")
+    val motion = rememberInfiniteTransition(label = "cinematic-splash")
     var soundEnabled by remember { mutableStateOf(true) }
-    val reveal by motion.animateFloat(
-        initialValue = 0.96f, targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2600, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "logo-breathe"
+    val logoScale by motion.animateFloat(
+        initialValue = 0.90f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(2400, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "logo-scale"
+    )
+    val logoTilt by motion.animateFloat(
+        initialValue = -2.2f, targetValue = 2.2f,
+        animationSpec = infiniteRepeatable(tween(3600, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "logo-tilt"
     )
     val halo by motion.animateFloat(
-        initialValue = 0.16f, targetValue = 0.34f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2200, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
+        initialValue = 0.18f, targetValue = 0.42f,
+        animationSpec = infiniteRepeatable(tween(1800, easing = FastOutSlowInEasing), RepeatMode.Reverse),
         label = "halo"
     )
     val sweep by motion.animateFloat(
-        initialValue = 0f, targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(3200, easing = androidx.compose.animation.core.LinearEasing)
-        ),
+        initialValue = -0.2f, targetValue = 1.2f,
+        animationSpec = infiniteRepeatable(tween(2800, easing = androidx.compose.animation.core.LinearEasing)),
         label = "light-sweep"
+    )
+    val pulse by motion.animateFloat(
+        initialValue = 0.28f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(620, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "heartbeat"
+    )
+    val titleReveal by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = 1f,
+        animationSpec = tween(1250, delayMillis = 650, easing = FastOutSlowInEasing),
+        label = "title-reveal"
     )
     DisposableEffect(soundEnabled) {
         val stopSound = if (soundEnabled) startSplashHeartbeat(context) else null
@@ -416,104 +423,137 @@ fun Splash() {
     }
     Box(
         Modifier.fillMaxSize().background(
-            androidx.compose.ui.graphics.Brush.radialGradient(
-                colors = listOf(
-                    Color(0xFF163B58), Color(0xFF0B1B2D), Color(0xFF050A12)
-                ),
-                radius = 1250f
+            androidx.compose.ui.graphics.Brush.verticalGradient(
+                listOf(Color(0xFF07101D), Color(0xFF102A42), Color(0xFF050A12))
             )
         )
     ) {
         androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
-            val center = Offset(size.width / 2f, size.height * 0.43f)
-            val glowRadius = size.width * (0.42f + halo * 0.12f)
+            val center = Offset(size.width / 2f, size.height * 0.39f)
+            val radius = size.width * 0.62f
             drawCircle(
                 brush = androidx.compose.ui.graphics.Brush.radialGradient(
-                    colors = listOf(Color(0x4438BDF8), Color(0x0038BDF8)),
-                    center = center, radius = glowRadius
+                    listOf(Color((0x1838BDF8 + (halo * 0x1838).toInt()).toLong()), Color.Transparent),
+                    center, radius
                 ),
-                radius = glowRadius, center = center
+                radius = radius, center = center
             )
-            // A single soft light passes behind the mark; no busy orbital rings.
-            val beamY = size.height * (0.18f + sweep * 0.58f)
+            val beamY = size.height * sweep.coerceIn(0f, 1f)
             drawRect(
                 brush = androidx.compose.ui.graphics.Brush.verticalGradient(
-                    colors = listOf(Color.Transparent, Color(0x1838BDF8), Color.Transparent),
-                    startY = beamY - 48f, endY = beamY + 48f
+                    listOf(Color.Transparent, Color(0x2238BDF8), Color.Transparent),
+                    beamY - 70f, beamY + 70f
                 ),
-                topLeft = Offset(0f, beamY - 48f),
-                size = Size(size.width, 96f)
+                topLeft = Offset(0f, beamY - 70f), size = Size(size.width, 140f)
             )
-            // Sparse, slow-moving particles keep the background cinematic and quiet.
-            for (i in 0 until 18) {
-                val phase = i * 0.73f + sweep * 0.7f
-                val x = size.width * (0.10f + ((i * 37) % 80) / 100f)
-                val y = size.height * (0.16f + ((i * 29) % 68) / 100f)
-                val drift = kotlin.math.sin(phase) * 5f
+            for (i in 0 until 26) {
+                val phase = i * 0.71f + sweep * 2.4f
+                val x = size.width * (0.07f + ((i * 31) % 86) / 100f)
+                val y = size.height * (0.13f + ((i * 23) % 73) / 100f)
+                val drift = kotlin.math.sin(phase) * 10f
                 drawCircle(
-                    color = if (i % 6 == 0) Color(0x66FF5268) else Color(0x445BC8F2),
-                    radius = if (i % 6 == 0) 2.2f else 1.2f,
+                    color = if (i % 5 == 0) Color(0x99FF5268) else Color(0x775BC8F2),
+                    radius = if (i % 5 == 0) 2.4f else 1.5f,
                     center = Offset(x + drift, y)
                 )
             }
         }
         Column(
-            modifier = Modifier.fillMaxSize().padding(horizontal = 30.dp, vertical = 38.dp),
+            modifier = Modifier.fillMaxSize().padding(horizontal = 26.dp, vertical = 34.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Spacer(Modifier.weight(0.9f))
-            Box(
-                modifier = Modifier.size(270.dp),
-                contentAlignment = Alignment.Center
-            ) {
+            Spacer(Modifier.weight(0.8f))
+            Box(Modifier.size(286.dp), contentAlignment = Alignment.Center) {
                 Box(
-                    Modifier.size(250.dp).background(
+                    Modifier.size(270.dp).background(
                         androidx.compose.ui.graphics.Brush.radialGradient(
-                            listOf(Color(0x2238BDF8), Color.Transparent)
-                        ),
-                        CircleShape
+                            listOf(Color(0x4438BDF8), Color(0x1838BDF8), Color.Transparent)
+                        ), CircleShape
                     )
+                )
+                Box(
+                    Modifier.size(238.dp).graphicsLayer {
+                        shadowElevation = 34.dp.toPx()
+                        shape = CircleShape
+                        clip = false
+                    }.background(Color(0xFF071321), CircleShape)
+                    .border(1.dp, Color(0x6649BFF2), CircleShape)
                 )
                 Image(
                     painter = painterResource(R.drawable.ic_launcher),
                     contentDescription = "شعار الطريق إلى صحتي",
                     contentScale = ContentScale.Fit,
-                    modifier = Modifier
-                        .size(226.dp)
-                        .graphicsLayer {
-                            scaleX = reveal
-                            scaleY = reveal
-                            shadowElevation = 22.dp.toPx()
-                        }
+                    modifier = Modifier.size(224.dp).graphicsLayer {
+                        scaleX = logoScale
+                        scaleY = logoScale
+                        rotationY = logoTilt
+                        rotationX = -logoTilt * 0.45f
+                        cameraDistance = 22f * density
+                        shadowElevation = 30.dp.toPx()
+                        shape = CircleShape
+                    }
+                )
+                // Moving specular highlight adds depth without changing the approved logo artwork.
+                Box(
+                    Modifier.size(224.dp).graphicsLayer {
+                        alpha = 0.10f + halo * 0.12f
+                        rotationZ = -18f
+                        translationX = (sweep - 0.5f) * 46.dp.toPx()
+                    }.background(
+                        androidx.compose.ui.graphics.Brush.horizontalGradient(
+                            listOf(Color.Transparent, Color(0x88FFFFFF), Color.Transparent)
+                        ),
+                        RoundedCornerShape(50)
+                    )
                 )
             }
-            Spacer(Modifier.height(22.dp))
-            // The logo already contains the Arabic name and tagline: do not repeat them.
-            androidx.compose.foundation.Canvas(
-                modifier = Modifier.width(132.dp).height(24.dp)
-            ) {
+            Spacer(Modifier.height(18.dp))
+            Text(
+                "الطريق إلى صحتي",
+                modifier = Modifier.graphicsLayer {
+                    alpha = titleReveal
+                    translationY = (1f - titleReveal) * 28.dp.toPx()
+                    shadowElevation = 14.dp.toPx()
+                },
+                color = Color.White,
+                fontSize = 29.sp,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = 0.2.sp,
+                textAlign = TextAlign.Center
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "صحتك.. أولويتي",
+                modifier = Modifier.graphicsLayer {
+                    alpha = titleReveal * 0.88f
+                    translationY = (1f - titleReveal) * 18.dp.toPx()
+                },
+                color = Color(0xFFB9D5E8),
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium
+            )
+            Spacer(Modifier.height(26.dp))
+            androidx.compose.foundation.Canvas(Modifier.fillMaxWidth().height(38.dp)) {
                 val mid = size.height / 2f
                 val path = androidx.compose.ui.graphics.Path().apply {
                     moveTo(0f, mid)
-                    lineTo(size.width * 0.34f, mid)
-                    lineTo(size.width * 0.43f, mid)
-                    lineTo(size.width * 0.49f, size.height * 0.12f)
-                    lineTo(size.width * 0.55f, size.height * 0.88f)
-                    lineTo(size.width * 0.61f, size.height * 0.30f)
-                    lineTo(size.width * 0.67f, mid)
+                    lineTo(size.width * 0.25f, mid)
+                    lineTo(size.width * 0.31f, mid)
+                    lineTo(size.width * 0.37f, size.height * 0.12f)
+                    lineTo(size.width * 0.43f, size.height * 0.90f)
+                    lineTo(size.width * 0.49f, size.height * 0.22f)
+                    lineTo(size.width * 0.53f, mid)
+                    lineTo(size.width * 0.57f, mid)
+                    lineTo(size.width * 0.63f, size.height * 0.30f)
+                    lineTo(size.width * 0.69f, size.height * 0.84f)
+                    lineTo(size.width * 0.75f, mid)
                     lineTo(size.width, mid)
                 }
-                drawPath(
-                    path, Color(0x66FF5268),
-                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.2f)
-                )
-                drawPath(
-                    path, Color(0xAAFF5268),
-                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 5.5f)
-                )
+                drawPath(path, Color(0x55FF5268), style = androidx.compose.ui.graphics.drawscope.Stroke(width = 11f))
+                drawPath(path, Color(0xFFFF5268).copy(alpha = pulse), style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.2f))
             }
-            Spacer(Modifier.height(22.dp))
+            Spacer(Modifier.height(24.dp))
             Text(
                 "جارٍ تجهيز تجربتك الصحية",
                 color = Color(0xFFB5C9D9),
@@ -521,13 +561,13 @@ fun Splash() {
                 fontWeight = FontWeight.Medium,
                 letterSpacing = 0.3.sp
             )
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(14.dp))
             LinearProgressIndicator(
-                modifier = Modifier.width(112.dp).height(2.dp),
+                modifier = Modifier.width(116.dp).height(2.dp),
                 color = Color(0xFF56C9F5),
                 trackColor = Color(0x3356C9F5)
             )
-            Spacer(Modifier.weight(0.9f))
+            Spacer(Modifier.weight(0.8f))
         }
         Text(
             "CARE  •  CONNECT  •  LIVE HEALTHIER",
