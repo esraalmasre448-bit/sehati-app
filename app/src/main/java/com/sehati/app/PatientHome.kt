@@ -67,7 +67,7 @@ fun PatientHome(
             }
             Spacer(Modifier.weight(1f))
             Column(Modifier.weight(2f)) {
-                Text("الطريق إلى صحتي", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Text("الطريق الصحي", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
                 Text("لأن صحتك أولويتنا، نحن معك.", fontSize = 12.sp, color = BMuted)
             }
             Image(painterResource(R.drawable.ic_launcher), null, Modifier.size(48.dp))
