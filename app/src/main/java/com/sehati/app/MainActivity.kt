@@ -196,8 +196,13 @@ fun App() {
         }
     }
     val sel = selected
+    androidx.compose.animation.Crossfade(
+        targetState = splash,
+        animationSpec = tween(650, easing = FastOutSlowInEasing),
+        label = "splash-to-app"
+    ) { showSplash ->
     when {
-        splash -> Splash()
+        showSplash -> Splash()
         loggedIn && locked -> LockScreen(
             onUnlock = { locked = false },
             onForgot = {
@@ -266,6 +271,7 @@ fun App() {
                 }
             }
         )
+    }
     }
 }
 
