@@ -368,7 +368,7 @@ private fun AdminPanel(onBack: () -> Unit) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("لوحة المطوّر", fontSize = 23.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                    Text("إدارة ومتابعة الطريق إلى صحتي", color = AMuted, fontSize = 12.sp)
+                    Text("إدارة ومتابعة الطريق الصحي", color = AMuted, fontSize = 12.sp)
                 }
                 Surface(color = ACard, shape = RoundedCornerShape(20.dp), border = androidx.compose.foundation.BorderStroke(1.dp, ALine)) {
                     Text("ADMIN", Modifier.padding(horizontal = 12.dp, vertical = 7.dp), color = ARed, fontSize = 11.sp, fontWeight = FontWeight.Bold)
