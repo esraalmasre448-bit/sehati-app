@@ -439,7 +439,7 @@ fun Splash() {
             val radius = size.width * 0.62f
             drawCircle(
                 brush = androidx.compose.ui.graphics.Brush.radialGradient(
-                    listOf(Color((0x1838BDF8 + (halo * 0x1838).toInt()).toLong()), Color.Transparent),
+                    listOf(Color(0xFF38BDF8).copy(alpha = halo), Color.Transparent),
                     center, radius
                 ),
                 radius = radius, center = center
