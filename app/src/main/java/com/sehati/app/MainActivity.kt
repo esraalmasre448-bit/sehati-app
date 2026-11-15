@@ -45,7 +45,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -477,34 +476,68 @@ fun Splash() {
                         ), CircleShape
                     )
                 )
-                Image(
-                    painter = painterResource(R.drawable.ic_launcher),
-                    contentDescription = "شعار الطريق الصحي",
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier.size(270.dp).graphicsLayer {
-                        compositingStrategy = CompositingStrategy.Offscreen
+                androidx.compose.foundation.Canvas(
+                    Modifier.size(270.dp).graphicsLayer {
                         scaleX = logoScale
                         scaleY = logoScale
                         rotationY = logoTilt
-                        rotationX = -logoTilt * 0.45f
+                        rotationX = -logoTilt * 0.35f
                         cameraDistance = 22f * density
-                        shadowElevation = 0.dp.toPx()
-                        shape = RoundedCornerShape(0.dp)
                     }
-                )
-                // Moving specular highlight adds depth without changing the approved logo artwork.
-                Box(
-                    Modifier.size(224.dp).graphicsLayer {
-                        alpha = 0.10f + halo * 0.12f
-                        rotationZ = -18f
-                        translationX = (sweep - 0.5f) * 46.dp.toPx()
-                    }.background(
-                        androidx.compose.ui.graphics.Brush.horizontalGradient(
-                            listOf(Color.Transparent, Color(0x88FFFFFF), Color.Transparent)
-                        ),
-                        RoundedCornerShape(50)
-                    )
-                )
+                ) {
+                    val unit = size.width / 300f
+                    fun point(x: Float, y: Float) = Offset(x * unit, y * unit)
+
+                    val leftHeart = androidx.compose.ui.graphics.Path().apply {
+                        moveTo(point(150f, 246f).x, point(150f, 246f).y)
+                        cubicTo(point(94f, 207f).x, point(94f, 207f).y, point(38f, 151f).x, point(38f, 151f).y, point(53f, 91f).x, point(53f, 91f).y)
+                        cubicTo(point(68f, 34f).x, point(68f, 34f).y, point(132f, 28f).x, point(132f, 28f).y, point(150f, 83f).x, point(150f, 83f).y)
+                    }
+                    val rightHeart = androidx.compose.ui.graphics.Path().apply {
+                        moveTo(point(150f, 83f).x, point(150f, 83f).y)
+                        cubicTo(point(174f, 26f).x, point(174f, 26f).y, point(237f, 31f).x, point(237f, 31f).y, point(252f, 91f).x, point(252f, 91f).y)
+                        cubicTo(point(267f, 151f).x, point(267f, 151f).y, point(206f, 211f).x, point(206f, 211f).y, point(150f, 246f).x, point(150f, 246f).y)
+                    }
+                    drawPath(leftHeart, Color(0xFFEAF5FF), style = Stroke(width = 12f * unit, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+                    drawPath(rightHeart, Color(0xFFFF263D), style = Stroke(width = 13f * unit, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+                    drawCircle(Color(0xFFF5FAFF), radius = 17f * unit, center = point(150f, 112f))
+                    val coat = androidx.compose.ui.graphics.Path().apply {
+                        moveTo(point(126f, 139f).x, point(126f, 139f).y)
+                        lineTo(point(148f, 155f).x, point(148f, 155f).y)
+                        lineTo(point(150f, 218f).x, point(150f, 218f).y)
+                        lineTo(point(174f, 139f).x, point(174f, 139f).y)
+                        lineTo(point(158f, 148f).x, point(158f, 148f).y)
+                        lineTo(point(150f, 163f).x, point(150f, 163f).y)
+                        lineTo(point(141f, 148f).x, point(141f, 148f).y)
+                        close()
+                    }
+                    drawPath(coat, Color(0xFFF5FAFF))
+                    val scope = androidx.compose.ui.graphics.Path().apply {
+                        moveTo(point(112f, 145f).x, point(112f, 145f).y)
+                        cubicTo(point(82f, 143f).x, point(82f, 143f).y, point(79f, 190f).x, point(79f, 190f).y, point(110f, 204f).x, point(110f, 204f).y)
+                        cubicTo(point(130f, 211f).x, point(130f, 211f).y, point(163f, 206f).x, point(163f, 206f).y, point(179f, 192f).x, point(179f, 192f).y)
+                    }
+                    drawPath(scope, Color(0xFFEAF5FF), style = Stroke(width = 5f * unit, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+                    drawCircle(Color(0xFFFF263D), radius = 10f * unit, center = point(188f, 188f))
+                    drawCircle(Color(0xFFF5FAFF), radius = 15f * unit, center = point(188f, 188f), style = Stroke(width = 5f * unit))
+                    val road = androidx.compose.ui.graphics.Path().apply {
+                        moveTo(point(58f, 280f).x, point(58f, 280f).y)
+                        cubicTo(point(93f, 260f).x, point(93f, 260f).y, point(145f, 240f).x, point(145f, 240f).y, point(171f, 211f).x, point(171f, 211f).y)
+                        cubicTo(point(190f, 190f).x, point(190f, 190f).y, point(165f, 174f).x, point(165f, 174f).y, point(146f, 166f).x, point(146f, 166f).y)
+                    }
+                    drawPath(road, Color(0xFFFF263D), style = Stroke(width = 35f * unit, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+                    drawPath(road, Color(0xFFEAF5FF), style = Stroke(width = 27f * unit, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+                    drawPath(road, Color(0xFF102033), style = Stroke(width = 20f * unit, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+                    val lane = androidx.compose.ui.graphics.Path().apply {
+                        moveTo(point(84f, 265f).x, point(84f, 265f).y)
+                        lineTo(point(98f, 257f).x, point(98f, 257f).y)
+                        moveTo(point(119f, 245f).x, point(119f, 245f).y)
+                        lineTo(point(132f, 238f).x, point(132f, 238f).y)
+                        moveTo(point(154f, 219f).x, point(154f, 219f).y)
+                        lineTo(point(161f, 210f).x, point(161f, 210f).y)
+                    }
+                    drawPath(lane, Color.White, style = Stroke(width = 3f * unit, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+                }
             }
             Spacer(Modifier.height(18.dp))
             Text(
