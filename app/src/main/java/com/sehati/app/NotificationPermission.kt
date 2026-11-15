@@ -45,7 +45,7 @@ object NotificationPermission {
 
         val channel = NotificationChannel(
             CHANNEL_ID,
-            "إشعارات الطريق إلى صحتي",
+            "إشعارات الطريق الصحي",
             NotificationManager.IMPORTANCE_HIGH
         ).apply {
             description = "تنبيهات المواعيد والدور والرسائل والوصفات الطبية"

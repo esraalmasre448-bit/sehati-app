@@ -88,9 +88,9 @@ exports.requestEmailVerificationCode = onCall({
     await mailer().sendMail({
       from: SMTP_FROM.value(),
       to: email,
-      subject: "رمز التحقق - الطريق إلى صحتي",
+      subject: "رمز التحقق - الطريق الصحي",
       text: "رمز التحقق الخاص بك هو: " + code + "\nصلاحية الرمز 10 دقائق. لا تشارك الرمز مع أي شخص.",
-      html: "<div dir=\"rtl\" style=\"font-family:Arial,sans-serif\"><h2>الطريق إلى صحتي</h2><p>رمز التحقق الخاص بك:</p><div style=\"font-size:32px;font-weight:bold;letter-spacing:8px\">" + code + "</div><p>تنتهي صلاحية الرمز بعد 10 دقائق. لا تشاركه مع أي شخص.</p></div>"
+      html: "<div dir=\"rtl\" style=\"font-family:Arial,sans-serif\"><h2>الطريق الصحي</h2><p>رمز التحقق الخاص بك:</p><div style=\"font-size:32px;font-weight:bold;letter-spacing:8px\">" + code + "</div><p>تنتهي صلاحية الرمز بعد 10 دقائق. لا تشاركه مع أي شخص.</p></div>"
     });
   } catch (err) {
     await codeRef.delete().catch(() => {});

@@ -134,7 +134,7 @@ private fun DoctorHomeContent(
             Image(painterResource(R.drawable.ic_launcher), null, Modifier.size(40.dp))
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
-                Text("الطريق إلى صحتي", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Text("الطريق الصحي", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
                 Text("مريضك أخوك، فارحم وجعه", fontSize = 12.sp, color = BMuted)
             }
             Box {

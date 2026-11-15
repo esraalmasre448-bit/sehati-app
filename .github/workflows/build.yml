@@ -97,7 +97,7 @@ jobs:
               gh release upload "$tag" sehati.apk --clobber && exit 0
             fi
             if gh release create "$tag" sehati.apk \
-              --title "الطريق إلى صحتي - APK ${GITHUB_RUN_NUMBER}" \
+              --title "الطريق الصحي - APK ${GITHUB_RUN_NUMBER}" \
               --notes "Signed Android release APK built from commit ${GITHUB_SHA}."; then
               exit 0
             fi
