@@ -569,13 +569,33 @@ fun Splash() {
             )
             Spacer(Modifier.weight(0.8f))
         }
-        Text(
-            "CARE  •  CONNECT  •  LIVE HEALTHIER",
-            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 22.dp),
-            color = Color(0x557FA6C0),
-            fontSize = 8.sp,
-            letterSpacing = 2.sp
-        )
+        Column(
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 18.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                "DEVELOPED BY",
+                color = Color(0xFF8FA9BC),
+                fontSize = 8.sp,
+                fontWeight = FontWeight.Medium,
+                letterSpacing = 2.sp
+            )
+            Spacer(Modifier.height(3.dp))
+            Text(
+                "SUHAEB ALTURKMANE",
+                color = Color.White,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.2.sp
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                "تم التطوير والتنفيذ بواسطة",
+                color = Color(0xFF8FA9BC),
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Medium
+            )
+        }
     }
 }
 @Composable
