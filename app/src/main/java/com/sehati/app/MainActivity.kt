@@ -19,7 +19,6 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -483,7 +482,6 @@ fun Splash() {
                     contentDescription = "شعار الطريق الصحي",
                     contentScale = ContentScale.Fit,
                     modifier = Modifier.size(270.dp).graphicsLayer {
-                        blendMode = BlendMode.Screen
                         compositingStrategy = CompositingStrategy.Offscreen
                         scaleX = logoScale
                         scaleY = logoScale
