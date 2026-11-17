@@ -277,13 +277,6 @@ fun AuthFlow(onDone: () -> Unit) {
             Spacer(Modifier.weight(1f))
             Switch(checked = seniorMode, onCheckedChange = { seniorMode = it })
         }
-        Image(
-            painterResource(R.drawable.ic_launcher), null,
-            Modifier
-                .size(150.dp)
-                .align(Alignment.CenterHorizontally)
-                .graphicsLayer { alpha = enter }
-        )
         Text(
             stringResource(R.string.welcome_back),
             fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White,
