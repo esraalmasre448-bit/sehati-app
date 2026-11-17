@@ -376,7 +376,7 @@ private fun startSplashHeartbeat(): () -> Unit {
             .setTransferMode(AudioTrack.MODE_STATIC)
             .build()
         track = audio
-        audio.setVolume(0.38f)
+        audio.setVolume(0.90f)
         val written = audio.write(pcm, 0, pcm.size)
         if (written == pcm.size && audio.setLoopPoints(0, pcm.size, -1) == AudioTrack.SUCCESS) {
             audio.play()
