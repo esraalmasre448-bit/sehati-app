@@ -5,8 +5,6 @@ import android.content.Context
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioTrack
-import android.os.Handler
-import android.os.Looper
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.PI
 import kotlin.math.exp
@@ -320,19 +318,20 @@ fun AdminGate(onBack: () -> Unit) {
     }
 }
 
-private fun startSplashHeartbeat(context: Context): () -> Unit {
+private fun startSplashHeartbeat(): () -> Unit {
+    // A 1.9-second double-beat loop matches the ECG animation cycle below.
     val sampleRate = 22050
-    val totalSamples = (sampleRate * 2.9).toInt()
+    val totalSamples = (sampleRate * 1.9).toInt()
     val pcm = ShortArray(totalSamples)
-    val pulses = listOf(0.10, 0.27, 0.92, 1.09, 1.74, 1.91, 2.56, 2.73)
+    val pulses = listOf(0.82, 0.99)
     pulses.forEachIndexed { index, start ->
-        val duration = if (index % 2 == 0) 0.13 else 0.11
+        val duration = if (index == 0) 0.13 else 0.11
         val startSample = (start * sampleRate).toInt()
         val count = (duration * sampleRate).toInt()
         for (i in 0 until count) {
             val t = i.toDouble() / sampleRate
             val envelope = exp(-19.0 * t) * (1.0 - exp(-90.0 * t))
-            val frequency = if (index % 2 == 0) 68.0 else 88.0
+            val frequency = if (index == 0) 68.0 else 88.0
             val wave = sin(2.0 * PI * frequency * t) * 0.72 +
                 sin(2.0 * PI * frequency * 1.72 * t) * 0.28
             val at = startSample + i
@@ -342,19 +341,22 @@ private fun startSplashHeartbeat(context: Context): () -> Unit {
             }
         }
     }
+
     val released = AtomicBoolean(false)
     var track: AudioTrack? = null
     fun release() {
         if (released.compareAndSet(false, true)) {
             try {
                 track?.let {
-                    if (it.playState == AudioTrack.PLAYSTATE_PLAYING) it.stop()
+                    if (it.playState == AudioTrack.PLAYSTATE_PLAYING) it.pause()
+                    it.flush()
                     it.release()
                 }
             } catch (_: Exception) { }
             track = null
         }
     }
+
     return try {
         val audio = AudioTrack.Builder()
             .setAudioAttributes(
@@ -374,10 +376,13 @@ private fun startSplashHeartbeat(context: Context): () -> Unit {
             .setTransferMode(AudioTrack.MODE_STATIC)
             .build()
         track = audio
-        audio.setVolume(0.62f)
+        audio.setVolume(0.38f)
         val written = audio.write(pcm, 0, pcm.size)
-        if (written > 0) audio.play() else release()
-        Handler(Looper.getMainLooper()).postDelayed({ release() }, 3300L)
+        if (written == pcm.size && audio.setLoopPoints(0, pcm.size, -1) == AudioTrack.SUCCESS) {
+            audio.play()
+        } else {
+            release()
+        }
         ::release
     } catch (_: Exception) {
         release()
@@ -388,6 +393,10 @@ private fun startSplashHeartbeat(context: Context): () -> Unit {
 
 @Composable
 fun Splash() {
+    DisposableEffect(Unit) {
+        val stopHeartbeat = startSplashHeartbeat()
+        onDispose { stopHeartbeat() }
+    }
     val motion = rememberInfiniteTransition(label = "internal-logo-ecg")
     // الحركة الوحيدة في الشعار: نقطة ضوئية تتبع خط تخطيط القلب.
     val ecgProgress by motion.animateFloat(
