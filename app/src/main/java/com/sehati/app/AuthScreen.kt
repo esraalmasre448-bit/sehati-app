@@ -269,7 +269,7 @@ fun AuthFlow(onDone: () -> Unit) {
         LocalDensity provides Density(density = LocalDensity.current.density, fontScale = if (seniorMode) 1.22f else 1f)
     ) {
     Column(
-        Modifier.fillMaxSize().background(Bg).padding(if (seniorMode) 18.dp else 24.dp).verticalScroll(rememberScrollState()),
+        Modifier.fillMaxSize().padding(if (seniorMode) 18.dp else 24.dp).verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(if (seniorMode) 16.dp else 12.dp)
     ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -277,13 +277,6 @@ fun AuthFlow(onDone: () -> Unit) {
             Spacer(Modifier.weight(1f))
             Switch(checked = seniorMode, onCheckedChange = { seniorMode = it })
         }
-        Image(
-            painterResource(R.drawable.ic_launcher), null,
-            Modifier
-                .size(150.dp)
-                .align(Alignment.CenterHorizontally)
-                .graphicsLayer { alpha = enter }
-        )
         Text(
             stringResource(R.string.welcome_back),
             fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White,
