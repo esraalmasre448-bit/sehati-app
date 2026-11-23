@@ -197,6 +197,10 @@ try {
   }));
   await assertSucceeds(getDoc(doc(patient, "doctors", unapprovedDoctorId)));
 
+  // Account deletion is self-service, but the configured admin account is protected.
+  await assertSucceeds(deleteDoc(doc(patient, "users", patientId)));
+  await assertFails(deleteDoc(doc(admin, "users", adminId)));
+
   // Device tokens are private to their owning account.
   const tokenRef = doc(patient, "fcmTokens", `${patientId}_device-1`);
   await assertSucceeds(setDoc(tokenRef, {
