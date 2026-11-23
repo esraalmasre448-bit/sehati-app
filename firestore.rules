@@ -148,7 +148,7 @@ service cloud.firestore {
     && request.resource.data.phone.size() <= 30
     && request.resource.data.emergencyPhone is string
     && request.resource.data.emergencyPhone.size() <= 30;
-   allow delete: if isAdmin();
+   allow delete: if isAdmin() || (signedIn() && request.auth.uid == id);
   }
   match /subscriptions/{id} {
    allow read: if signedIn() && (request.auth.uid == id || isAdmin());
@@ -163,7 +163,9 @@ service cloud.firestore {
     && request.resource.data.startedAt == request.time
     && request.resource.data.expiresAt > request.time
     && request.resource.data.expiresAt <= request.time + duration.value(31, 'd'));
-   allow update, delete: if isAdmin();
+   allow update: if isAdmin();
+   // يمكن لصاحب الحساب حذف اشتراكه عند حذف الحساب فقط؛ هذا يسحب الاستحقاق ولا يمنح صلاحيات.
+   allow delete: if isAdmin() || (signedIn() && request.auth.uid == id);
   }
   match /subscriptionHistory/{id} {
    allow read, create: if isAdmin();
@@ -338,8 +340,14 @@ service cloud.firestore {
     && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','voidedAt','voidedBy'])
     && request.resource.data.status == 'VOIDED'
     && request.resource.data.voidedAt == request.time
-    && request.resource.data.voidedBy == request.auth.uid;
-   // الوصفات والسجلات الطبية لا تُحذف مطلقاً؛ الإلغاء يحفظ التاريخ.
+    && request.resource.data.voidedBy == request.auth.uid
+    || (signedIn()
+     && resource.data.patientId == request.auth.uid
+     && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['patientId','patientName','appointmentId'])
+     && !('patientId' in request.resource.data)
+     && !('appointmentId' in request.resource.data)
+     && request.resource.data.patientName == 'حساب محذوف');
+   // الوصفات والسجلات الطبية لا تُحذف مطلقاً؛ يحتفظ الطبيب بالمحتوى بعد إخفاء هوية المريض.
    allow delete: if false;
   }
   match /conversations/{id} {
