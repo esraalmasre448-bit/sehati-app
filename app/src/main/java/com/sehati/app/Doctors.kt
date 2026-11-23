@@ -34,9 +34,9 @@ import kotlinx.coroutines.delay
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 
-private val DBg = Color(0xFF0B1220)
-private val DCard = Color(0xFF131C2E)
-private val DLine = Color(0xFF24304A)
+private val DBg = Color(0xFF0A0C11)
+private val DCard = Color(0xFF14171D)
+private val DLine = Color(0xFF30343D)
 private val DRed = Color(0xFFE5171F)
 private val DDanger = Color(0xFFFF5A5F)
 private val DOnAccent = Color(0xFFFFFFFF)

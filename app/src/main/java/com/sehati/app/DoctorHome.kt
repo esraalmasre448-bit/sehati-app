@@ -32,7 +32,7 @@ import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FieldValue
 import java.util.Date
 
-private val DTeal = Color(0xFF29BDF4)
+private val DTeal = Color(0xFFE5171F)
 
 /** الصفحة الرئيسية للطبيب. الصفحات الفرعية تُفتح داخلها بحالة محلية. */
 @Composable
@@ -69,6 +69,21 @@ private fun DoctorHomeContent(
     var available by remember { mutableStateOf<Boolean?>(null) }
     var toggleMsg by remember { mutableStateOf("") }
     var hasProfile by remember { mutableStateOf<Boolean?>(null) }
+    var subscriptionActive by remember { mutableStateOf(false) }
+    var subscriptionLoaded by remember { mutableStateOf(false) }
+
+    DisposableEffect(uid) {
+        if (uid.isBlank()) return@DisposableEffect onDispose { }
+        val registration = bDb.collection("subscriptions").document(uid)
+            .addSnapshotListener { subscription, error ->
+                val expiry = subscription?.getTimestamp("expiresAt")?.toDate()
+                subscriptionActive = error == null &&
+                    subscription?.getString("status") == "ACTIVE" &&
+                    expiry != null && expiry.after(Date())
+                subscriptionLoaded = true
+            }
+        onDispose { registration.remove() }
+    }
 
     LaunchedEffect(uid) {
         if (uid.isEmpty()) return@LaunchedEffect
@@ -81,6 +96,7 @@ private fun DoctorHomeContent(
             available = d.getBoolean("available")
             // الملف مكتمل فقط إذا كانت الحقول التي يطلبها نموذج الحفظ موجودة وصالحة
             hasProfile = d.exists() &&
+                d.getBoolean("approved") == true &&
                 !(d.getString("name") ?: "").isBlank() &&
                 !(d.getString("city") ?: "").isBlank() &&
                 SPECIALTIES.any { it.name == (d.getString("specialty") ?: "") }
@@ -113,11 +129,13 @@ private fun DoctorHomeContent(
 
     val shownName = docName.ifBlank { name }
     val countText: (Long?) -> String = { n -> if (failed) "—" else n?.toString() ?: "..." }
-    val isOn = available == true
-    val statusText = when (available) {
-        true -> "متاح لاستقبال المرضى"
-        false -> "غير متاح حالياً"
-        null -> "لم تحددي حالتك بعد"
+    val isOn = available == true && subscriptionActive
+    val statusText = when {
+        hasProfile != true -> "الملف بانتظار الاعتماد أو الاستكمال"
+        !subscriptionLoaded -> "جارٍ التحقق من الاشتراك"
+        !subscriptionActive -> "الاشتراك منتهي أو غير نشط"
+        isOn -> "متاح لاستقبال المرضى"
+        else -> "غير متاح حالياً"
     }
 
     // الخلفية الثابتة موضوعة على مستوى التطبيق؛ نضيف تعتيماً خفيفاً للطبيب فقط.
@@ -200,7 +218,7 @@ private fun DoctorHomeContent(
                 }
                 Switch(
                     checked = isOn,
-                    enabled = hasProfile == true,
+                    enabled = hasProfile == true && subscriptionLoaded && subscriptionActive,
                     onCheckedChange = { v ->
                         toggleMsg = ""
                         val ref = bDb.collection("doctors").document(uid)
@@ -217,9 +235,11 @@ private fun DoctorHomeContent(
                             val batch = bDb.batch()
                             batch.update(ref, upd)
                             if (oldPhone.isNotBlank() || oldEmg.isNotBlank()) {
-                                val priv = hashMapOf<String, Any>("updatedAt" to FieldValue.serverTimestamp())
-                                if (oldPhone.isNotBlank()) priv["phone"] = oldPhone
-                                if (oldEmg.isNotBlank()) priv["emergencyPhone"] = oldEmg
+                                val priv = hashMapOf<String, Any>(
+                                    "phone" to oldPhone,
+                                    "emergencyPhone" to oldEmg,
+                                    "updatedAt" to FieldValue.serverTimestamp()
+                                )
                                 batch.set(
                                     bDb.collection("doctorPrivate").document(uid), priv,
                                     com.google.firebase.firestore.SetOptions.merge()
@@ -236,7 +256,11 @@ private fun DoctorHomeContent(
                 )
             }
             if (hasProfile == false) {
-                Text("أكملي ملفك المهني أولاً لتتمكني من تغيير حالة التوافر", color = BMuted, fontSize = 12.sp)
+                Text("يجب إكمال الملف المهني واعتماد الطبيب من الإدارة أولاً لتغيير حالة التوافر", color = BMuted, fontSize = 12.sp)
+            } else if (hasProfile == true && subscriptionLoaded && !subscriptionActive) {
+                Text("اشتراكك منتهي أو غير نشط. جدّد الاشتراك لإعادة تفعيل استقبال الحجوزات.", color = BDanger, fontSize = 12.sp)
+            } else if (!subscriptionLoaded) {
+                Text("جارٍ التحقق من صلاحية الاشتراك...", color = BMuted, fontSize = 12.sp)
             }
             if (toggleMsg.isNotEmpty()) Text(toggleMsg, color = BDanger, fontSize = 12.sp)
         }

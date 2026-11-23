@@ -29,9 +29,9 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
-val BBg = Color(0xFF0B1220)
-val BCard = Color(0xFF131C2E)
-val BLine = Color(0xFF24304A)
+val BBg = Color(0xFF0A0C11)
+val BCard = Color(0xFF14171D)
+val BLine = Color(0xFF30343D)
 val BRed = Color(0xFFE5171F)
 val BDanger = Color(0xFFFF5A5F)
 val BOnAccent = Color(0xFFFFFFFF)

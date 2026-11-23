@@ -10,6 +10,7 @@ import {
   updateDoc,
   getDoc,
   deleteDoc,
+  deleteField,
   runTransaction,
   serverTimestamp,
   Timestamp
@@ -30,6 +31,7 @@ const doctorId = "doctor1";
 const outsiderId = "outsider1";
 const adminId = "admin1";
 const unapprovedDoctorId = "doctor2";
+const expiredDoctorId = "doctor3";
 const date = "2099-01-01";
 const appointmentId = `${doctorId}_${date}_${patientId}`;
 const conversationId = `${doctorId}_${patientId}`;
@@ -39,6 +41,7 @@ const doctor = env.authenticatedContext(doctorId).firestore();
 const outsider = env.authenticatedContext(outsiderId).firestore();
 const admin = env.authenticatedContext(adminId).firestore();
 const unapprovedDoctor = env.authenticatedContext(unapprovedDoctorId).firestore();
+const expiredDoctor = env.authenticatedContext(expiredDoctorId).firestore();
 
 try {
   await env.withSecurityRulesDisabled(async (ctx) => {
@@ -48,7 +51,8 @@ try {
       [doctorId, "doctor", "Doctor"],
       [outsiderId, "patient", "Outsider"],
       [adminId, "admin", "Admin"],
-      [unapprovedDoctorId, "doctor", "Unapproved Doctor"]
+      [unapprovedDoctorId, "doctor", "Unapproved Doctor"],
+      [expiredDoctorId, "doctor", "Expired Doctor"]
     ]) {
       await setDoc(doc(db, "users", uid), { accountType, name });
     }
@@ -57,6 +61,9 @@ try {
     });
     await setDoc(doc(db, "doctors", unapprovedDoctorId), {
       uid: unapprovedDoctorId, name: "Unapproved Doctor", approved: false
+    });
+    await setDoc(doc(db, "doctors", expiredDoctorId), {
+      uid: expiredDoctorId, name: "Expired Doctor", approved: true
     });
     await setDoc(doc(db, "subscriptions", doctorId), {
       uid: doctorId,
@@ -68,6 +75,24 @@ try {
     });
     await setDoc(doc(db, "config", "admin"), { uid: adminId });
   });
+
+  // Patient favorites are private, limited to approved doctors, and removable by their owner.
+  const favoriteRef = doc(patient, "favorites", patientId, "doctors", doctorId);
+  await assertSucceeds(setDoc(favoriteRef, {
+    doctorId,
+    savedAt: serverTimestamp()
+  }));
+  await assertSucceeds(getDoc(favoriteRef));
+  await assertFails(getDoc(doc(outsider, "favorites", patientId, "doctors", doctorId)));
+  await assertFails(setDoc(doc(patient, "favorites", outsiderId, "doctors", doctorId), {
+    doctorId,
+    savedAt: serverTimestamp()
+  }));
+  await assertFails(setDoc(doc(patient, "favorites", patientId, "doctors", unapprovedDoctorId), {
+    doctorId: unapprovedDoctorId,
+    savedAt: serverTimestamp()
+  }));
+  await assertSucceeds(deleteDoc(favoriteRef));
 
   const apptRef = doc(patient, "appointments", appointmentId);
   const queueRef = doc(patient, "queues", `${doctorId}_${date}`);
@@ -169,8 +194,21 @@ try {
     text: "tamper"
   }));
   await assertFails(updateDoc(rxRef, { text: "doctor edit" }));
+  await assertSucceeds(updateDoc(rxRef, {
+    status: "VOIDED",
+    voidedAt: serverTimestamp(),
+    voidedBy: doctorId
+  }));
   await assertFails(deleteDoc(doc(patient, "prescriptions", "rx-1")));
   await assertFails(deleteDoc(rxRef));
+  // Account deletion anonymizes patient identity but retains the medical content.
+  await assertSucceeds(updateDoc(doc(patient, "prescriptions", "rx-1"), {
+    patientId: deleteField(),
+    patientName: "حساب محذوف",
+    appointmentId: deleteField()
+  }));
+  await assertSucceeds(getDoc(doc(doctor, "prescriptions", "rx-1")));
+  await assertFails(getDoc(doc(patient, "prescriptions", "rx-1")));
 
   // An unapproved doctor cannot expose their profile or approve themselves.
   await assertFails(getDoc(doc(patient, "doctors", unapprovedDoctorId)));
@@ -178,12 +216,25 @@ try {
   await assertFails(updateDoc(doc(unapprovedDoctor, "doctors", unapprovedDoctorId), {
     approved: true
   }));
+  await assertFails(updateDoc(doc(unapprovedDoctor, "doctors", unapprovedDoctorId), {
+    available: true,
+    availableUpdatedAt: serverTimestamp()
+  }));
   await assertSucceeds(updateDoc(doc(admin, "doctors", unapprovedDoctorId), {
     approved: true,
     approvedBy: adminId,
     approvedAt: serverTimestamp()
   }));
   await assertSucceeds(getDoc(doc(patient, "doctors", unapprovedDoctorId)));
+  // Availability requires both admin approval and an active subscription.
+  await assertSucceeds(updateDoc(doc(doctor, "doctors", doctorId), {
+    available: true,
+    availableUpdatedAt: serverTimestamp()
+  }));
+  await assertFails(updateDoc(doc(expiredDoctor, "doctors", expiredDoctorId), {
+    available: true,
+    availableUpdatedAt: serverTimestamp()
+  }));
 
   // Device tokens are private to their owning account.
   const tokenRef = doc(patient, "fcmTokens", `${patientId}_device-1`);
@@ -199,6 +250,7 @@ try {
     token: "fake",
     updatedAt: serverTimestamp()
   }));
+  await assertSucceeds(deleteDoc(tokenRef));
 
   // A cancelled visit can be rebooked with the next queue number.
   await assertSucceeds(updateDoc(doc(doctor, "appointments", appointmentId), {
@@ -233,7 +285,18 @@ try {
     });
   }));
 
-  console.log("PASS: booking, approval, queue permissions, private chat, prescriptions, doctor approval, FCM token privacy, and rebooking.");
+  // Account deletion first anonymizes appointment details but retains the visit.
+  await assertSucceeds(updateDoc(apptRef, {
+    patientName: "حساب محذوف",
+    patientPhone: "",
+    note: ""
+  }));
+
+  // Account deletion is self-service, but the configured admin account is protected.
+  await assertSucceeds(deleteDoc(doc(patient, "users", patientId)));
+  await assertFails(deleteDoc(doc(admin, "users", adminId)));
+
+  console.log("PASS: favorites privacy, booking, approval, queue permissions, private chat, prescriptions, doctor approval, FCM token privacy, and rebooking.");
 } finally {
   await env.cleanup();
 }

@@ -131,6 +131,10 @@ fun PatientHome(
             Tile(Icons.Filled.Description, "وصفاتي الطبية", false, Modifier.weight(1f)) { onGo("patient_prescriptions") }
             Tile(Icons.Filled.Email, "الرسائل", false, Modifier.weight(1f)) { onGo("messages") }
         }
+
+        Tile(Icons.Filled.Favorite, "أطبائي المفضلون", false, Modifier.fillMaxWidth()) {
+            onGo("favorites")
+        }
     }
 }
 

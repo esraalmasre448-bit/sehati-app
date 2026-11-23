@@ -104,7 +104,7 @@ service cloud.firestore {
        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['emailVerified'])
        && request.resource.data.emailVerified == true)
     );
-   allow delete: if request.auth != null && request.auth.uid == uid;
+   allow delete: if signedIn() && request.auth.uid == uid && !isAdmin();
   }
   match /doctors/{id} {
    allow read: if signedIn()
@@ -124,6 +124,8 @@ service cloud.firestore {
      && resource.data.uid == id
      && request.resource.data.uid == id
      && request.resource.data.diff(resource.data).affectedKeys().hasOnly(docKeys().concat(['phone','emergencyPhone']))
+     && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['available','availableUpdatedAt'])
+       || (doctorApproved(id) && subActive(id)))
      && !('phone' in request.resource.data)
      && !('emergencyPhone' in request.resource.data)
      && photoOk()
@@ -146,7 +148,7 @@ service cloud.firestore {
     && request.resource.data.phone.size() <= 30
     && request.resource.data.emergencyPhone is string
     && request.resource.data.emergencyPhone.size() <= 30;
-   allow delete: if isAdmin();
+   allow delete: if isAdmin() || (signedIn() && request.auth.uid == id);
   }
   match /subscriptions/{id} {
    allow read: if signedIn() && (request.auth.uid == id || isAdmin());
@@ -161,7 +163,9 @@ service cloud.firestore {
     && request.resource.data.startedAt == request.time
     && request.resource.data.expiresAt > request.time
     && request.resource.data.expiresAt <= request.time + duration.value(31, 'd'));
-   allow update, delete: if isAdmin();
+   allow update: if isAdmin();
+   // يمكن لصاحب الحساب حذف اشتراكه عند حذف الحساب فقط؛ هذا يسحب الاستحقاق ولا يمنح صلاحيات.
+   allow delete: if isAdmin() || (signedIn() && request.auth.uid == id);
   }
   match /subscriptionHistory/{id} {
    allow read, create: if isAdmin();
@@ -327,8 +331,23 @@ service cloud.firestore {
     && request.resource.data.patientName is string
     && request.resource.data.patientName.size() <= 120
     && request.resource.data.createdAt == request.time;
-   allow update: if false;
-   // الوصفات والسجلات الطبية غير قابلة للحذف من حساب المريض أو الطبيب.
+   // يسمح للطبيب المعتمد بإلغاء مستنده فقط مع إبقاء السجل الطبي وعدم حذف محتواه.
+   allow update: if signedIn() && (
+    (userType() in ['doctor','clinic']
+     && resource.data.doctorId == request.auth.uid
+     && doctorApproved(request.auth.uid)
+     && !('voidedAt' in resource.data)
+     && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','voidedAt','voidedBy'])
+     && request.resource.data.status == 'VOIDED'
+     && request.resource.data.voidedAt == request.time
+     && request.resource.data.voidedBy == request.auth.uid)
+    || (resource.data.patientId == request.auth.uid
+     && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['patientId','patientName','appointmentId'])
+     && !('patientId' in request.resource.data)
+     && !('appointmentId' in request.resource.data)
+     && request.resource.data.patientName == 'حساب محذوف')
+   );
+   // الوصفات والسجلات الطبية لا تُحذف مطلقاً؛ يحتفظ الطبيب بالمحتوى بعد إخفاء هوية المريض.
    allow delete: if false;
   }
   match /conversations/{id} {
@@ -392,6 +411,19 @@ service cloud.firestore {
     && request.resource.data.token.size() <= 4096
     && request.resource.data.updatedAt == request.time;
    allow delete: if signedIn() && resource.data.uid == request.auth.uid;
+  }
+  // مفضلات المريض: كل مستخدم يدير قائمته فقط، ولا يحفظ إلا طبيباً معتمداً.
+  match /favorites/{uid}/doctors/{doctorId} {
+   allow read: if signedIn() && request.auth.uid == uid;
+   allow create: if signedIn()
+    && request.auth.uid == uid
+    && userType() == 'patient'
+    && request.resource.data.keys().hasOnly(['doctorId','savedAt'])
+    && request.resource.data.doctorId == doctorId
+    && request.resource.data.savedAt == request.time
+    && doctorApproved(doctorId);
+   allow update: if false;
+   allow delete: if signedIn() && request.auth.uid == uid;
   }
   match /slots/{id} {
    allow read, create, update: if false;

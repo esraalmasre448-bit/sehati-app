@@ -67,13 +67,13 @@ import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.delay
 
-private val Bg = Color(0xC90A1424)
-private val CardC = Color(0xEE101D32)
-private val Line = Color(0xFF294766)
-private val Red = Color(0xFF27B8F2)
+private val Bg = Color(0xCC0A0C11)
+private val CardC = Color(0xEE14171D)
+private val Line = Color(0xFF30343D)
+private val Red = Color(0xFFE5171F)
 private val Danger = Color(0xFFFF5968)
 private val Good = Color(0xFF39D6A3)
-private val OnAccent = Color(0xFF061522)
+private val OnAccent = Color(0xFFFFFFFF)
 private val Muted = Color(0xFFB6C6DA)
 
 private val auth get() = FirebaseAuth.getInstance()
@@ -98,7 +98,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             val scheme = darkColorScheme(
                 primary = Red, onPrimary = OnAccent, secondary = Red,
-                secondaryContainer = Color(0xFF12334A), onSecondaryContainer = Color(0xFFEAF7FF),
+                secondaryContainer = Color(0xFF351316), onSecondaryContainer = Color(0xFFEAF7FF),
                 background = Bg, surface = CardC,
                 onSurface = Color(0xFFF4F8FF), onBackground = Color(0xFFF4F8FF)
             )
@@ -143,6 +143,7 @@ fun App() {
     var loggedIn by remember { mutableStateOf(auth.currentUser != null) }
     var screen by remember { mutableStateOf("main") }
     var selected by remember { mutableStateOf<Map<String, Any?>?>(null) }
+    var detailReturnScreen by remember { mutableStateOf("search") }
     var initialQuery by remember { mutableStateOf("") }
     var chatId by remember { mutableStateOf("") }
     var myName by remember { mutableStateOf("") }
@@ -185,7 +186,7 @@ fun App() {
     LaunchedEffect(Unit) { delay(6200); splash = false }
     BackHandler(enabled = screen != "main") {
         screen = when (screen) {
-            "detail" -> "search"
+            "detail" -> detailReturnScreen
             "book" -> "detail"
             "chat" -> "messages"
             else -> "main"
@@ -214,12 +215,16 @@ fun App() {
         !loggedIn -> AuthFlow { loggedIn = true }
         screen == "search" -> DoctorSearchScreen(
             onBack = { initialQuery = ""; screen = "main" },
-            onOpen = { selected = it; screen = "detail" },
+            onOpen = { selected = it; detailReturnScreen = "search"; screen = "detail" },
             initial = initialQuery
+        )
+        screen == "favorites" -> PatientFavoritesScreen(
+            onBack = { screen = "main" },
+            onOpen = { selected = it; detailReturnScreen = "favorites"; screen = "detail" }
         )
         screen == "detail" && sel != null -> DoctorDetailWithChat(
             sel, patientName = myName,
-            onBack = { screen = "search" }, onBook = { screen = "book" },
+            onBack = { screen = detailReturnScreen }, onBook = { screen = "book" },
             onOpenChat = { chatId = it; screen = "chat" }
         )
         screen == "book" && sel != null -> QueueBookingScreen(

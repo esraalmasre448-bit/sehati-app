@@ -99,6 +99,14 @@ fun PatientPrescriptionsScreen(onBack: () -> Unit) {
                                 color = BMuted, fontSize = 11.sp
                             )
                         }
+                        if (item["status"] == "VOIDED") {
+                            Text(
+                                "ملغاة من الطبيب — محفوظة في سجلك الطبي",
+                                color = BDanger,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                         Text(item["text"]?.toString().orEmpty(), color = Color.White, fontSize = 15.sp)
                     }
                 }
