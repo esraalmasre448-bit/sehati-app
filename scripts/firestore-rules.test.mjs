@@ -207,6 +207,8 @@ try {
     patientName: "حساب محذوف",
     appointmentId: deleteField()
   }));
+  await assertSucceeds(getDoc(doc(doctor, "prescriptions", "rx-1")));
+  await assertFails(getDoc(doc(patient, "prescriptions", "rx-1")));
 
   // An unapproved doctor cannot expose their profile or approve themselves.
   await assertFails(getDoc(doc(patient, "doctors", unapprovedDoctorId)));
@@ -248,6 +250,7 @@ try {
     token: "fake",
     updatedAt: serverTimestamp()
   }));
+  await assertSucceeds(deleteDoc(tokenRef));
 
   // A cancelled visit can be rebooked with the next queue number.
   await assertSucceeds(updateDoc(doc(doctor, "appointments", appointmentId), {
@@ -280,6 +283,13 @@ try {
       note: "Rebooked",
       createdAt: serverTimestamp()
     });
+  }));
+
+  // Account deletion first anonymizes appointment details but retains the visit.
+  await assertSucceeds(updateDoc(apptRef, {
+    patientName: "حساب محذوف",
+    patientPhone: "",
+    note: ""
   }));
 
   // Account deletion is self-service, but the configured admin account is protected.
