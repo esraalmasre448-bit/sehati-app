@@ -6,6 +6,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.google.firebase.auth.EmailAuthProvider
+import com.google.firebase.firestore.DocumentReference
+import com.google.firebase.firestore.FieldValue
 
 @Composable
 fun DeleteAccountSection(onDeleted: () -> Unit) {
@@ -25,7 +27,7 @@ fun DeleteAccountSection(onDeleted: () -> Unit) {
             title = { Text("حذف الحساب نهائيًا") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("سيتم حذف حسابك وملفك الشخصي ولا يمكن التراجع. اكتب كلمة السر للتأكيد.")
+                    Text("سيُحذف حساب الدخول وملفك الشخصي. ستُخفى بياناتك الشخصية من المواعيد والوصفات مع الاحتفاظ بالسجل الطبي ومحتواه. لا يمكن التراجع عن حذف الحساب.")
                     Field(pass, { pass = it }, "كلمة السر", password = true)
                     if (msg.isNotEmpty()) Text(msg, color = BDanger)
                 }
@@ -42,56 +44,92 @@ fun DeleteAccountSection(onDeleted: () -> Unit) {
                         busy = true
                         msg = ""
 
-                        // تنفيذ الحذف الفعلي: إخفاء بيانات المريض في مواعيده، حذف وصفاته وملفاته، ثم حذف حساب الدخول.
+                        fun finishDeletion() {
+                            val cleanup = bDb.batch()
+                            cleanup.delete(bDb.collection("users").document(user.uid))
+                            cleanup.delete(bDb.collection("doctors").document(user.uid))
+                            cleanup.delete(bDb.collection("doctorPrivate").document(user.uid))
+                            cleanup.delete(bDb.collection("subscriptions").document(user.uid))
+                            cleanup.commit()
+                                .addOnSuccessListener {
+                                    user.delete()
+                                        .addOnSuccessListener {
+                                            busy = false
+                                            open = false
+                                            onDeleted()
+                                        }
+                                        .addOnFailureListener {
+                                            busy = false
+                                            msg = "حُفظت إزالة بياناتك، لكن تعذر حذف حساب الدخول. سجّل الدخول مجددًا ثم أعد المحاولة."
+                                        }
+                                }
+                                .addOnFailureListener {
+                                    busy = false
+                                    msg = "تعذر إكمال حذف الحساب. لم يُحذف حساب الدخول؛ حاول مجددًا."
+                                }
+                        }
+
+                        fun anonymizeInChunks(
+                            items: List<Pair<DocumentReference, Map<String, Any>>>,
+                            offset: Int = 0,
+                            onComplete: () -> Unit
+                        ) {
+                            if (offset >= items.size) {
+                                onComplete()
+                                return
+                            }
+                            val batch = bDb.batch()
+                            items.drop(offset).take(400).forEach { (reference, fields) ->
+                                batch.update(reference, fields)
+                            }
+                            batch.commit()
+                                .addOnSuccessListener {
+                                    anonymizeInChunks(items, offset + 400, onComplete)
+                                }
+                                .addOnFailureListener {
+                                    busy = false
+                                    msg = "تعذر إخفاء بعض بيانات السجل. لم يُحذف حساب الدخول؛ يمكنك المحاولة مجددًا."
+                                }
+                        }
+
                         fun wipe() {
-                            val netErr = { busy = false; msg = "تعذر الاتصال، تحقق من الإنترنت" }
                             bDb.collection("appointments").whereEqualTo("patientId", user.uid).get()
-                                .addOnSuccessListener { aps ->
+                                .addOnSuccessListener { appointments ->
                                     bDb.collection("prescriptions").whereEqualTo("patientId", user.uid).get()
-                                        .addOnSuccessListener { rxs ->
-                                            val b = bDb.batch()
-                                            aps.documents.take(200).forEach { d ->
-                                                b.update(d.reference, mapOf("patientName" to "حساب محذوف", "patientPhone" to "", "note" to ""))
+                                        .addOnSuccessListener { prescriptions ->
+                                            val changes = mutableListOf<Pair<DocumentReference, Map<String, Any>>>()
+                                            appointments.documents.forEach { document ->
+                                                changes += document.reference to mapOf(
+                                                    "patientName" to "حساب محذوف",
+                                                    "patientPhone" to "",
+                                                    "note" to ""
+                                                )
                                             }
-                                            rxs.documents.take(200).forEach { d -> b.delete(d.reference) }
-                                            b.delete(bDb.collection("users").document(user.uid))
-                                            b.delete(bDb.collection("doctors").document(user.uid))
-                                            b.delete(bDb.collection("doctorPrivate").document(user.uid))
-                                            b.commit().addOnSuccessListener {
-                                                user.delete().addOnSuccessListener {
-                                                    busy = false
-                                                    open = false
-                                                    onDeleted()
-                                                }.addOnFailureListener {
-                                                    busy = false
-                                                    msg = "تعذر حذف الحساب. سجّل خروجًا ثم دخولًا وحاول مرة أخرى"
-                                                }
-                                            }.addOnFailureListener {
-                                                busy = false
-                                                msg = "تعذر حذف البيانات، تحقق من الإنترنت"
+                                            prescriptions.documents.forEach { document ->
+                                                changes += document.reference to mapOf(
+                                                    "patientId" to FieldValue.delete(),
+                                                    "patientName" to "حساب محذوف",
+                                                    "appointmentId" to FieldValue.delete()
+                                                )
                                             }
-                                        }.addOnFailureListener { netErr() }
-                                }.addOnFailureListener { netErr() }
+                                            anonymizeInChunks(changes) { finishDeletion() }
+                                        }
+                                        .addOnFailureListener {
+                                            busy = false
+                                            msg = "تعذر الوصول إلى السجل الطبي؛ لم يُحذف الحساب. حاول مجددًا."
+                                        }
+                                }
+                                .addOnFailureListener {
+                                    busy = false
+                                    msg = "تعذر الوصول إلى المواعيد؛ لم يُحذف الحساب. حاول مجددًا."
+                                }
                         }
 
                         user.reauthenticate(EmailAuthProvider.getCredential(email, pass))
-                            .addOnSuccessListener {
-                                // قراءة config/admin مسموحة للأدمن فقط في القواعد. نجاحها وتطابق uid يعني أن الحساب أدمن فنمنع حذفه.
-                                // فشلها (رفض الصلاحية) يعني أن الحساب ليس أدمن، فنكمل الحذف بدل إظهار خطأ اتصال كاذب.
-                                bDb.collection("config").document("admin").get()
-                                    .addOnSuccessListener { a ->
-                                        if (a.exists() && a.getString("uid") == user.uid) {
-                                            busy = false
-                                            msg = "لا يمكن حذف حساب الأدمن"
-                                        } else {
-                                            wipe()
-                                        }
-                                    }
-                                    .addOnFailureListener { wipe() }
-                            }
+                            .addOnSuccessListener { wipe() }
                             .addOnFailureListener {
                                 busy = false
-                                msg = "كلمة السر غير صحيحة"
+                                msg = "كلمة السر غير صحيحة أو انتهت جلسة الدخول"
                             }
                     }
                 }) { Text("حذف نهائي", color = BDanger) }
