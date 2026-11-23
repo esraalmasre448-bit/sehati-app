@@ -124,6 +124,8 @@ service cloud.firestore {
      && resource.data.uid == id
      && request.resource.data.uid == id
      && request.resource.data.diff(resource.data).affectedKeys().hasOnly(docKeys().concat(['phone','emergencyPhone']))
+     && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['available','availableUpdatedAt'])
+       || doctorApproved(id))
      && !('phone' in request.resource.data)
      && !('emergencyPhone' in request.resource.data)
      && photoOk()
