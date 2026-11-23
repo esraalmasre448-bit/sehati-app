@@ -10,6 +10,7 @@ import {
   updateDoc,
   getDoc,
   deleteDoc,
+  deleteField,
   runTransaction,
   serverTimestamp,
   Timestamp
@@ -169,8 +170,19 @@ try {
     text: "tamper"
   }));
   await assertFails(updateDoc(rxRef, { text: "doctor edit" }));
+  await assertSucceeds(updateDoc(rxRef, {
+    status: "VOIDED",
+    voidedAt: serverTimestamp(),
+    voidedBy: doctorId
+  }));
   await assertFails(deleteDoc(doc(patient, "prescriptions", "rx-1")));
   await assertFails(deleteDoc(rxRef));
+  // Account deletion anonymizes patient identity but retains the medical content.
+  await assertSucceeds(updateDoc(doc(patient, "prescriptions", "rx-1"), {
+    patientId: deleteField(),
+    patientName: "حساب محذوف",
+    appointmentId: deleteField()
+  }));
 
   // An unapproved doctor cannot expose their profile or approve themselves.
   await assertFails(getDoc(doc(patient, "doctors", unapprovedDoctorId)));
