@@ -52,6 +52,17 @@ fun DoctorSearchScreen(onBack: () -> Unit, onOpen: (Map<String, Any?>) -> Unit, 
     var fCity by remember { mutableStateOf("") }
     var fSpec by remember { mutableStateOf("") }
     var fMax by remember { mutableStateOf("") }
+    val currentUid = bAuth.currentUser?.uid.orEmpty()
+    var favoriteIds by remember(currentUid) { mutableStateOf<Set<String>>(emptySet()) }
+
+    DisposableEffect(currentUid) {
+        if (currentUid.isBlank()) return@DisposableEffect onDispose { }
+        val registration = bDb.collection("favorites").document(currentUid)
+            .collection("doctors").addSnapshotListener { snapshot, error ->
+                if (error == null) favoriteIds = snapshot?.documents?.map { it.id }?.toSet().orEmpty()
+            }
+        onDispose { registration.remove() }
+    }
 
     fun loadPage() {
         if (loading || !more) return
@@ -201,7 +212,17 @@ fun DoctorSearchScreen(onBack: () -> Unit, onOpen: (Map<String, Any?>) -> Unit, 
             verticalArrangement = Arrangement.spacedBy(10.dp),
             contentPadding = PaddingValues(vertical = 12.dp)
         ) {
-            items(shown, key = { it["id"] as String }) { d -> SearchDoctorCard(d) { onOpen(d) } }
+            items(shown, key = { it["id"] as String }) { d ->
+                val doctorId = d["id"]?.toString().orEmpty()
+                SearchDoctorCard(
+                    d = d,
+                    isFavorite = doctorId in favoriteIds,
+                    onToggleFavorite = { saved ->
+                        favoriteIds = if (saved) favoriteIds + doctorId else favoriteIds - doctorId
+                    },
+                    onClick = { onOpen(d) }
+                )
+            }
             if (!filtersOn && more) {
                 item {
                     RedButton(if (loading) "جاري التحميل..." else "عرض المزيد", enabled = !loading) { loadPage() }
@@ -255,7 +276,12 @@ private fun nextWorkShiftLabel(d: Map<String, Any?>): String? {
 
 /** بطاقة نتيجة: الصورة (يمين في RTL)، الاسم والتخصص والمكان، وحالة التوفر إن كانت مسجلة. بدون تقييمات أو مسافات وهمية. */
 @Composable
-private fun SearchDoctorCard(d: Map<String, Any?>, onClick: () -> Unit) {
+private fun SearchDoctorCard(
+    d: Map<String, Any?>,
+    isFavorite: Boolean,
+    onToggleFavorite: (Boolean) -> Unit,
+    onClick: () -> Unit
+) {
     Row(
         Modifier.fillMaxWidth()
             .background(BCard, RoundedCornerShape(16.dp))
@@ -267,7 +293,18 @@ private fun SearchDoctorCard(d: Map<String, Any?>, onClick: () -> Unit) {
     ) {
         DoctorAvatar(d["photo"]?.toString(), "${d["name"] ?: ""}", 64.dp)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Text("${d["name"] ?: ""}", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "${d["name"] ?: ""}", modifier = Modifier.weight(1f),
+                    fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis
+                )
+                FavoriteDoctorButton(
+                    doctorId = d["id"]?.toString().orEmpty(),
+                    isFavorite = isFavorite,
+                    onChanged = onToggleFavorite
+                )
+            }
             Text("${d["specialty"] ?: ""}", color = BRed, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             val clinic = "${d["clinicName"] ?: ""}"
             val city = "${d["city"] ?: ""}"
