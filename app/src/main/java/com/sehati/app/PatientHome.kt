@@ -122,6 +122,11 @@ fun PatientHome(
         }
         PatientDoctorList(onOpen)
 
+        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text("خدماتي الصحية", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text("متابعة مواعيدك وملفك الصحي من مكان واحد", color = BMuted, fontSize = 12.sp)
+        }
+
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Tile(Icons.Filled.Person, stringResource(R.string.my_turn), false, Modifier.weight(1f)) { onGo("queue") }
             Tile(Icons.Filled.LocationOn, stringResource(R.string.way_to_clinic), false, Modifier.weight(1f)) { onGo("route") }
@@ -132,12 +137,9 @@ fun PatientHome(
             Tile(Icons.Filled.Email, "الرسائل", false, Modifier.weight(1f)) { onGo("messages") }
         }
 
-        Tile(Icons.Filled.Favorite, "أطبائي المفضلون", false, Modifier.fillMaxWidth()) {
-            onGo("favorites")
-        }
-
-        Tile(Icons.Filled.Medication, "جدول أدويتي", false, Modifier.fillMaxWidth()) {
-            onGo("medication_plans")
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Tile(Icons.Filled.Favorite, "أطبائي المفضلون", false, Modifier.weight(1f)) { onGo("favorites") }
+            Tile(Icons.Filled.Medication, "جدول أدويتي", false, Modifier.weight(1f)) { onGo("medication_plans") }
         }
     }
 }
