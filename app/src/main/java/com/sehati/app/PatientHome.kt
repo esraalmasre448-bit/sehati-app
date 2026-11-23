@@ -135,6 +135,10 @@ fun PatientHome(
         Tile(Icons.Filled.Favorite, "أطبائي المفضلون", false, Modifier.fillMaxWidth()) {
             onGo("favorites")
         }
+
+        Tile(Icons.Filled.Medication, "جدول أدويتي", false, Modifier.fillMaxWidth()) {
+            onGo("medication_plans")
+        }
     }
 }
 
