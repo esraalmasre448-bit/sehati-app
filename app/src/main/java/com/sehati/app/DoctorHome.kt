@@ -69,6 +69,21 @@ private fun DoctorHomeContent(
     var available by remember { mutableStateOf<Boolean?>(null) }
     var toggleMsg by remember { mutableStateOf("") }
     var hasProfile by remember { mutableStateOf<Boolean?>(null) }
+    var subscriptionActive by remember { mutableStateOf(false) }
+    var subscriptionLoaded by remember { mutableStateOf(false) }
+
+    DisposableEffect(uid) {
+        if (uid.isBlank()) return@DisposableEffect onDispose { }
+        val registration = bDb.collection("subscriptions").document(uid)
+            .addSnapshotListener { subscription, error ->
+                val expiry = subscription?.getTimestamp("expiresAt")?.toDate()
+                subscriptionActive = error == null &&
+                    subscription?.getString("status") == "ACTIVE" &&
+                    expiry != null && expiry.after(Date())
+                subscriptionLoaded = true
+            }
+        onDispose { registration.remove() }
+    }
 
     LaunchedEffect(uid) {
         if (uid.isEmpty()) return@LaunchedEffect
@@ -201,7 +216,7 @@ private fun DoctorHomeContent(
                 }
                 Switch(
                     checked = isOn,
-                    enabled = hasProfile == true,
+                    enabled = hasProfile == true && subscriptionLoaded && subscriptionActive,
                     onCheckedChange = { v ->
                         toggleMsg = ""
                         val ref = bDb.collection("doctors").document(uid)
@@ -240,6 +255,10 @@ private fun DoctorHomeContent(
             }
             if (hasProfile == false) {
                 Text("يجب إكمال الملف المهني واعتماد الطبيب من الإدارة أولاً لتغيير حالة التوافر", color = BMuted, fontSize = 12.sp)
+            } else if (hasProfile == true && subscriptionLoaded && !subscriptionActive) {
+                Text("اشتراكك منتهي أو غير نشط. جدّد الاشتراك لإعادة تفعيل استقبال الحجوزات.", color = BDanger, fontSize = 12.sp)
+            } else if (!subscriptionLoaded) {
+                Text("جارٍ التحقق من صلاحية الاشتراك...", color = BMuted, fontSize = 12.sp)
             }
             if (toggleMsg.isNotEmpty()) Text(toggleMsg, color = BDanger, fontSize = 12.sp)
         }
