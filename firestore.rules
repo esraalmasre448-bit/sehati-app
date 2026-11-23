@@ -423,7 +423,7 @@ service cloud.firestore {
     && request.resource.data.savedAt == request.time
     && doctorApproved(doctorId);
    allow update: if false;
-   allow delete: if signedIn() && request.auth.uid == uid && userType() == 'patient';
+   allow delete: if signedIn() && request.auth.uid == uid;
   }
   match /slots/{id} {
    allow read, create, update: if false;
