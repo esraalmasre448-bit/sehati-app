@@ -129,11 +129,13 @@ private fun DoctorHomeContent(
 
     val shownName = docName.ifBlank { name }
     val countText: (Long?) -> String = { n -> if (failed) "—" else n?.toString() ?: "..." }
-    val isOn = available == true
-    val statusText = when (available) {
-        true -> "متاح لاستقبال المرضى"
-        false -> "غير متاح حالياً"
-        null -> "لم تحددي حالتك بعد"
+    val isOn = available == true && subscriptionActive
+    val statusText = when {
+        hasProfile != true -> "الملف بانتظار الاعتماد أو الاستكمال"
+        !subscriptionLoaded -> "جارٍ التحقق من الاشتراك"
+        !subscriptionActive -> "الاشتراك منتهي أو غير نشط"
+        isOn -> "متاح لاستقبال المرضى"
+        else -> "غير متاح حالياً"
     }
 
     // الخلفية الثابتة موضوعة على مستوى التطبيق؛ نضيف تعتيماً خفيفاً للطبيب فقط.
