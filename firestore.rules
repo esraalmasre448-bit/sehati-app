@@ -327,8 +327,17 @@ service cloud.firestore {
     && request.resource.data.patientName is string
     && request.resource.data.patientName.size() <= 120
     && request.resource.data.createdAt == request.time;
-   allow update: if false;
-   // الوصفات والسجلات الطبية غير قابلة للحذف من حساب المريض أو الطبيب.
+   // يسمح للطبيب المعتمد بإلغاء مستنده فقط مع إبقاء السجل الطبي وعدم حذف محتواه.
+   allow update: if signedIn()
+    && userType() in ['doctor','clinic']
+    && resource.data.doctorId == request.auth.uid
+    && doctorApproved(request.auth.uid)
+    && !('voidedAt' in resource.data)
+    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','voidedAt','voidedBy'])
+    && request.resource.data.status == 'VOIDED'
+    && request.resource.data.voidedAt == request.time
+    && request.resource.data.voidedBy == request.auth.uid;
+   // الوصفات والسجلات الطبية لا تُحذف مطلقاً؛ الإلغاء يحفظ التاريخ.
    allow delete: if false;
   }
   match /conversations/{id} {
