@@ -214,6 +214,10 @@ try {
   await assertFails(updateDoc(doc(unapprovedDoctor, "doctors", unapprovedDoctorId), {
     approved: true
   }));
+  await assertFails(updateDoc(doc(unapprovedDoctor, "doctors", unapprovedDoctorId), {
+    available: true,
+    availableUpdatedAt: serverTimestamp()
+  }));
   await assertSucceeds(updateDoc(doc(admin, "doctors", unapprovedDoctorId), {
     approved: true,
     approvedBy: adminId,
@@ -222,10 +226,6 @@ try {
   await assertSucceeds(getDoc(doc(patient, "doctors", unapprovedDoctorId)));
   // Availability requires both admin approval and an active subscription.
   await assertSucceeds(updateDoc(doc(doctor, "doctors", doctorId), {
-    available: true,
-    availableUpdatedAt: serverTimestamp()
-  }));
-  await assertFails(updateDoc(doc(unapprovedDoctor, "doctors", unapprovedDoctorId), {
     available: true,
     availableUpdatedAt: serverTimestamp()
   }));
