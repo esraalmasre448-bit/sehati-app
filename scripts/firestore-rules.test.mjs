@@ -74,6 +74,18 @@ try {
       expiresAt: Timestamp.fromDate(new Date(Date.now() + 30 * 86400000))
     });
     await setDoc(doc(db, "config", "admin"), { uid: adminId });
+    // Seed historical conversations for expired and unapproved doctors.
+    for (const did of [expiredDoctorId, unapprovedDoctorId]) {
+      const aid = `${did}_${date}_${patientId}`;
+      await setDoc(doc(db, "appointments", aid), {
+        patientId, doctorId: did, status: "CONFIRMED"
+      });
+      await setDoc(doc(db, "conversations", `${did}_${patientId}`), {
+        doctorId: did, patientId, doctorName: did, patientName: "Patient",
+        appointmentId: aid, lastMessage: "History", lastSenderId: patientId,
+        lastAt: Timestamp.now(), createdAt: Timestamp.now()
+      });
+    }
   });
 
   // Patient favorites are private, limited to approved doctors, and removable by their owner.
@@ -174,6 +186,29 @@ try {
   }));
   await assertSucceeds(getDoc(doc(doctor, "messages", "message-1")));
   await assertFails(getDoc(doc(outsider, "messages", "message-1")));
+
+  // Patients retain access to existing conversations when a doctor's subscription expires.
+  const expiredConv = `${expiredDoctorId}_${patientId}`;
+  await assertSucceeds(setDoc(doc(patient, "messages", "patient-to-expired-doctor"), {
+    convId: expiredConv, senderId: patientId, text: "Follow-up", createdAt: serverTimestamp()
+  }));
+  await assertSucceeds(updateDoc(doc(patient, "conversations", expiredConv), {
+    lastMessage: "Follow-up", lastSenderId: patientId, lastAt: serverTimestamp()
+  }));
+  // Expired or unapproved doctors cannot send messages or update conversation previews.
+  await assertFails(setDoc(doc(expiredDoctor, "messages", "expired-doctor-message"), {
+    convId: expiredConv, senderId: expiredDoctorId, text: "Blocked", createdAt: serverTimestamp()
+  }));
+  await assertFails(updateDoc(doc(expiredDoctor, "conversations", expiredConv), {
+    lastMessage: "Blocked", lastSenderId: expiredDoctorId, lastAt: serverTimestamp()
+  }));
+  const unapprovedConv = `${unapprovedDoctorId}_${patientId}`;
+  await assertFails(setDoc(doc(unapprovedDoctor, "messages", "unapproved-doctor-message"), {
+    convId: unapprovedConv, senderId: unapprovedDoctorId, text: "Blocked", createdAt: serverTimestamp()
+  }));
+  await assertFails(updateDoc(doc(unapprovedDoctor, "conversations", unapprovedConv), {
+    lastMessage: "Blocked", lastSenderId: unapprovedDoctorId, lastAt: serverTimestamp()
+  }));
 
   // Prescriptions are limited to the treating doctor and patient and cannot be deleted.
   const rxRef = doc(doctor, "prescriptions", "rx-1");
