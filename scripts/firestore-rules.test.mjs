@@ -106,6 +106,30 @@ try {
   }));
   await assertSucceeds(deleteDoc(favoriteRef));
 
+  // Medication plans are private to the patient, mutable only by their owner, and retained.
+  const medicationRef = doc(patient, "medicationReminders", patientId, "items", "med-1");
+  await assertSucceeds(setDoc(medicationRef, {
+    medicine: "Medicine A",
+    dose: "One tablet",
+    time: "08:00",
+    active: true,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  }));
+  await assertSucceeds(getDoc(medicationRef));
+  await assertFails(getDoc(doc(outsider, "medicationReminders", patientId, "items", "med-1")));
+  await assertFails(setDoc(doc(doctor, "medicationReminders", doctorId, "items", "med-1"), {
+    medicine: "Medicine A", dose: "One tablet", time: "08:00", active: true,
+    createdAt: serverTimestamp(), updatedAt: serverTimestamp()
+  }));
+  await assertFails(updateDoc(doc(outsider, "medicationReminders", patientId, "items", "med-1"), {
+    active: false, updatedAt: serverTimestamp()
+  }));
+  await assertSucceeds(updateDoc(medicationRef, {
+    active: false, updatedAt: serverTimestamp()
+  }));
+  await assertFails(deleteDoc(medicationRef));
+
   const apptRef = doc(patient, "appointments", appointmentId);
   const queueRef = doc(patient, "queues", `${doctorId}_${date}`);
 
@@ -331,7 +355,7 @@ try {
   await assertSucceeds(deleteDoc(doc(patient, "users", patientId)));
   await assertFails(deleteDoc(doc(admin, "users", adminId)));
 
-  console.log("PASS: favorites privacy, booking, approval, queue permissions, private chat, prescriptions, doctor approval, FCM token privacy, and rebooking.");
+  console.log("PASS: favorites privacy, medication plan privacy and retention, booking, approval, queue permissions, private chat, prescriptions, doctor approval, FCM token privacy, and rebooking.");
 } finally {
   await env.cleanup();
 }
