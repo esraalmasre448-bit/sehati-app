@@ -143,6 +143,7 @@ fun App() {
     var loggedIn by remember { mutableStateOf(auth.currentUser != null) }
     var screen by remember { mutableStateOf("main") }
     var selected by remember { mutableStateOf<Map<String, Any?>?>(null) }
+    var detailReturnScreen by remember { mutableStateOf("search") }
     var initialQuery by remember { mutableStateOf("") }
     var chatId by remember { mutableStateOf("") }
     var myName by remember { mutableStateOf("") }
@@ -185,7 +186,7 @@ fun App() {
     LaunchedEffect(Unit) { delay(6200); splash = false }
     BackHandler(enabled = screen != "main") {
         screen = when (screen) {
-            "detail" -> "search"
+            "detail" -> detailReturnScreen
             "book" -> "detail"
             "chat" -> "messages"
             else -> "main"
@@ -214,12 +215,16 @@ fun App() {
         !loggedIn -> AuthFlow { loggedIn = true }
         screen == "search" -> DoctorSearchScreen(
             onBack = { initialQuery = ""; screen = "main" },
-            onOpen = { selected = it; screen = "detail" },
+            onOpen = { selected = it; detailReturnScreen = "search"; screen = "detail" },
             initial = initialQuery
+        )
+        screen == "favorites" -> PatientFavoritesScreen(
+            onBack = { screen = "main" },
+            onOpen = { selected = it; detailReturnScreen = "favorites"; screen = "detail" }
         )
         screen == "detail" && sel != null -> DoctorDetailWithChat(
             sel, patientName = myName,
-            onBack = { screen = "search" }, onBook = { screen = "book" },
+            onBack = { screen = detailReturnScreen }, onBook = { screen = "book" },
             onOpenChat = { chatId = it; screen = "chat" }
         )
         screen == "book" && sel != null -> QueueBookingScreen(
@@ -252,7 +257,7 @@ fun App() {
         )
         else -> MainShell(
             notificationState = notificationState,
-            onOpen = { selected = it; screen = "detail" },
+            onOpen = { selected = it; detailReturnScreen = "main"; screen = "detail" },
             onGo = {
                 if (it.startsWith("search:")) { initialQuery = it.removePrefix("search:"); screen = "search" }
                 else { if (it == "search") initialQuery = ""; screen = it }
