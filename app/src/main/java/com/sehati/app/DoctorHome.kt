@@ -218,9 +218,11 @@ private fun DoctorHomeContent(
                             val batch = bDb.batch()
                             batch.update(ref, upd)
                             if (oldPhone.isNotBlank() || oldEmg.isNotBlank()) {
-                                val priv = hashMapOf<String, Any>("updatedAt" to FieldValue.serverTimestamp())
-                                if (oldPhone.isNotBlank()) priv["phone"] = oldPhone
-                                if (oldEmg.isNotBlank()) priv["emergencyPhone"] = oldEmg
+                                val priv = hashMapOf<String, Any>(
+                                    "phone" to oldPhone,
+                                    "emergencyPhone" to oldEmg,
+                                    "updatedAt" to FieldValue.serverTimestamp()
+                                )
                                 batch.set(
                                     bDb.collection("doctorPrivate").document(uid), priv,
                                     com.google.firebase.firestore.SetOptions.merge()
