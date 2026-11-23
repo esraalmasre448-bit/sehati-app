@@ -332,21 +332,21 @@ service cloud.firestore {
     && request.resource.data.patientName.size() <= 120
     && request.resource.data.createdAt == request.time;
    // يسمح للطبيب المعتمد بإلغاء مستنده فقط مع إبقاء السجل الطبي وعدم حذف محتواه.
-   allow update: if signedIn()
-    && userType() in ['doctor','clinic']
-    && resource.data.doctorId == request.auth.uid
-    && doctorApproved(request.auth.uid)
-    && !('voidedAt' in resource.data)
-    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','voidedAt','voidedBy'])
-    && request.resource.data.status == 'VOIDED'
-    && request.resource.data.voidedAt == request.time
-    && request.resource.data.voidedBy == request.auth.uid
-    || (signedIn()
-     && resource.data.patientId == request.auth.uid
+   allow update: if signedIn() && (
+    (userType() in ['doctor','clinic']
+     && resource.data.doctorId == request.auth.uid
+     && doctorApproved(request.auth.uid)
+     && !('voidedAt' in resource.data)
+     && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','voidedAt','voidedBy'])
+     && request.resource.data.status == 'VOIDED'
+     && request.resource.data.voidedAt == request.time
+     && request.resource.data.voidedBy == request.auth.uid)
+    || (resource.data.patientId == request.auth.uid
      && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['patientId','patientName','appointmentId'])
      && !('patientId' in request.resource.data)
      && !('appointmentId' in request.resource.data)
-     && request.resource.data.patientName == 'حساب محذوف');
+     && request.resource.data.patientName == 'حساب محذوف')
+   );
    // الوصفات والسجلات الطبية لا تُحذف مطلقاً؛ يحتفظ الطبيب بالمحتوى بعد إخفاء هوية المريض.
    allow delete: if false;
   }
