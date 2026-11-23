@@ -305,8 +305,17 @@ fun DoctorDashboardContent(onBack: (() -> Unit)? = null) {
                     .sortedBy { (it["createdAt"] as? com.google.firebase.Timestamp)?.seconds ?: 0L }
                     .forEach { n ->
                         NoteBox(n) {
-                            bDb.collection("prescriptions").document(n["id"] as String).delete()
-                                .addOnFailureListener { msg = "تعذر الحذف، تحقق من الإنترنت" }
+                            bDb.collection("prescriptions").document(n["id"] as String).update(
+                                mapOf(
+                                    "status" to "VOIDED",
+                                    "voidedAt" to FieldValue.serverTimestamp(),
+                                    "voidedBy" to uid
+                                )
+                            ).addOnSuccessListener {
+                                msg = "تم إلغاء المستند مع الاحتفاظ به في السجل الطبي"
+                            }.addOnFailureListener {
+                                msg = "تعذر إلغاء المستند، تحقق من الصلاحيات والاتصال"
+                            }
                         }
                     }
                 if (a["status"] == "CONFIRMED") {
@@ -408,8 +417,10 @@ fun DoctorDashboardContent(onBack: (() -> Unit)? = null) {
 }
 
 @Composable
-fun NoteBox(n: Map<String, Any?>, onDelete: (() -> Unit)?) {
+fun NoteBox(n: Map<String, Any?>, onVoid: (() -> Unit)?) {
     val rx = n["kind"] == "rx"
+    val isVoided = n["status"] == "VOIDED"
+    var showVoidConfirmation by remember(n["id"]) { mutableStateOf(false) }
     val ts = (n["createdAt"] as? com.google.firebase.Timestamp)?.toDate()
     val dateTxt = if (ts != null) SimpleDateFormat("d/M/yyyy", Locale.US).format(ts) else ""
     Column(
@@ -420,16 +431,43 @@ fun NoteBox(n: Map<String, Any?>, onDelete: (() -> Unit)?) {
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         Text(
-            (if (rx) "راشيتة" else "طلب تحاليل") + (if (dateTxt.isNotEmpty()) " • $dateTxt" else "") +
-                (if (onDelete == null && "${n["doctorName"] ?: ""}".isNotBlank()) " • من د. ${n["doctorName"]}" else ""),
-            color = BRed, fontWeight = FontWeight.Bold, fontSize = 13.sp
+            (if (rx) "راشيتة" else "طلب تحاليل") +
+                (if (dateTxt.isNotEmpty()) " • $dateTxt" else "") +
+                (if (onVoid == null && "${n["doctorName"] ?: ""}".isNotBlank()) " • من د. ${n["doctorName"]}" else "") +
+                (if (isVoided) " • ملغاة" else ""),
+            color = if (isVoided) BDanger else BRed,
+            fontWeight = FontWeight.Bold,
+            fontSize = 13.sp
         )
         Text("${n["text"] ?: ""}", color = Color.White)
-        if (onDelete == null) Text("ملاحظة طبية من الطبيب عبر التطبيق، وليست وصفة رسمية.", color = BMuted, fontSize = 11.sp)
-        if (onDelete != null) TextButton(onClick = onDelete) { Text("حذف", color = BDanger) }
+        if (isVoided) {
+            Text("أُلغي هذا المستند مع الاحتفاظ به في السجل الطبي.", color = BDanger, fontSize = 11.sp)
+        } else if (onVoid == null) {
+            Text("ملاحظة طبية من الطبيب عبر التطبيق، وليست وصفة رسمية.", color = BMuted, fontSize = 11.sp)
+        }
+        if (onVoid != null && !isVoided) {
+            TextButton(onClick = { showVoidConfirmation = true }) {
+                Text("إلغاء المستند", color = BDanger)
+            }
+        }
+    }
+    if (showVoidConfirmation && onVoid != null && !isVoided) {
+        AlertDialog(
+            onDismissRequest = { showVoidConfirmation = false },
+            title = { Text("إلغاء المستند الطبي؟") },
+            text = { Text("سيبقى المستند محفوظاً في سجل المريض، وستظهر حالته كملغاة.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showVoidConfirmation = false
+                    onVoid()
+                }) { Text("تأكيد الإلغاء", color = BDanger) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showVoidConfirmation = false }) { Text("رجوع") }
+            }
+        )
     }
 }
-
 @Composable
 fun ExpiredCard(onRenew: () -> Unit) {
     Column(
