@@ -214,7 +214,7 @@ fun App() {
         !loggedIn -> AuthFlow { loggedIn = true }
         screen == "search" -> DoctorSearchScreen(
             onBack = { initialQuery = ""; screen = "main" },
-            onOpen = { selected = it; screen = "detail" },
+            onOpen = { selected = it; detailReturnScreen = "search"; screen = "detail" },
             initial = initialQuery
         )
         screen == "favorites" -> PatientFavoritesScreen(
@@ -223,7 +223,7 @@ fun App() {
         )
         screen == "detail" && sel != null -> DoctorDetailWithChat(
             sel, patientName = myName,
-            onBack = { screen = "search" }, onBook = { screen = "book" },
+            onBack = { screen = detailReturnScreen }, onBook = { screen = "book" },
             onOpenChat = { chatId = it; screen = "chat" }
         )
         screen == "book" && sel != null -> QueueBookingScreen(
