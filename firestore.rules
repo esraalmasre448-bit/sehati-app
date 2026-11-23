@@ -412,6 +412,19 @@ service cloud.firestore {
     && request.resource.data.updatedAt == request.time;
    allow delete: if signedIn() && resource.data.uid == request.auth.uid;
   }
+  // مفضلات المريض: كل مستخدم يدير قائمته فقط، ولا يحفظ إلا طبيباً معتمداً.
+  match /favorites/{uid}/doctors/{doctorId} {
+   allow read: if signedIn() && request.auth.uid == uid;
+   allow create: if signedIn()
+    && request.auth.uid == uid
+    && userType() == 'patient'
+    && request.resource.data.keys().hasOnly(['doctorId','savedAt'])
+    && request.resource.data.doctorId == doctorId
+    && request.resource.data.savedAt == request.time
+    && doctorApproved(doctorId);
+   allow update: if false;
+   allow delete: if signedIn() && request.auth.uid == uid && userType() == 'patient';
+  }
   match /slots/{id} {
    allow read, create, update: if false;
    allow delete: if signedIn() && (
