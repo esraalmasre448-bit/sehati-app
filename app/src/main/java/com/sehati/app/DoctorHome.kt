@@ -81,6 +81,7 @@ private fun DoctorHomeContent(
             available = d.getBoolean("available")
             // الملف مكتمل فقط إذا كانت الحقول التي يطلبها نموذج الحفظ موجودة وصالحة
             hasProfile = d.exists() &&
+                d.getBoolean("approved") == true &&
                 !(d.getString("name") ?: "").isBlank() &&
                 !(d.getString("city") ?: "").isBlank() &&
                 SPECIALTIES.any { it.name == (d.getString("specialty") ?: "") }
@@ -236,7 +237,7 @@ private fun DoctorHomeContent(
                 )
             }
             if (hasProfile == false) {
-                Text("أكملي ملفك المهني أولاً لتتمكني من تغيير حالة التوافر", color = BMuted, fontSize = 12.sp)
+                Text("يجب إكمال الملف المهني واعتماد الطبيب من الإدارة أولاً لتغيير حالة التوافر", color = BMuted, fontSize = 12.sp)
             }
             if (toggleMsg.isNotEmpty()) Text(toggleMsg, color = BDanger, fontSize = 12.sp)
         }
