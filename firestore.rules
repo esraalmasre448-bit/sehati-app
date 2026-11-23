@@ -104,7 +104,7 @@ service cloud.firestore {
        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['emailVerified'])
        && request.resource.data.emailVerified == true)
     );
-   allow delete: if request.auth != null && request.auth.uid == uid;
+   allow delete: if signedIn() && request.auth.uid == uid && !isAdmin();
   }
   match /doctors/{id} {
    allow read: if signedIn()
