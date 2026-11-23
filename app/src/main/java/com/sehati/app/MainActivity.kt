@@ -217,6 +217,10 @@ fun App() {
             onOpen = { selected = it; screen = "detail" },
             initial = initialQuery
         )
+        screen == "favorites" -> PatientFavoritesScreen(
+            onBack = { screen = "main" },
+            onOpen = { selected = it; detailReturnScreen = "favorites"; screen = "detail" }
+        )
         screen == "detail" && sel != null -> DoctorDetailWithChat(
             sel, patientName = myName,
             onBack = { screen = "search" }, onBook = { screen = "book" },
