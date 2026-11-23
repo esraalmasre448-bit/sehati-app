@@ -31,6 +31,7 @@ const doctorId = "doctor1";
 const outsiderId = "outsider1";
 const adminId = "admin1";
 const unapprovedDoctorId = "doctor2";
+const expiredDoctorId = "doctor3";
 const date = "2099-01-01";
 const appointmentId = `${doctorId}_${date}_${patientId}`;
 const conversationId = `${doctorId}_${patientId}`;
@@ -40,6 +41,7 @@ const doctor = env.authenticatedContext(doctorId).firestore();
 const outsider = env.authenticatedContext(outsiderId).firestore();
 const admin = env.authenticatedContext(adminId).firestore();
 const unapprovedDoctor = env.authenticatedContext(unapprovedDoctorId).firestore();
+const expiredDoctor = env.authenticatedContext(expiredDoctorId).firestore();
 
 try {
   await env.withSecurityRulesDisabled(async (ctx) => {
@@ -49,7 +51,8 @@ try {
       [doctorId, "doctor", "Doctor"],
       [outsiderId, "patient", "Outsider"],
       [adminId, "admin", "Admin"],
-      [unapprovedDoctorId, "doctor", "Unapproved Doctor"]
+      [unapprovedDoctorId, "doctor", "Unapproved Doctor"],
+      [expiredDoctorId, "doctor", "Expired Doctor"]
     ]) {
       await setDoc(doc(db, "users", uid), { accountType, name });
     }
@@ -58,6 +61,9 @@ try {
     });
     await setDoc(doc(db, "doctors", unapprovedDoctorId), {
       uid: unapprovedDoctorId, name: "Unapproved Doctor", approved: false
+    });
+    await setDoc(doc(db, "doctors", expiredDoctorId), {
+      uid: expiredDoctorId, name: "Expired Doctor", approved: true
     });
     await setDoc(doc(db, "subscriptions", doctorId), {
       uid: doctorId,
@@ -214,6 +220,19 @@ try {
     approvedAt: serverTimestamp()
   }));
   await assertSucceeds(getDoc(doc(patient, "doctors", unapprovedDoctorId)));
+  // Availability requires both admin approval and an active subscription.
+  await assertSucceeds(updateDoc(doc(doctor, "doctors", doctorId), {
+    available: true,
+    availableUpdatedAt: serverTimestamp()
+  }));
+  await assertFails(updateDoc(doc(unapprovedDoctor, "doctors", unapprovedDoctorId), {
+    available: true,
+    availableUpdatedAt: serverTimestamp()
+  }));
+  await assertFails(updateDoc(doc(expiredDoctor, "doctors", expiredDoctorId), {
+    available: true,
+    availableUpdatedAt: serverTimestamp()
+  }));
 
   // Account deletion is self-service, but the configured admin account is protected.
   await assertSucceeds(deleteDoc(doc(patient, "users", patientId)));
