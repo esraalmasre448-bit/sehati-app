@@ -234,10 +234,6 @@ try {
     availableUpdatedAt: serverTimestamp()
   }));
 
-  // Account deletion is self-service, but the configured admin account is protected.
-  await assertSucceeds(deleteDoc(doc(patient, "users", patientId)));
-  await assertFails(deleteDoc(doc(admin, "users", adminId)));
-
   // Device tokens are private to their owning account.
   const tokenRef = doc(patient, "fcmTokens", `${patientId}_device-1`);
   await assertSucceeds(setDoc(tokenRef, {
@@ -285,6 +281,10 @@ try {
       createdAt: serverTimestamp()
     });
   }));
+
+  // Account deletion is self-service, but the configured admin account is protected.
+  await assertSucceeds(deleteDoc(doc(patient, "users", patientId)));
+  await assertFails(deleteDoc(doc(admin, "users", adminId)));
 
   console.log("PASS: favorites privacy, booking, approval, queue permissions, private chat, prescriptions, doctor approval, FCM token privacy, and rebooking.");
 } finally {
