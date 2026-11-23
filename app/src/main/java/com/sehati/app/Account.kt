@@ -44,28 +44,67 @@ fun DeleteAccountSection(onDeleted: () -> Unit) {
                         busy = true
                         msg = ""
 
-                        fun finishDeletion() {
-                            val cleanup = bDb.batch()
-                            cleanup.delete(bDb.collection("users").document(user.uid))
-                            cleanup.delete(bDb.collection("doctors").document(user.uid))
-                            cleanup.delete(bDb.collection("doctorPrivate").document(user.uid))
-                            cleanup.delete(bDb.collection("subscriptions").document(user.uid))
-                            cleanup.commit()
+                        fun deleteOwnedRecordsInChunks(
+                            references: List<DocumentReference>,
+                            offset: Int = 0,
+                            onComplete: () -> Unit
+                        ) {
+                            if (offset >= references.size) {
+                                onComplete()
+                                return
+                            }
+                            val batch = bDb.batch()
+                            references.drop(offset).take(400).forEach { batch.delete(it) }
+                            batch.commit()
                                 .addOnSuccessListener {
-                                    user.delete()
-                                        .addOnSuccessListener {
-                                            busy = false
-                                            open = false
-                                            onDeleted()
+                                    deleteOwnedRecordsInChunks(references, offset + 400, onComplete)
+                                }
+                                .addOnFailureListener {
+                                    busy = false
+                                    msg = "تعذر تنظيف بيانات الحساب والأجهزة المرتبطة. لم يُحذف حساب الدخول؛ حاول مجددًا."
+                                }
+                        }
+
+                        fun finishDeletion() {
+                            bDb.collection("fcmTokens").whereEqualTo("uid", user.uid).get()
+                                .addOnSuccessListener { tokens ->
+                                    bDb.collection("favorites").document(user.uid).collection("doctors").get()
+                                        .addOnSuccessListener { favorites ->
+                                            val owned = tokens.documents.map { it.reference } +
+                                                favorites.documents.map { it.reference }
+                                            deleteOwnedRecordsInChunks(owned) {
+                                                val cleanup = bDb.batch()
+                                                cleanup.delete(bDb.collection("users").document(user.uid))
+                                                cleanup.delete(bDb.collection("doctors").document(user.uid))
+                                                cleanup.delete(bDb.collection("doctorPrivate").document(user.uid))
+                                                cleanup.delete(bDb.collection("subscriptions").document(user.uid))
+                                                cleanup.commit()
+                                                    .addOnSuccessListener {
+                                                        user.delete()
+                                                            .addOnSuccessListener {
+                                                                busy = false
+                                                                open = false
+                                                                onDeleted()
+                                                            }
+                                                            .addOnFailureListener {
+                                                                busy = false
+                                                                msg = "حُفظت إزالة بياناتك، لكن تعذر حذف حساب الدخول. سجّل الدخول مجددًا ثم أعد المحاولة."
+                                                            }
+                                                    }
+                                                    .addOnFailureListener {
+                                                        busy = false
+                                                        msg = "تعذر إكمال حذف الحساب. لم يُحذف حساب الدخول؛ حاول مجددًا."
+                                                    }
+                                            }
                                         }
                                         .addOnFailureListener {
                                             busy = false
-                                            msg = "حُفظت إزالة بياناتك، لكن تعذر حذف حساب الدخول. سجّل الدخول مجددًا ثم أعد المحاولة."
+                                            msg = "تعذر تنظيف قائمة المفضلة. لم يُحذف حساب الدخول؛ حاول مجددًا."
                                         }
                                 }
                                 .addOnFailureListener {
                                     busy = false
-                                    msg = "تعذر إكمال حذف الحساب. لم يُحذف حساب الدخول؛ حاول مجددًا."
+                                    msg = "تعذر تنظيف رموز الإشعارات. لم يُحذف حساب الدخول؛ حاول مجددًا."
                                 }
                         }
 
