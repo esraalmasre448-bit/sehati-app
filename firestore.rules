@@ -373,9 +373,15 @@ service cloud.firestore {
     && request.resource.data.createdAt == request.time
     && request.resource.data.lastAt == request.time;
    allow update: if signedIn()
-    && (resource.data.patientId == request.auth.uid || resource.data.doctorId == request.auth.uid)
+    && (
+     (resource.data.patientId == request.auth.uid && userType() == 'patient')
+     || (resource.data.doctorId == request.auth.uid
+      && userType() in ['doctor','clinic']
+      && doctorApproved(request.auth.uid)
+      && subActive(request.auth.uid))
+    )
     && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastMessage','lastAt','lastSenderId'])
-    && (!('lastSenderId' in request.resource.data) || request.resource.data.lastSenderId == request.auth.uid)
+    && request.resource.data.lastSenderId == request.auth.uid
     && request.resource.data.lastMessage is string
     && request.resource.data.lastMessage.size() <= 1000
     && request.resource.data.lastAt == request.time;
@@ -396,8 +402,14 @@ service cloud.firestore {
     && request.resource.data.text.size() <= 1000
     && request.resource.data.createdAt == request.time
     && exists(/databases/$(database)/documents/conversations/$(request.resource.data.convId))
-    && (get(/databases/$(database)/documents/conversations/$(request.resource.data.convId)).data.patientId == request.auth.uid
-     || get(/databases/$(database)/documents/conversations/$(request.resource.data.convId)).data.doctorId == request.auth.uid);
+    && (
+     (get(/databases/$(database)/documents/conversations/$(request.resource.data.convId)).data.patientId == request.auth.uid
+      && userType() == 'patient')
+     || (get(/databases/$(database)/documents/conversations/$(request.resource.data.convId)).data.doctorId == request.auth.uid
+      && userType() in ['doctor','clinic']
+      && doctorApproved(request.auth.uid)
+      && subActive(request.auth.uid))
+    );
    allow update, delete: if false;
   }
   // رموز FCM خاصة بكل جهاز؛ لا يستطيع المستخدم قراءة أو تعديل رموز الآخرين.
