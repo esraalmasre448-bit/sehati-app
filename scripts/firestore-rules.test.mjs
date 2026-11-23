@@ -69,6 +69,24 @@ try {
     await setDoc(doc(db, "config", "admin"), { uid: adminId });
   });
 
+  // Patient favorites are private, limited to approved doctors, and removable by their owner.
+  const favoriteRef = doc(patient, "favorites", patientId, "doctors", doctorId);
+  await assertSucceeds(setDoc(favoriteRef, {
+    doctorId,
+    savedAt: serverTimestamp()
+  }));
+  await assertSucceeds(getDoc(favoriteRef));
+  await assertFails(getDoc(doc(outsider, "favorites", patientId, "doctors", doctorId)));
+  await assertFails(setDoc(doc(patient, "favorites", outsiderId, "doctors", doctorId), {
+    doctorId,
+    savedAt: serverTimestamp()
+  }));
+  await assertFails(setDoc(doc(patient, "favorites", patientId, "doctors", unapprovedDoctorId), {
+    doctorId: unapprovedDoctorId,
+    savedAt: serverTimestamp()
+  }));
+  await assertSucceeds(deleteDoc(favoriteRef));
+
   const apptRef = doc(patient, "appointments", appointmentId);
   const queueRef = doc(patient, "queues", `${doctorId}_${date}`);
 
@@ -233,7 +251,7 @@ try {
     });
   }));
 
-  console.log("PASS: booking, approval, queue permissions, private chat, prescriptions, doctor approval, FCM token privacy, and rebooking.");
+  console.log("PASS: favorites privacy, booking, approval, queue permissions, private chat, prescriptions, doctor approval, FCM token privacy, and rebooking.");
 } finally {
   await env.cleanup();
 }
