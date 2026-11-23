@@ -164,8 +164,9 @@ service cloud.firestore {
     && request.resource.data.expiresAt > request.time
     && request.resource.data.expiresAt <= request.time + duration.value(31, 'd'));
    allow update: if isAdmin();
-   // يمكن لصاحب الحساب حذف اشتراكه عند حذف الحساب فقط؛ هذا يسحب الاستحقاق ولا يمنح صلاحيات.
-   allow delete: if isAdmin() || (signedIn() && request.auth.uid == id);
+   // لا يستطيع الطبيب حذف اشتراكه وإعادة إنشائه للحصول على فترة تجريبية جديدة.
+   // حذف الاشتراك أو تعديله من صلاحية الإدارة فقط.
+   allow delete: if isAdmin();
   }
   match /subscriptionHistory/{id} {
    allow read, create: if isAdmin();

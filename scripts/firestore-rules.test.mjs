@@ -147,6 +147,10 @@ try {
   await assertFails(updateDoc(queueRef, { current: 1 }));
   await assertFails(updateDoc(queueRef, { last: 2 }));
 
+  // A doctor cannot delete their own trial subscription to recreate another trial.
+  await assertFails(deleteDoc(doc(doctor, "subscriptions", doctorId)));
+  await assertSucceeds(getDoc(doc(doctor, "subscriptions", doctorId)));
+
   // Only the approved, subscribed doctor can approve and advance the queue.
   await assertSucceeds(updateDoc(doc(doctor, "appointments", appointmentId), {
     status: "CONFIRMED"
