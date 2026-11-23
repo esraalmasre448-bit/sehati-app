@@ -143,6 +143,7 @@ fun App() {
     var loggedIn by remember { mutableStateOf(auth.currentUser != null) }
     var screen by remember { mutableStateOf("main") }
     var selected by remember { mutableStateOf<Map<String, Any?>?>(null) }
+    var detailReturnScreen by remember { mutableStateOf("search") }
     var initialQuery by remember { mutableStateOf("") }
     var chatId by remember { mutableStateOf("") }
     var myName by remember { mutableStateOf("") }
@@ -185,7 +186,7 @@ fun App() {
     LaunchedEffect(Unit) { delay(6200); splash = false }
     BackHandler(enabled = screen != "main") {
         screen = when (screen) {
-            "detail" -> "search"
+            "detail" -> detailReturnScreen
             "book" -> "detail"
             "chat" -> "messages"
             else -> "main"
