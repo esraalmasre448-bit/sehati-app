@@ -129,6 +129,11 @@ fun MyAppointmentsContent(onFind: () -> Unit, onBack: (() -> Unit)? = null) {
         }
         items(shown, key = { it["id"] as String }) { a ->
             val id = a["id"] as String
+            val visitLabel = when (a["visitType"]) {
+                "CONSULTATION" -> "معاينة"
+                "FOLLOW_UP" -> "مراجعة"
+                else -> "زيارة"
+            }
             val (label, color) = sxApptStatus(a["status"])
             val isOpen = id in open
             val canCancel = a["status"] == "PENDING" || a["status"] == "CONFIRMED"
@@ -145,6 +150,7 @@ fun MyAppointmentsContent(onFind: () -> Unit, onBack: (() -> Unit)? = null) {
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text("${a["doctorName"] ?: ""}", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
                         Text("${a["specialty"] ?: ""}", color = BMuted, fontSize = 13.sp)
+                        Text("نوع الزيارة: $visitLabel", color = BRed, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                         Text(
                             "${a["date"] ?: ""}".replace("-", "/") + " - " + "${a["time"] ?: ""}",
                             color = Color.White, fontSize = 13.sp
