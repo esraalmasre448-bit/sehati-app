@@ -34,17 +34,18 @@ service cloud.firestore {
   }
   function docKeys() {
    return ['uid','name','specialty','clinicName','city','address','hours','fee','updatedAt',
-       'startHour','endHour','slotMinutes','bio','lat','lng','mapLink','locationUpdatedAt','photo','emergency','hospitalName','hospitalHours','available','availableUpdatedAt','workDays','workLocations','currentWorkLocationId','currentWorkPlaceName','locationStatus'];
+       'startHour','endHour','slotMinutes','dailyCapacity','bio','lat','lng','mapLink','locationUpdatedAt','photo','emergency','hospitalName','hospitalHours','available','availableUpdatedAt','workDays','workLocations','currentWorkLocationId','currentWorkPlaceName','locationStatus'];
   }
   function validWorkPlace(p) {
    return p is map
-    && p.keys().hasOnly(['name','startHour','endHour','workDays','slotMinutes','lat','lng','mapLink'])
+    && p.keys().hasOnly(['name','startHour','endHour','workDays','slotMinutes','dailyCapacity','lat','lng','mapLink'])
     && p.name is string && p.name.size() > 0 && p.name.size() <= 120
     && p.startHour is int && p.startHour >= 0 && p.startHour <= 23
     && p.endHour is int && p.endHour >= 1 && p.endHour <= 24
     && p.startHour < p.endHour
     && p.workDays is list && p.workDays.size() > 0 && p.workDays.size() <= 7
     && p.slotMinutes is int && p.slotMinutes >= 10 && p.slotMinutes <= 180
+    && (!('dailyCapacity' in p) || (p.dailyCapacity is int && p.dailyCapacity >= 1 && p.dailyCapacity <= 500))
     && (!('lat' in p) || (p.lat is number && p.lat >= -90 && p.lat <= 90))
     && (!('lng' in p) || (p.lng is number && p.lng >= -180 && p.lng <= 180))
     && (!('mapLink' in p) || (p.mapLink is string && p.mapLink.size() <= 2048));
@@ -231,6 +232,7 @@ service cloud.firestore {
     )
     && subActive(request.resource.data.doctorId)
     && doctorApproved(request.resource.data.doctorId)
+    && request.resource.data.number <= get(/databases/$(database)/documents/doctors/$(request.resource.data.doctorId)).data.dailyCapacity
     && getAfter(qPath(request.resource.data.doctorId, request.resource.data.date)).data.last == request.resource.data.number
     && (!('visitType' in request.resource.data)
       || getAfter(qPath(request.resource.data.doctorId, request.resource.data.date)).data.lastAppointmentId == id)
