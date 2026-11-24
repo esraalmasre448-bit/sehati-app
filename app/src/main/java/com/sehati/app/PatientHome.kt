@@ -143,7 +143,7 @@ fun PatientHome(
         }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Tile(Icons.Filled.HealthAndSafety, "ملفي الصحي", false, Modifier.weight(1f)) { onGo("health_profile") }
-            Spacer(Modifier.weight(1f))
+            Tile(Icons.Filled.FamilyRestroom, "ملفات العائلة", false, Modifier.weight(1f)) { onGo("family_profiles") }
         }
     }
 }
