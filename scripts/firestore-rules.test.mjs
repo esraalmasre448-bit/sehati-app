@@ -161,6 +161,40 @@ try {
     });
   }));
 
+  // A patient may book a different visit type with the same doctor on the same day.
+  // The shared queue advances, while each appointment receives a stable type-specific ID.
+  const followUpId = `${doctorId}_${date}_${patientId}_FOLLOW_UP`;
+  const followUpRef = doc(patient, "appointments", followUpId);
+  await assertSucceeds(runTransaction(patient, async (tx) => {
+    const oldFollowUp = await tx.get(followUpRef);
+    const oldQueue = await tx.get(queueRef);
+    if (oldFollowUp.exists()) throw new Error("Unexpected existing follow-up");
+    const next = (oldQueue.get("last") || 0) + 1;
+    tx.update(queueRef, { last: next, lastAppointmentId: followUpId });
+    tx.set(followUpRef, {
+      patientId,
+      patientName: "Patient",
+      patientPhone: "",
+      doctorId,
+      doctorName: "Doctor",
+      specialty: "General",
+      clinicName: "",
+      address: "",
+      city: "Test",
+      date,
+      slot: 570,
+      time: "09:30",
+      number: next,
+      status: "PENDING",
+      note: "",
+      visitType: "FOLLOW_UP",
+      createdAt: serverTimestamp()
+    });
+  }));
+  await assertSucceeds(getDoc(followUpRef));
+  await assertSucceeds(getDoc(doc(doctor, "appointments", followUpId)));
+  await assertFails(getDoc(doc(outsider, "appointments", followUpId)));
+
   // Only the patient and treating doctor can read the appointment.
   await assertSucceeds(getDoc(apptRef));
   await assertSucceeds(getDoc(doc(doctor, "appointments", appointmentId)));
