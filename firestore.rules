@@ -64,7 +64,7 @@ service cloud.firestore {
   }
   function apptKeys() {
    return ['patientId','patientName','patientPhone','doctorId','doctorName','specialty','clinicName',
-       'address','city','date','slot','time','number','status','note','createdAt','visitType'];
+       'address','city','date','slot','time','number','status','note','createdAt','visitType','beneficiaryRelation'];
   }
   function anonymized() {
    return request.resource.data.patientName == 'حساب محذوف'
@@ -218,6 +218,8 @@ service cloud.firestore {
     && request.resource.data.number is int
     && request.resource.data.note is string
     && request.resource.data.note.size() <= 300
+    && (!('beneficiaryRelation' in request.resource.data)
+      || (request.resource.data.beneficiaryRelation is string && request.resource.data.beneficiaryRelation.size() <= 40))
     && (
      (!('visitType' in request.resource.data)
       && id == request.resource.data.doctorId + '_' + request.resource.data.date + '_' + request.auth.uid)
@@ -269,7 +271,7 @@ service cloud.firestore {
      && request.resource.data.keys().hasOnly(apptKeys())
      && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
       'patientName','patientPhone','doctorName','specialty','clinicName',
-      'address','city','slot','time','number','status','note','createdAt'
+      'address','city','slot','time','number','status','note','createdAt','beneficiaryRelation'
      ])
      && request.resource.data.status == 'PENDING'
      && request.resource.data.patientId == request.auth.uid
@@ -473,6 +475,32 @@ service cloud.firestore {
     && request.resource.data.token.size() <= 4096
     && request.resource.data.updatedAt == request.time;
    allow delete: if signedIn() && resource.data.uid == request.auth.uid;
+  }
+  // ملفات العائلة: المريض وحده يدير أسماء أفراد أسرته وعلاقات القرابة.
+  match /familyProfiles/{uid}/members/{memberId} {
+   allow read: if signedIn() && request.auth.uid == uid && userType() == 'patient';
+   allow create: if signedIn()
+    && request.auth.uid == uid
+    && userType() == 'patient'
+    && request.resource.data.keys().hasOnly(['name','relation','createdAt'])
+    && request.resource.data.name is string
+    && request.resource.data.name.size() > 0
+    && request.resource.data.name.size() <= 100
+    && request.resource.data.relation is string
+    && request.resource.data.relation.size() > 0
+    && request.resource.data.relation.size() <= 40
+    && request.resource.data.createdAt == request.time;
+   allow update: if signedIn()
+    && request.auth.uid == uid
+    && userType() == 'patient'
+    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name','relation'])
+    && request.resource.data.name is string
+    && request.resource.data.name.size() > 0
+    && request.resource.data.name.size() <= 100
+    && request.resource.data.relation is string
+    && request.resource.data.relation.size() > 0
+    && request.resource.data.relation.size() <= 40;
+   allow delete: if signedIn() && request.auth.uid == uid && userType() == 'patient';
   }
   // الملف الصحي الشخصي: معلومات حساسة لا يقرأها أو يعدلها إلا صاحب الحساب المريض.
   match /healthProfiles/{uid} {
