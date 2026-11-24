@@ -33,7 +33,7 @@ const adminId = "admin1";
 const unapprovedDoctorId = "doctor2";
 const expiredDoctorId = "doctor3";
 const date = "2099-01-01";
-const appointmentId = `${doctorId}_${date}_${patientId}`;
+const appointmentId = `${doctorId}_${date}_${patientId}_CONSULTATION`;
 const conversationId = `${doctorId}_${patientId}`;
 
 const patient = env.authenticatedContext(patientId).firestore();
@@ -140,7 +140,7 @@ try {
     if (oldAppointment.exists() || oldQueue.exists()) {
       throw new Error("Unexpected seeded booking");
     }
-    tx.set(queueRef, { doctorId, date, last: 1, current: 0 });
+    tx.set(queueRef, { doctorId, date, last: 1, current: 0, lastAppointmentId: appointmentId });
     tx.set(apptRef, {
       patientId,
       patientName: "Patient",
@@ -157,6 +157,7 @@ try {
       number: 1,
       status: "PENDING",
       note: "",
+      visitType: "CONSULTATION",
       createdAt: serverTimestamp()
     });
   }));
@@ -232,6 +233,67 @@ try {
     });
   }));
   await assertSucceeds(getDoc(firstTypedRef));
+
+  // Legacy clients can still create/read the old appointment and queue shape.
+  const legacyDate = "2099-01-03";
+  const legacyId = `${doctorId}_${legacyDate}_${patientId}`;
+  const legacyRef = doc(patient, "appointments", legacyId);
+  const legacyQueue = doc(patient, "queues", `${doctorId}_${legacyDate}`);
+  await assertSucceeds(runTransaction(patient, async (tx) => {
+    const oldAppointment = await tx.get(legacyRef);
+    const oldQueue = await tx.get(legacyQueue);
+    if (oldAppointment.exists() || oldQueue.exists()) throw new Error("Unexpected legacy queue");
+    tx.set(legacyQueue, { doctorId, date: legacyDate, last: 1, current: 0 });
+    tx.set(legacyRef, {
+      patientId,
+      patientName: "Patient",
+      patientPhone: "",
+      doctorId,
+      doctorName: "Doctor",
+      specialty: "General",
+      clinicName: "",
+      address: "",
+      city: "Test",
+      date: legacyDate,
+      slot: 540,
+      time: "09:00",
+      number: 1,
+      status: "PENDING",
+      note: "",
+      createdAt: serverTimestamp()
+    });
+  }));
+  await assertSucceeds(getDoc(legacyRef));
+
+  // A typed appointment cannot bypass an active legacy booking for the same patient/day.
+  const blockedTypedId = `${doctorId}_${legacyDate}_${patientId}_FOLLOW_UP`;
+  const blockedTypedRef = doc(patient, "appointments", blockedTypedId);
+  await assertFails(runTransaction(patient, async (tx) => {
+    const oldTyped = await tx.get(blockedTypedRef);
+    const oldQueue = await tx.get(legacyQueue);
+    if (oldTyped.exists()) throw new Error("Unexpected typed booking");
+    const next = (oldQueue.get("last") || 0) + 1;
+    tx.update(legacyQueue, { last: next, lastAppointmentId: blockedTypedId });
+    tx.set(blockedTypedRef, {
+      patientId,
+      patientName: "Patient",
+      patientPhone: "",
+      doctorId,
+      doctorName: "Doctor",
+      specialty: "General",
+      clinicName: "",
+      address: "",
+      city: "Test",
+      date: legacyDate,
+      slot: 570,
+      time: "09:30",
+      number: next,
+      status: "PENDING",
+      note: "",
+      visitType: "FOLLOW_UP",
+      createdAt: serverTimestamp()
+    });
+  }));
 
   // Only the patient and treating doctor can read the appointment.
   await assertSucceeds(getDoc(apptRef));
