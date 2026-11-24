@@ -159,7 +159,7 @@ class SehatiMessagingService : FirebaseMessagingService() {
         val type = message.data["type"].orEmpty()
         // Chat alerts are intentionally shown in the system tray even while chatting.
         // Appointment and queue alerts are shown locally by the watcher while foregrounded.
-        if (AppVisibility.foreground && type != "chat") return
+        if (AppVisibility.foreground && type != "chat" && message.data["event"] != "followup_scheduled") return
 
         val title = message.data["title"] ?: message.notification?.title ?: "إشعار جديد"
         val body = message.data["body"] ?: message.notification?.body ?: "لديك تحديث جديد"
