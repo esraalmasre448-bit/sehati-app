@@ -68,15 +68,254 @@ async function verifyFirebaseUser(idToken, env) {
   return data.users?.[0]?.localId || null;
 }
 
-async function firestoreGet(projectId, accessToken, path) {
+async function firestoreGet(projectId, accessToken, path, transaction) {
+  const query = transaction ? "?transaction=" + encodeURIComponent(transaction) : "";
   const response = await fetch(
     "https://firestore.googleapis.com/v1/projects/" + encodeURIComponent(projectId) +
-      "/databases/(default)/documents/" + path,
+      "/databases/(default)/documents/" + path + query,
     { headers: { authorization: "Bearer " + accessToken } }
   );
   if (response.status === 404) return null;
   if (!response.ok) throw new Error("Firestore read failed");
   return response.json();
+}
+
+async function firestoreBeginTransaction(projectId, accessToken) {
+  const response = await fetch(
+    "https://firestore.googleapis.com/v1/projects/" + encodeURIComponent(projectId) +
+      "/databases/(default)/documents:beginTransaction",
+    {
+      method: "POST",
+      headers: { authorization: "Bearer " + accessToken, "content-type": "application/json" },
+      body: JSON.stringify({ options: { readWrite: {} } })
+    }
+  );
+  if (!response.ok) throw new Error("Firestore transaction could not start");
+  const data = await response.json();
+  if (!data.transaction) throw new Error("Firestore transaction token missing");
+  return data.transaction;
+}
+
+async function firestoreRollback(projectId, accessToken, transaction) {
+  await fetch(
+    "https://firestore.googleapis.com/v1/projects/" + encodeURIComponent(projectId) +
+      "/databases/(default)/documents:rollback",
+    {
+      method: "POST",
+      headers: { authorization: "Bearer " + accessToken, "content-type": "application/json" },
+      body: JSON.stringify({ transaction })
+    }
+  );
+}
+
+async function firestoreCommit(projectId, accessToken, transaction, writes) {
+  const response = await fetch(
+    "https://firestore.googleapis.com/v1/projects/" + encodeURIComponent(projectId) +
+      "/databases/(default)/documents:commit",
+    {
+      method: "POST",
+      headers: { authorization: "Bearer " + accessToken, "content-type": "application/json" },
+      body: JSON.stringify({ transaction, writes })
+    }
+  );
+  if (!response.ok) {
+    const error = new Error("Firestore transaction commit failed");
+    error.status = response.status;
+    error.detail = await response.text().catch(() => "");
+    throw error;
+  }
+  return response.json();
+}
+
+const firestoreValue = value => {
+  if (value === null || value === undefined) return { nullValue: null };
+  if (typeof value === "boolean") return { booleanValue: value };
+  if (typeof value === "number") {
+    return Number.isInteger(value)
+      ? { integerValue: String(value) }
+      : { doubleValue: value };
+  }
+  if (value instanceof Date) return { timestampValue: value.toISOString() };
+  return { stringValue: String(value) };
+};
+
+const firestoreFields = values => Object.fromEntries(
+  Object.entries(values).map(([key, value]) => [key, firestoreValue(value)])
+);
+
+const documentName = (projectId, path) =>
+  "projects/" + projectId + "/databases/(default)/documents/" + path;
+
+const timeLabel = minutes =>
+  String(Math.floor(minutes / 60)).padStart(2, "0") + ":" +
+  String(minutes % 60).padStart(2, "0");
+
+async function bookAppointment(projectId, accessToken, patientUid, input) {
+  const doctorId = typeof input.doctorId === "string" ? input.doctorId : "";
+  const date = typeof input.date === "string" ? input.date : "";
+  const visitType = typeof input.visitType === "string" ? input.visitType : "";
+  const note = typeof input.note === "string" ? input.note.trim() : "";
+  const beneficiaryName = typeof input.beneficiaryName === "string" ? input.beneficiaryName.trim() : "";
+  const beneficiaryRelation = typeof input.beneficiaryRelation === "string" ? input.beneficiaryRelation.trim() : "";
+  const isToday = input.isToday === true;
+  const nowMinutes = Number.isInteger(input.nowMinutes) && input.nowMinutes >= 0 && input.nowMinutes < 1440
+    ? input.nowMinutes : 0;
+
+  if (!/^[A-Za-z0-9_-]{1,128}$/.test(doctorId) ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(date) ||
+      !["CONSULTATION", "FOLLOW_UP"].includes(visitType) ||
+      note.length > 300 || beneficiaryName.length > 100 || beneficiaryRelation.length > 40) {
+    return json({ status: "INVALID", error: "invalid_booking" }, 400);
+  }
+
+  const appointmentId = doctorId + "_" + date + "_" + patientUid + "_" + visitType;
+  const legacyId = doctorId + "_" + date + "_" + patientUid;
+  const queueId = doctorId + "_" + date;
+  const appointmentPath = "appointments/" + appointmentId;
+  const legacyPath = "appointments/" + legacyId;
+  const queuePath = "queues/" + queueId;
+
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const transaction = await firestoreBeginTransaction(projectId, accessToken);
+    let committed = false;
+    try {
+      const [user, doctor, subscription, appointment, legacy, queue] = await Promise.all([
+        firestoreGet(projectId, accessToken, "users/" + patientUid, transaction),
+        firestoreGet(projectId, accessToken, "doctors/" + doctorId, transaction),
+        firestoreGet(projectId, accessToken, "subscriptions/" + doctorId, transaction),
+        firestoreGet(projectId, accessToken, appointmentPath, transaction),
+        firestoreGet(projectId, accessToken, legacyPath, transaction),
+        firestoreGet(projectId, accessToken, queuePath, transaction)
+      ]);
+
+      if (!user || str(user, "accountType") !== "patient") {
+        return json({ status: "FORBIDDEN", error: "patient_account_required" }, 403);
+      }
+      if (!doctor || field(doctor, "approved")?.booleanValue !== true) {
+        return json({ status: "DOCTOR_UNAVAILABLE", error: "doctor_not_approved" }, 409);
+      }
+      const expiresAt = field(subscription, "expiresAt")?.timestampValue;
+      if (!subscription || str(subscription, "status") !== "ACTIVE" ||
+          !expiresAt || Date.parse(expiresAt) <= Date.now()) {
+        return json({ status: "DOCTOR_UNAVAILABLE", error: "doctor_subscription_inactive" }, 409);
+      }
+
+      const legacyStatus = str(legacy, "status");
+      if (legacy && ["PENDING", "CONFIRMED"].includes(legacyStatus)) {
+        return json({
+          status: "LEGACY_EXIST",
+          number: numeric(legacy, "number"),
+          time: str(legacy, "time")
+        });
+      }
+
+      if (appointment) {
+        const status = str(appointment, "status");
+        if (status === "CONFIRMED") {
+          return json({ status: "EXIST", number: numeric(appointment, "number"), time: str(appointment, "time") });
+        }
+        if (status === "PENDING") {
+          return json({ status: "PENDING_EXIST", number: numeric(appointment, "number"), time: str(appointment, "time") });
+        }
+        if (status !== "CANCELLED") return json({ status: "BLOCKED" }, 409);
+      }
+
+      const configuredWorkDays = field(doctor, "workDays")?.arrayValue?.values || [];
+      if (configuredWorkDays.length > 0) {
+        const requestedWeekDay = new Date(date + "T12:00:00Z").getUTCDay() + 1;
+        const allowedDays = configuredWorkDays
+          .map(item => Number(item.integerValue ?? item.doubleValue ?? 0))
+          .filter(day => day >= 1 && day <= 7);
+        if (allowedDays.length > 0 && !allowedDays.includes(requestedWeekDay)) {
+          return json({ status: "DAY_OFF" });
+        }
+      }
+
+      const last = queue ? numeric(queue, "last") : 0;
+      const current = queue ? numeric(queue, "current") : 0;
+      const capacityValue = numeric(doctor, "dailyCapacity");
+      const dailyCapacity = capacityValue > 0 ? Math.min(500, capacityValue) : 30;
+      if (last >= dailyCapacity) return json({ status: "CAPACITY" });
+
+      const startHourValue = field(doctor, "startHour");
+      const endHourValue = field(doctor, "endHour");
+      const stepValue = field(doctor, "slotMinutes");
+      const startHour = startHourValue ? Math.max(0, Math.min(23, numeric(doctor, "startHour"))) : 9;
+      const endHour = endHourValue ? Math.max(startHour + 1, Math.min(24, numeric(doctor, "endHour"))) : 17;
+      const step = stepValue ? Math.max(10, Math.min(180, numeric(doctor, "slotMinutes"))) : 30;
+      const number = last + 1;
+      const scheduled = startHour * 60 + ((number - 1) * step);
+      const ahead = Math.max(0, number - 1 - current);
+      const slot = isToday ? Math.max(scheduled, nowMinutes + ahead * step) : scheduled;
+      if (slot + step > endHour * 60) return json({ status: "FULL" });
+
+      const createdAt = new Date();
+      const appointmentFields = {
+        patientId: patientUid,
+        patientName: beneficiaryName || str(user, "name") || "المريض",
+        patientPhone: str(user, "phone"),
+        doctorId,
+        doctorName: str(doctor, "name"),
+        specialty: str(doctor, "specialty"),
+        clinicName: str(doctor, "clinicName"),
+        address: str(doctor, "address"),
+        city: str(doctor, "city"),
+        date,
+        slot,
+        time: timeLabel(slot),
+        number,
+        status: "PENDING",
+        note,
+        visitType,
+        createdAt
+      };
+      if (beneficiaryRelation) appointmentFields.beneficiaryRelation = beneficiaryRelation;
+
+      const queueFields = {
+        doctorId,
+        date,
+        last: number,
+        current,
+        lastAppointmentId: appointmentId
+      };
+
+      const queueWrite = {
+        update: { name: documentName(projectId, queuePath), fields: firestoreFields(queueFields) },
+        updateMask: { fieldPaths: Object.keys(queueFields) },
+        currentDocument: queue ? { updateTime: queue.updateTime } : { exists: false }
+      };
+      const appointmentWrite = {
+        update: { name: documentName(projectId, appointmentPath), fields: firestoreFields(appointmentFields) },
+        updateMask: { fieldPaths: Object.keys(appointmentFields) },
+        currentDocument: appointment ? { updateTime: appointment.updateTime } : { exists: false }
+      };
+
+      await firestoreCommit(projectId, accessToken, transaction, [queueWrite, appointmentWrite]);
+      committed = true;
+      try {
+        await notifyUser(
+          projectId, accessToken, doctorId, "طلب حجز جديد",
+          appointmentFields.patientName + " طلب موعداً بتاريخ " + date + " الساعة " +
+            appointmentFields.time + " — رقم " + number,
+          { type: "appointment", appointmentId, event: "booking_requested" }
+        );
+      } catch (error) {
+        console.error("Booking push notification failed:", error?.message || "unknown");
+      }
+      return json({ status: "OK", number, time: appointmentFields.time, date });
+    } catch (error) {
+      if (error?.status === 409 || error?.status === 400) {
+        if (attempt < 3) continue;
+      }
+      console.error("Booking transaction failed:", error?.message || "unknown");
+      return json({ status: "FAILED", error: "booking_transaction_failed" }, 503);
+    } finally {
+      if (!committed) {
+        await firestoreRollback(projectId, accessToken, transaction).catch(() => {});
+      }
+    }
+  }
+  return json({ status: "RETRY", error: "booking_conflict_retry" }, 409);
 }
 
 async function firestoreQuery(projectId, accessToken, collectionId, filters) {
@@ -355,7 +594,7 @@ export default {
   async fetch(request, env) {
     const path = new URL(request.url).pathname;
     if (request.method !== "POST" ||
-        !["/send", "/notify-appointment", "/notify-prescription", "/notify-queue"].includes(path)) {
+        !["/send", "/notify-appointment", "/notify-prescription", "/notify-queue", "/book-appointment"].includes(path)) {
       return json({ error: "not_found" }, 404);
     }
     const authorization = request.headers.get("authorization") || "";
@@ -372,6 +611,7 @@ export default {
       const projectId = env.FIREBASE_PROJECT_ID;
       const accessToken = await googleAccessToken(env);
 
+      if (path === "/book-appointment") return await bookAppointment(projectId, accessToken, senderUid, input);
       if (path === "/send") return await sendChatNotification(projectId, accessToken, senderUid, input);
       if (path === "/notify-appointment") return await sendAppointmentNotification(projectId, accessToken, senderUid, input);
       if (path === "/notify-prescription") return await sendPrescriptionNotification(projectId, accessToken, senderUid, input);
