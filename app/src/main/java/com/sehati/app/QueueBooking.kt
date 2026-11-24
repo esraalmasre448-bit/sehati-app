@@ -87,6 +87,7 @@ private fun bookByQueue(
             )
             "CAPACITY" -> onResult(false, "وصل الطبيب إلى الحد الأقصى للمواعيد لهذا اليوم، اختر يوماً آخر")
             "FULL" -> onResult(false, "الأدوار ممتلئة لهذا اليوم، اختر يومًا آخر")
+            "DAY_OFF" -> onResult(false, "هذا اليوم ليس ضمن أيام دوام الطبيب. اختر يوماً آخر.")
             "DOCTOR_UNAVAILABLE" -> onResult(false, "الطبيب غير متاح للحجز حالياً أو انتهى اشتراكه.")
             "BLOCKED" -> onResult(false, "تعذر إنشاء الحجز بسبب حالة موعد سابق.")
             "RETRY" -> onResult(false, "هناك حجوزات متزامنة. حدّث الصفحة وحاول مرة أخرى.")
