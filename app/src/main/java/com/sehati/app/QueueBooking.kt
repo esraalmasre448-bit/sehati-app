@@ -41,103 +41,60 @@ private fun bookByQueue(
     onResult: (Boolean, String) -> Unit
 ) {
     val me = bAuth.currentUser
-    if (me == null) { onResult(false, "سجّل الدخول أولًا"); return }
-    val doctorId = d["id"] as String
-    val startMin = (qNum(d["startHour"]) ?: 9) * 60
-    val endMin = (qNum(d["endHour"]) ?: 17) * 60
-    val step = (qNum(d["slotMinutes"]) ?: 30).coerceAtLeast(10)
-    val dailyCapacity = (qNum(d["dailyCapacity"]) ?: 30).coerceIn(1, 500)
-    val queueRef = bDb.collection("queues").document("${doctorId}_$date")
-    val apptRef = bDb.collection("appointments").document("${doctorId}_${date}_${me.uid}_${visitType}")
-    val legacyApptRef = bDb.collection("appointments").document("${doctorId}_${date}_${me.uid}")
-    bDb.collection("users").document(me.uid).get().addOnSuccessListener { u ->
-        val pName = beneficiaryName.ifBlank { u.getString("name") ?: "" }
-        val pPhone = u.getString("phone") ?: ""
-        bDb.runTransaction<String> { tx ->
-            val a = tx.get(apptRef)
-            val legacy = tx.get(legacyApptRef)
-            val q = tx.get(queueRef)
-            if (legacy.exists() && legacy.getString("status")?.let { it == "PENDING" || it == "CONFIRMED" } == true) {
-                return@runTransaction "LEGACY_EXIST|${legacy.getLong("number") ?: 0L}|${legacy.getString("time") ?: ""}"
-            }
-            if (a.exists()) {
-                val st = a.getString("status")
-                if (st == "CONFIRMED") {
-                    return@runTransaction "EXIST|${a.getLong("number") ?: 0L}|${a.getString("time") ?: ""}"
-                }
-                if (st == "PENDING") return@runTransaction "PENDING_EXIST|${a.getLong("number") ?: 0L}|${a.getString("time") ?: ""}"
-                if (st != "CANCELLED") return@runTransaction "BLOCKED"
-            }
-            val last = if (q.exists()) (q.getLong("last") ?: 0L) else 0L
-            val current = if (q.exists()) (q.getLong("current") ?: 0L) else 0L
-            if (last >= dailyCapacity) return@runTransaction "CAPACITY"
-            val (number, est) = estimate(last, current, today, startMin, step)
-            if (est + step > endMin) return@runTransaction "FULL"
-            if (q.exists()) {
-                tx.update(queueRef, mapOf("last" to number, "lastAppointmentId" to apptRef.id))
-            } else {
-                tx.set(
-                    queueRef,
-                    mapOf(
-                        "doctorId" to doctorId, "date" to date, "last" to 1L, "current" to 0L,
-                        "lastAppointmentId" to apptRef.id
-                    )
-                )
-            }
-            tx.set(
-                apptRef,
-                mapOf(
-                    "patientId" to me.uid, "patientName" to pName, "patientPhone" to pPhone,
-                    "beneficiaryRelation" to beneficiaryRelation,
-                    "doctorId" to doctorId,
-                    "doctorName" to (d["name"]?.toString() ?: ""),
-                    "specialty" to (d["specialty"]?.toString() ?: ""),
-                    "clinicName" to (d["clinicName"]?.toString() ?: ""),
-                    "address" to (d["address"]?.toString() ?: ""),
-                    "city" to (d["city"]?.toString() ?: ""),
-                    "date" to date, "slot" to est, "time" to qTime(est),
-                    "number" to number, "status" to "PENDING", "note" to note,
-                    "visitType" to visitType,
-                    "createdAt" to FieldValue.serverTimestamp()
-                )
-            )
-            "OK|$number|${qTime(est)}"
-        }.addOnSuccessListener { r ->
-            val p = r.split("|")
-            when (p[0]) {
-                "FULL" -> onResult(false, "الأدوار ممتلئة لهذا اليوم، اختر يومًا آخر")
-                "CAPACITY" -> onResult(false, "وصل الطبيب إلى الحد الأقصى للمواعيد لهذا اليوم، اختر يوماً آخر")
-                "BLOCKED" -> onResult(false, "تعذر إنشاء الحجز بسبب حالة موعد سابق.")
-                "LEGACY_EXIST" -> onResult(
-                    false,
-                    "لديك موعد قديم غير مصنف عند هذا الطبيب في هذا اليوم. لتجنب تكرار الحجز، لا يمكن إضافة زيارة أخرى قبل انتهاء الموعد أو إلغائه."
-                )
-                "PENDING_EXIST" -> onResult(true, "طلبك السابق بانتظار موافقة الطبيب. رقم الدور: ${p.getOrElse(1) { "" }} — الوقت التقديري: ${p.getOrElse(2) { "" }}")
-                "EXIST" -> onResult(
-                    true,
-                    "لديك حجز مسبق عند هذا الطبيب بهذا اليوم. رقمك: ${p.getOrElse(1) { "" }} — الوقت التقريبي: ${p.getOrElse(2) { "" }}"
-                )
-                "OK" -> {
-                    PushSender.notifyAppointment(apptRef.id, "booking_requested")
-                    onResult(
-                        true,
-                        "تم إرسال طلب الحجز للطبيب. سيصبح موعدك مؤكداً بعد موافقته. رقم الدور المبدئي: ${p.getOrElse(1) { "" }} — الوقت التقديري: ${p.getOrElse(2) { "" }} بتاريخ $date"
-                    )
-                }
-                else -> onResult(false, "تعذر تحديد نتيجة الحجز. افتح مواعيدك للتحقق قبل إعادة المحاولة.")
-            }
-        }.addOnFailureListener { e ->
-            val code = (e as? com.google.firebase.firestore.FirebaseFirestoreException)?.code
-            val text = when (code) {
-                com.google.firebase.firestore.FirebaseFirestoreException.Code.PERMISSION_DENIED ->
-                    "لم يتم الحجز. قد يكون اشتراك الطبيب منتهيًا أو تغيّر رقم الدور، حاول مرة أخرى"
-                com.google.firebase.firestore.FirebaseFirestoreException.Code.UNAVAILABLE ->
-                    "تعذر الحجز، تحقق من الإنترنت وحاول مجددًا"
-                else -> "تعذر الحجز، حاول مرة أخرى"
-            }
-            onResult(false, text)
+    if (me == null) {
+        onResult(false, "سجّل الدخول أولًا")
+        return
+    }
+    val doctorId = d["id"]?.toString().orEmpty()
+    if (doctorId.isBlank()) {
+        onResult(false, "تعذر تحديد الطبيب. ارجع إلى صفحة الطبيب وحاول مجدداً.")
+        return
+    }
+    val payload = org.json.JSONObject()
+        .put("doctorId", doctorId)
+        .put("date", date)
+        .put("visitType", visitType)
+        .put("note", note.take(300))
+        .put("beneficiaryName", beneficiaryName.take(100))
+        .put("beneficiaryRelation", beneficiaryRelation.take(40))
+        .put("isToday", today)
+        .put("nowMinutes", nowMinutes())
+
+    PushSender.bookAppointment(payload) { result, transportError ->
+        if (result == null) {
+            onResult(false, transportError ?: "تعذر إتمام الحجز. حاول مجدداً.")
+            return@bookAppointment
         }
-    }.addOnFailureListener { onResult(false, "تعذر تحميل بياناتك، تحقق من الإنترنت") }
+        val status = result.optString("status")
+        val number = result.optLong("number", 0L).toString()
+        val time = result.optString("time")
+        when (status) {
+            "OK" -> onResult(
+                true,
+                "تم إرسال طلب الحجز للطبيب. سيصبح موعدك مؤكداً بعد موافقته. رقم الدور المبدئي: $number — الوقت التقديري: $time بتاريخ $date"
+            )
+            "PENDING_EXIST" -> onResult(
+                true,
+                "طلبك السابق بانتظار موافقة الطبيب. رقم الدور: $number — الوقت التقديري: $time"
+            )
+            "EXIST" -> onResult(
+                true,
+                "لديك حجز مؤكد مسبقاً عند هذا الطبيب بهذا اليوم. رقمك: $number — الوقت التقريبي: $time"
+            )
+            "LEGACY_EXIST" -> onResult(
+                false,
+                "لديك موعد قديم غير مصنف عند هذا الطبيب في هذا اليوم. لتجنب تكرار الحجز، لا يمكن إضافة زيارة أخرى قبل انتهاء الموعد أو إلغائه."
+            )
+            "CAPACITY" -> onResult(false, "وصل الطبيب إلى الحد الأقصى للمواعيد لهذا اليوم، اختر يوماً آخر")
+            "FULL" -> onResult(false, "الأدوار ممتلئة لهذا اليوم، اختر يومًا آخر")
+            "DOCTOR_UNAVAILABLE" -> onResult(false, "الطبيب غير متاح للحجز حالياً أو انتهى اشتراكه.")
+            "BLOCKED" -> onResult(false, "تعذر إنشاء الحجز بسبب حالة موعد سابق.")
+            "RETRY" -> onResult(false, "هناك حجوزات متزامنة. حدّث الصفحة وحاول مرة أخرى.")
+            "INVALID" -> onResult(false, "بعض بيانات الحجز غير صحيحة. راجع البيانات وحاول مجدداً.")
+            "FORBIDDEN" -> onResult(false, "هذا الحساب غير مخوّل بإجراء الحجز.")
+            else -> onResult(false, "تعذر إتمام الحجز بأمان. حاول مرة أخرى بعد قليل.")
+        }
+    }
 }
 
 @Composable
