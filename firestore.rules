@@ -230,6 +230,9 @@ service cloud.firestore {
     )
     && subActive(request.resource.data.doctorId)
     && doctorApproved(request.resource.data.doctorId)
+    && (!('visitType' in request.resource.data)
+      || !exists(aPath(request.resource.data.doctorId, request.resource.data.date, request.auth.uid))
+      || get(aPath(request.resource.data.doctorId, request.resource.data.date, request.auth.uid)).data.status in ['CANCELLED','DONE'])
     && getAfter(qPath(request.resource.data.doctorId, request.resource.data.date)).data.last == request.resource.data.number
     && (!('visitType' in request.resource.data)
       || getAfter(qPath(request.resource.data.doctorId, request.resource.data.date)).data.lastAppointmentId == id)
