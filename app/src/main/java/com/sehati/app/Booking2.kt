@@ -461,8 +461,7 @@ fun DoctorDashboardContent(onBack: (() -> Unit)? = null, onOpenHealthRecord: (St
                     bDb.collection("appointments").document(appointmentId).update(
                         mapOf(
                             "followUpDate" to followUpDate,
-                            "followUpTime" to followUpTime,
-                            "followUpSetAt" to FieldValue.serverTimestamp()
+                            "followUpTime" to followUpTime
                         )
                     ).addOnSuccessListener {
                         followUpBusy = false
