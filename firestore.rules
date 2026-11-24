@@ -289,15 +289,9 @@ service cloud.firestore {
      && request.resource.data.doctorId == resource.data.doctorId
      && request.resource.data.date == resource.data.date
      && request.resource.data.number is int
-     && request.resource.data.createdAt == request.time
-     && exists(qPath(resource.data.doctorId, resource.data.date))
-     && get(qPath(resource.data.doctorId, resource.data.date)).data.last + 1 == request.resource.data.number
+     && request.resource.data.createdAt is timestamp
      && getAfter(qPath(resource.data.doctorId, resource.data.date)).data.last == request.resource.data.number
-     && (!('visitType' in request.resource.data)
-       || getAfter(qPath(resource.data.doctorId, resource.data.date)).data.lastAppointmentId == id)
-     && (!('visitType' in request.resource.data)
-       || !exists(aPath(resource.data.doctorId, resource.data.date, request.auth.uid))
-       || get(aPath(resource.data.doctorId, resource.data.date, request.auth.uid)).data.status in ['CANCELLED','DONE'])
+     && getAfter(qPath(resource.data.doctorId, resource.data.date)).data.lastAppointmentId == id
      && subActive(resource.data.doctorId)
      && doctorApproved(resource.data.doctorId)));
     allow delete: if false;
