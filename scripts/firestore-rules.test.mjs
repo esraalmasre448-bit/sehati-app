@@ -195,6 +195,44 @@ try {
   await assertSucceeds(getDoc(doc(doctor, "appointments", followUpId)));
   await assertFails(getDoc(doc(outsider, "appointments", followUpId)));
 
+  // A first-ever typed booking must also create its queue atomically.
+  const secondDate = "2099-01-02";
+  const firstTypedId = `${doctorId}_${secondDate}_${patientId}_CONSULTATION`;
+  const firstTypedRef = doc(patient, "appointments", firstTypedId);
+  const firstTypedQueue = doc(patient, "queues", `${doctorId}_${secondDate}`);
+  await assertSucceeds(runTransaction(patient, async (tx) => {
+    const oldAppointment = await tx.get(firstTypedRef);
+    const oldQueue = await tx.get(firstTypedQueue);
+    if (oldAppointment.exists() || oldQueue.exists()) throw new Error("Unexpected typed queue");
+    tx.set(firstTypedQueue, {
+      doctorId,
+      date: secondDate,
+      last: 1,
+      current: 0,
+      lastAppointmentId: firstTypedId
+    });
+    tx.set(firstTypedRef, {
+      patientId,
+      patientName: "Patient",
+      patientPhone: "",
+      doctorId,
+      doctorName: "Doctor",
+      specialty: "General",
+      clinicName: "",
+      address: "",
+      city: "Test",
+      date: secondDate,
+      slot: 540,
+      time: "09:00",
+      number: 1,
+      status: "PENDING",
+      note: "",
+      visitType: "CONSULTATION",
+      createdAt: serverTimestamp()
+    });
+  }));
+  await assertSucceeds(getDoc(firstTypedRef));
+
   // Only the patient and treating doctor can read the appointment.
   await assertSucceeds(getDoc(apptRef));
   await assertSucceeds(getDoc(doc(doctor, "appointments", appointmentId)));
