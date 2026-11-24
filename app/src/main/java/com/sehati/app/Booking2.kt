@@ -222,6 +222,11 @@ fun DoctorDashboardContent(onBack: (() -> Unit)? = null, onOpenHealthRecord: (St
     var followUpTime by remember { mutableStateOf("09:00") }
     var followUpBusy by remember { mutableStateOf(false) }
     var followUpMsg by remember { mutableStateOf("") }
+    var paymentTarget by remember { mutableStateOf<Map<String, Any?>?>(null) }
+    var paymentAmount by remember { mutableStateOf("") }
+    var paymentCurrency by remember { mutableStateOf("SYP") }
+    var paymentBusy by remember { mutableStateOf(false) }
+    var paymentMsg by remember { mutableStateOf("") }
 
     LaunchedEffect(uid) {
         if (uid.isNotEmpty()) {
@@ -409,6 +414,23 @@ fun DoctorDashboardContent(onBack: (() -> Unit)? = null, onOpenHealthRecord: (St
                         modifier = Modifier.fillMaxWidth()
                     ) { Text("تحديد موعد متابعة", color = Color.White) }
                 }
+                if (a["status"] == "DONE") {
+                    val paid = a["paidAmount"] as? Number
+                    if (paid != null) {
+                        Text("المبلغ المسجل: " + paid.toDouble() + " " + (a["paidCurrency"] ?: ""), color = BGreen, fontSize = 13.sp)
+                    } else {
+                        OutlinedButton(
+                            enabled = active,
+                            onClick = {
+                                paymentTarget = a
+                                paymentAmount = ""
+                                paymentCurrency = "SYP"
+                                paymentMsg = ""
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("تسجيل المبلغ المدفوع", color = Color.White) }
+                    }
+                }
             }
         }
     }
@@ -454,6 +476,59 @@ fun DoctorDashboardContent(onBack: (() -> Unit)? = null, onOpenHealthRecord: (St
                 }) { Text("حفظ وإشعار المريض") }
             },
             dismissButton = { TextButton(enabled = !followUpBusy, onClick = { followUpTarget = null }) { Text("إلغاء") } }
+        )
+    }
+
+    val payment = paymentTarget
+    if (payment != null) {
+        AlertDialog(
+            onDismissRequest = { if (!paymentBusy) paymentTarget = null },
+            title = { Text("تسجيل المبلغ المدفوع") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("سجّل المبلغ الذي استلمه الطبيب فعلياً. هذا إدخال يدوي وليس إثبات دفع إلكتروني.")
+                    OutlinedTextField(
+                        value = paymentAmount, onValueChange = { paymentAmount = it.take(14) },
+                        label = { Text("المبلغ") }, singleLine = true
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf("SYP", "EUR", "USD").forEach { currency ->
+                            FilterChip(
+                                selected = paymentCurrency == currency,
+                                onClick = { paymentCurrency = currency },
+                                label = { Text(currency) }
+                            )
+                        }
+                    }
+                    if (paymentMsg.isNotBlank()) Text(paymentMsg, color = BDanger)
+                }
+            },
+            confirmButton = {
+                TextButton(enabled = !paymentBusy, onClick = {
+                    val amount = paymentAmount.replace(",", ".").toDoubleOrNull()
+                    if (amount == null || amount <= 0.0 || amount > 100000000000.0) {
+                        paymentMsg = "أدخل مبلغاً صحيحاً أكبر من صفر."
+                        return@TextButton
+                    }
+                    paymentBusy = true
+                    val appointmentId = payment["id"]?.toString().orEmpty()
+                    bDb.collection("appointments").document(appointmentId).update(
+                        mapOf(
+                            "paidAmount" to amount,
+                            "paidCurrency" to paymentCurrency,
+                            "paidRecordedAt" to FieldValue.serverTimestamp()
+                        )
+                    ).addOnSuccessListener {
+                        paymentBusy = false
+                        paymentTarget = null
+                        msg = "تم تسجيل المبلغ المدفوع."
+                    }.addOnFailureListener {
+                        paymentBusy = false
+                        paymentMsg = "تعذر تسجيل المبلغ. قد يكون قد سُجل مسبقاً."
+                    }
+                }) { Text("حفظ المبلغ") }
+            },
+            dismissButton = { TextButton(enabled = !paymentBusy, onClick = { paymentTarget = null }) { Text("إلغاء") } }
         )
     }
 
