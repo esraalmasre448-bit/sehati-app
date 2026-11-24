@@ -70,19 +70,21 @@ jobs:
           printf '%s' "$FIREBASE_PROJECT_ID" | wrangler secret put FIREBASE_PROJECT_ID --config cloudflare-push/wrangler.toml
           printf '%s' "$FIREBASE_WEB_API_KEY" | wrangler secret put FIREBASE_WEB_API_KEY --config cloudflare-push/wrangler.toml
 
-      - name: Smoke-test authenticated Worker endpoint
+      - name: Smoke-test authenticated Worker endpoints
         shell: bash
         run: |
           set -euo pipefail
-          status=$(curl -sS -o /tmp/worker-smoke.json -w "%{http_code}" \
-            -X POST "${PUSH_WORKER_URL%/}/notify-queue" \
-            -H "Content-Type: application/json" -d '{}')
-          if [[ "$status" != "401" ]]; then
-            cat /tmp/worker-smoke.json
-            echo "::error::Worker smoke test expected HTTP 401 without authentication, received $status"
-            exit 1
-          fi
-          echo "Worker is reachable and rejects unauthenticated requests."
+          for endpoint in notify-queue book-appointment; do
+            status=$(curl -sS -o /tmp/worker-smoke.json -w "%{http_code}" \
+              -X POST "${PUSH_WORKER_URL%/}/$endpoint" \
+              -H "Content-Type: application/json" -d '{}')
+            if [[ "$status" != "401" ]]; then
+              cat /tmp/worker-smoke.json
+              echo "::error::Worker endpoint $endpoint expected HTTP 401 without authentication, received $status"
+              exit 1
+            fi
+          done
+          echo "Worker booking and notification endpoints are reachable and reject unauthenticated requests."
 
       - name: Deployment summary
         run: |
