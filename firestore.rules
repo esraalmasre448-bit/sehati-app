@@ -284,7 +284,7 @@ service cloud.firestore {
      && request.resource.data.keys().hasOnly(apptKeys())
      && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
       'patientName','patientPhone','doctorName','specialty','clinicName',
-      'address','city','slot','time','number','status','note','createdAt','beneficiaryRelation'
+      'address','city','slot','time','number','status','note','createdAt','beneficiaryRelation','visitType'
      ])
      && request.resource.data.status == 'PENDING'
      && request.resource.data.patientId == request.auth.uid
