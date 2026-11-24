@@ -5,6 +5,8 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.BitmapFactory
 import android.util.Log
+import android.os.Handler
+import android.os.Looper
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.google.firebase.auth.FirebaseAuth
@@ -117,6 +119,59 @@ object PushSender {
             }.start()
         }.addOnFailureListener { e ->
             Log.w("SehatiPush", "Could not obtain Firebase ID token", e)
+        }
+    }
+
+    fun bookAppointment(payload: org.json.JSONObject, onResult: (org.json.JSONObject?, String?) -> Unit) {
+        val endpoint = BuildConfig.PUSH_WORKER_URL.trim().trimEnd('/')
+        val main = Handler(Looper.getMainLooper())
+        if (endpoint.isBlank()) {
+            main.post { onResult(null, "خدمة الحجز الآمن غير مهيأة حالياً. حاول لاحقاً.") }
+            return
+        }
+        val user = FirebaseAuth.getInstance().currentUser
+        if (user == null) {
+            main.post { onResult(null, "سجّل الدخول أولاً") }
+            return
+        }
+        user.getIdToken(false).addOnSuccessListener { tokenResult ->
+            val idToken = tokenResult.token
+            if (idToken.isNullOrBlank()) {
+                main.post { onResult(null, "تعذر التحقق من جلسة الدخول. سجّل الدخول مجدداً.") }
+                return@addOnSuccessListener
+            }
+            Thread {
+                var connection: HttpURLConnection? = null
+                try {
+                    connection = (URL(endpoint + "/book-appointment").openConnection() as HttpURLConnection).apply {
+                        requestMethod = "POST"
+                        connectTimeout = 15000
+                        readTimeout = 20000
+                        doOutput = true
+                        setRequestProperty("Authorization", "Bearer $idToken")
+                        setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                    }
+                    connection.outputStream.use { it.write(payload.toString().toByteArray(Charsets.UTF_8)) }
+                    val status = connection.responseCode
+                    val stream = if (status in 200..299) connection.inputStream else connection.errorStream
+                    val body = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
+                    val result = try {
+                        if (body.isBlank()) null else org.json.JSONObject(body)
+                    } catch (_: Exception) { null }
+                    main.post {
+                        if (result != null) onResult(result, null)
+                        else onResult(null, "تعذر قراءة نتيجة الحجز من الخادم. افتح مواعيدك للتحقق قبل إعادة المحاولة.")
+                    }
+                } catch (e: Exception) {
+                    Log.w("SehatiBooking", "Secure booking request failed", e)
+                    main.post { onResult(null, "تعذر الاتصال بخدمة الحجز الآمن. تحقق من الإنترنت وحاول مجدداً.") }
+                } finally {
+                    connection?.disconnect()
+                }
+            }.start()
+        }.addOnFailureListener { e ->
+            Log.w("SehatiBooking", "Could not obtain Firebase ID token", e)
+            main.post { onResult(null, "تعذر التحقق من جلسة الدخول. سجّل الدخول مجدداً.") }
         }
     }
 
