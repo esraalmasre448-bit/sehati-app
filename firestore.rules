@@ -288,7 +288,7 @@ service cloud.firestore {
    allow read: if signedIn();
    allow create: if signedIn()
     && userType() == 'patient'
-    && request.resource.data.keys().hasOnly(['doctorId','date','last','current'])
+    && request.resource.data.keys().hasOnly(['doctorId','date','last','current','lastAppointmentId'])
     && request.resource.data.doctorId is string
     && validDate(request.resource.data.date)
     && id == request.resource.data.doctorId + '_' + request.resource.data.date
