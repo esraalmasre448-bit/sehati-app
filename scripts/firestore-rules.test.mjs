@@ -88,6 +88,28 @@ try {
     }
   });
 
+  // Health profile data is private to the patient; doctors and other patients cannot read it.
+  const healthProfileRef = doc(patient, "healthProfiles", patientId);
+  await assertSucceeds(setDoc(healthProfileRef, {
+    uid: patientId,
+    bloodType: "O+",
+    allergies: "Pollen",
+    conditions: "None",
+    emergencyContact: "Family contact",
+    notes: "Test profile",
+    updatedAt: serverTimestamp()
+  }));
+  await assertSucceeds(getDoc(healthProfileRef));
+  await assertFails(getDoc(doc(outsider, "healthProfiles", patientId)));
+  await assertFails(getDoc(doc(doctor, "healthProfiles", patientId)));
+  await assertFails(updateDoc(doc(doctor, "healthProfiles", patientId), {
+    notes: "Unauthorized", updatedAt: serverTimestamp()
+  }));
+  await assertSucceeds(updateDoc(healthProfileRef, {
+    notes: "Updated by owner", updatedAt: serverTimestamp()
+  }));
+  await assertFails(deleteDoc(healthProfileRef));
+
   // Patient favorites are private, limited to approved doctors, and removable by their owner.
   const favoriteRef = doc(patient, "favorites", patientId, "doctors", doctorId);
   await assertSucceeds(setDoc(favoriteRef, {
