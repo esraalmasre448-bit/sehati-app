@@ -573,7 +573,7 @@ fun DoctorDashboardContent(onBack: (() -> Unit)? = null, onOpenHealthRecord: (St
 }
 
 @Composable
-fun NoteBox(n: Map<String, Any?>, onVoid: ((String) -> Unit)?) {
+fun NoteBox(n: Map<String, Any?>, onVoid: ((String) -> Unit)? = null) {
     val rx = n["kind"] == "rx"
     val isVoided = n["status"] == "VOIDED"
     var showVoidConfirmation by remember(n["id"]) { mutableStateOf(false) }
