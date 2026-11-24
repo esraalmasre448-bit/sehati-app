@@ -250,6 +250,8 @@ fun App() {
         screen == "medication_plans" -> MedicationPlansScreen(onBack = { screen = "main" })
         screen == "health_profile" -> PatientHealthProfileScreen(onBack = { screen = "main" })
         screen == "family_profiles" -> FamilyProfilesScreen(onBack = { screen = "main" })
+        screen == "doctor_analytics" -> DoctorAnalyticsScreen(onBack = { screen = "main" })
+        screen == "clinic_branches" -> ClinicBranchesScreen(onBack = { screen = "main" })
         screen == "emergency" -> EmergencyScreen(onBack = { screen = "main" })
         screen == "privacy" -> PrivacyScreen(onBack = { screen = "main" })
         screen == "messages" -> MessagesScreen(
