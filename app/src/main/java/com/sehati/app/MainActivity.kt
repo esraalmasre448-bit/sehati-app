@@ -236,6 +236,7 @@ fun App() {
             onBack = { screen = "main" },
             onPick = { initialQuery = it; screen = "search" }
         )
+        screen == "visit_preparation" -> PatientVisitPreparationScreen(onBack = { screen = "main" })
         screen == "myappts" -> MyAppointmentsContent(
             onFind = { screen = "search" }, onBack = { screen = "main" }
         )
