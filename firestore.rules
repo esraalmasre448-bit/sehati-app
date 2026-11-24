@@ -275,10 +275,9 @@ service cloud.firestore {
      && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['followUpDate','followUpTime','followUpSetAt'])
      && request.resource.data.followUpDate is string
      && request.resource.data.followUpDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
-     && request.resource.data.followUpDate >= resource.data.date
      && request.resource.data.followUpTime is string
      && request.resource.data.followUpTime.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$')
-     && request.resource.data.followUpSetAt == request.time)
+     && request.resource.data.followUpSetAt is timestamp)
     || (resource.data.doctorId == request.auth.uid
      && userType() in ['doctor','clinic']
      && doctorApproved(request.auth.uid)
@@ -290,7 +289,7 @@ service cloud.firestore {
      && request.resource.data.paidAmount > 0
      && request.resource.data.paidAmount <= 100000000000
      && request.resource.data.paidCurrency in ['SYP','EUR','USD']
-     && request.resource.data.paidRecordedAt == request.time)
+     && request.resource.data.paidRecordedAt is timestamp)
     || (resource.data.patientId == request.auth.uid
      && userType() == 'patient'
      && resource.data.status == 'CANCELLED'
