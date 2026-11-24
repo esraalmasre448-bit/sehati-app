@@ -217,6 +217,11 @@ fun DoctorDashboardContent(onBack: (() -> Unit)? = null) {
     var noteText by remember { mutableStateOf("") }
     var noteBusy by remember { mutableStateOf(false) }
     var noteMsg by remember { mutableStateOf("") }
+    var followUpTarget by remember { mutableStateOf<Map<String, Any?>?>(null) }
+    var followUpDate by remember { mutableStateOf("") }
+    var followUpTime by remember { mutableStateOf("09:00") }
+    var followUpBusy by remember { mutableStateOf(false) }
+    var followUpMsg by remember { mutableStateOf("") }
 
     LaunchedEffect(uid) {
         if (uid.isNotEmpty()) {
@@ -388,8 +393,64 @@ fun DoctorDashboardContent(onBack: (() -> Unit)? = null) {
                         ) { Text("إلغاء الحجز", color = Color.White) }
                     }
                 }
+                if (a["status"] == "CONFIRMED" || a["status"] == "DONE") {
+                    OutlinedButton(
+                        enabled = active,
+                        onClick = {
+                            followUpTarget = a
+                            followUpDate = ""
+                            followUpTime = "09:00"
+                            followUpMsg = ""
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("تحديد موعد متابعة", color = Color.White) }
+                }
             }
         }
+    }
+
+    val followUp = followUpTarget
+    if (followUp != null) {
+        AlertDialog(
+            onDismissRequest = { if (!followUpBusy) followUpTarget = null },
+            title = { Text("تحديد موعد متابعة") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("سيصل المريض إشعاراً فور حفظ موعد المتابعة. أدخل التاريخ والوقت المحليين للعيادة.")
+                    OutlinedTextField(value = followUpDate, onValueChange = { followUpDate = it.take(10) }, label = { Text("التاريخ YYYY-MM-DD") }, singleLine = true)
+                    OutlinedTextField(value = followUpTime, onValueChange = { followUpTime = it.take(5) }, label = { Text("الوقت HH:MM") }, singleLine = true)
+                    if (followUpMsg.isNotBlank()) Text(followUpMsg, color = BDanger)
+                }
+            },
+            confirmButton = {
+                TextButton(enabled = !followUpBusy, onClick = {
+                    val dateOk = Regex("^\\d{4}-\\d{2}-\\d{2}$").matches(followUpDate) && followUpDate >= todayKey()
+                    val timeOk = Regex("^([01]\\d|2[0-3]):[0-5]\\d$").matches(followUpTime)
+                    if (!dateOk || !timeOk) {
+                        followUpMsg = "تحقق من التاريخ والوقت بصيغتهما الصحيحة."
+                        return@TextButton
+                    }
+                    followUpBusy = true
+                    val appointmentId = followUp["id"]?.toString().orEmpty()
+                    bDb.collection("appointments").document(appointmentId).update(
+                        mapOf(
+                            "followUpDate" to followUpDate,
+                            "followUpTime" to followUpTime,
+                            "followUpSetAt" to FieldValue.serverTimestamp()
+                        )
+                    ).addOnSuccessListener {
+                        followUpBusy = false
+                        followUpTarget = null
+                        PushSender.notifyFollowUp(appointmentId)
+                        msg = "تم حفظ موعد المتابعة وإرسال إشعار للمريض."
+                    }.addOnFailureListener {
+                        followUpBusy = false
+                        followUpMsg = "تعذر حفظ المتابعة. تحقق من الصلاحيات والاشتراك."
+                    }
+                }) { Text("حفظ وإشعار المريض") }
+            },
+            dismissButton = { TextButton(enabled = !followUpBusy, onClick = { followUpTarget = null }) { Text("إلغاء") } }
+        )
     }
 
     val nf = noteFor
