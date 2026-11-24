@@ -83,7 +83,7 @@ fun PatientHealthProfileScreen(onBack: () -> Unit) {
             Text("ملفي الصحي", color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.Bold)
         }
         Text(
-            "سجل معلوماتك الصحية المهمة لتكون منظمة في مكان واحد. هذا الملف خاص بحسابك ولا يستطيع الطبيب أو أي مستخدم آخر قراءته حالياً.",
+            "سجل معلوماتك الصحية المهمة في مكان واحد. لا يطلع الطبيب عليها إلا إذا منحته صلاحية مؤقتة من قسم المشاركة أدناه.",
             color = Color(0xFFB6C6DA), fontSize = 13.sp
         )
         if (!loaded) {
