@@ -141,6 +141,10 @@ object PushSender {
     fun notifyPrescription(prescriptionId: String) {
         post("/notify-prescription", org.json.JSONObject().put("prescriptionId", prescriptionId))
     }
+
+    fun notifyFollowUp(appointmentId: String) {
+        notifyAppointment(appointmentId, "followup_scheduled")
+    }
 }
 
 /** Displays FCM alerts when the app is backgrounded; foreground alerts use the in-app watcher. */
