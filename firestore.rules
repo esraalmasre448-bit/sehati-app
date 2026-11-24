@@ -209,34 +209,8 @@ service cloud.firestore {
       && (resource.data.patientId == request.auth.uid
         || resource.data.doctorId == request.auth.uid))
     );
-   allow create: if signedIn()
-    && userType() == 'patient'
-    && request.resource.data.keys().hasOnly(apptKeys())
-    && request.resource.data.patientId == request.auth.uid
-    && request.resource.data.status == 'PENDING'
-    && request.resource.data.doctorId is string
-    && validDate(request.resource.data.date)
-    && request.resource.data.number is int
-    && request.resource.data.note is string
-    && request.resource.data.note.size() <= 300
-    && (!('beneficiaryRelation' in request.resource.data)
-      || (request.resource.data.beneficiaryRelation is string && request.resource.data.beneficiaryRelation.size() <= 40))
-    && (
-     (!('visitType' in request.resource.data)
-      && id == request.resource.data.doctorId + '_' + request.resource.data.date + '_' + request.auth.uid)
-     || ('visitType' in request.resource.data
-      && request.resource.data.visitType in ['CONSULTATION','FOLLOW_UP']
-      && id == request.resource.data.doctorId + '_' + request.resource.data.date + '_' + request.auth.uid + '_' + request.resource.data.visitType)
-    )
-    && subActive(request.resource.data.doctorId)
-    && doctorApproved(request.resource.data.doctorId)
-    && getAfter(qPath(request.resource.data.doctorId, request.resource.data.date)).data.last == request.resource.data.number
-    && (!('visitType' in request.resource.data)
-      || getAfter(qPath(request.resource.data.doctorId, request.resource.data.date)).data.lastAppointmentId == id)
-    && ((!exists(qPath(request.resource.data.doctorId, request.resource.data.date))
-       && request.resource.data.number == 1)
-      || (exists(qPath(request.resource.data.doctorId, request.resource.data.date))
-       && get(qPath(request.resource.data.doctorId, request.resource.data.date)).data.last + 1 == request.resource.data.number));
+   // Patients can cancel or anonymize their own records; booking/rebooking is server-owned.
+   allow create: if false;
    allow update: if signedIn() && (
     (resource.data.patientId == request.auth.uid
      && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
@@ -264,8 +238,7 @@ service cloud.firestore {
        && request.resource.data.followUpDate is string
        && request.resource.data.followUpDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
        && request.resource.data.followUpTime is string
-       && request.resource.data.followUpTime.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$')
-)
+       && request.resource.data.followUpTime.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$'))
       || (resource.data.status == 'DONE'
        && !('paidAmount' in resource.data)
        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['paidAmount','paidCurrency','paidRecordedAt'])
@@ -276,97 +249,21 @@ service cloud.firestore {
        && request.resource.data.paidCurrency in ['SYP','EUR','USD']
        && request.resource.data.paidRecordedAt is timestamp)
      ))
-    || (resource.data.patientId == request.auth.uid
-     && userType() == 'patient'
-     && resource.data.status == 'CANCELLED'
-     && request.resource.data.keys().hasOnly(apptKeys())
-     && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-      'patientName','patientPhone','doctorName','specialty','clinicName',
-      'address','city','slot','time','number','status','note','createdAt','beneficiaryRelation','visitType'
-     ])
-     && request.resource.data.status == 'PENDING'
-     && request.resource.data.patientId == request.auth.uid
-     && request.resource.data.doctorId == resource.data.doctorId
-     && request.resource.data.date == resource.data.date
-     && request.resource.data.number is int
-     && request.resource.data.createdAt == request.time
-     && exists(qPath(resource.data.doctorId, resource.data.date))
-     && get(qPath(resource.data.doctorId, resource.data.date)).data.last + 1 == request.resource.data.number
-     && getAfter(qPath(resource.data.doctorId, resource.data.date)).data.last == request.resource.data.number
-     && (!('visitType' in request.resource.data)
-       || getAfter(qPath(resource.data.doctorId, resource.data.date)).data.lastAppointmentId == id)
-     && (!('visitType' in request.resource.data)
-       || !exists(aPath(resource.data.doctorId, resource.data.date, request.auth.uid))
-       || get(aPath(resource.data.doctorId, resource.data.date, request.auth.uid)).data.status in ['CANCELLED','DONE'])
-     && subActive(resource.data.doctorId)
-     && doctorApproved(resource.data.doctorId)));
-    allow delete: if false;
+   );
+   allow delete: if false;
   }
   match /queues/{id} {
    allow read: if signedIn();
-   allow create: if signedIn()
-    && userType() == 'patient'
-    && request.resource.data.keys().hasOnly(['doctorId','date','last','current','lastAppointmentId'])
-    && request.resource.data.doctorId is string
-    && validDate(request.resource.data.date)
-    && id == request.resource.data.doctorId + '_' + request.resource.data.date
-    && request.resource.data.last == 1
-    && request.resource.data.current == 0
-    && subActive(request.resource.data.doctorId)
-    && doctorApproved(request.resource.data.doctorId)
-    && (
-     (!('lastAppointmentId' in request.resource.data)
-      && !exists(aPath(request.resource.data.doctorId, request.resource.data.date, request.auth.uid))
-      && existsAfter(aPath(request.resource.data.doctorId, request.resource.data.date, request.auth.uid))
-      && getAfter(aPath(request.resource.data.doctorId, request.resource.data.date, request.auth.uid)).data.number == 1
-      && getAfter(aPath(request.resource.data.doctorId, request.resource.data.date, request.auth.uid)).data.patientId == request.auth.uid
-      && getAfter(aPath(request.resource.data.doctorId, request.resource.data.date, request.auth.uid)).data.status == 'PENDING')
-     || ('lastAppointmentId' in request.resource.data
-      && request.resource.data.lastAppointmentId is string
-      && !exists(appointmentPath(request.resource.data.lastAppointmentId))
-      && existsAfter(appointmentPath(request.resource.data.lastAppointmentId))
-      && getAfter(appointmentPath(request.resource.data.lastAppointmentId)).data.doctorId == request.resource.data.doctorId
-      && getAfter(appointmentPath(request.resource.data.lastAppointmentId)).data.date == request.resource.data.date
-      && getAfter(appointmentPath(request.resource.data.lastAppointmentId)).data.patientId == request.auth.uid
-      && getAfter(appointmentPath(request.resource.data.lastAppointmentId)).data.number == 1
-      && getAfter(appointmentPath(request.resource.data.lastAppointmentId)).data.status == 'PENDING'
-      && getAfter(appointmentPath(request.resource.data.lastAppointmentId)).data.visitType in ['CONSULTATION','FOLLOW_UP']
-      && request.resource.data.lastAppointmentId == request.resource.data.doctorId + '_' + request.resource.data.date + '_' + request.auth.uid + '_' + getAfter(appointmentPath(request.resource.data.lastAppointmentId)).data.visitType)
-    );
-   allow update: if signedIn() && (
-    (request.auth.uid == resource.data.doctorId
-     && userType() in ['doctor','clinic']
-     && doctorApproved(request.auth.uid)
-     && subActive(request.auth.uid)
-     && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['current'])
-     && request.resource.data.current == resource.data.current + 1
-     && request.resource.data.current <= resource.data.last)
-    || (userType() == 'patient'
-     && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['last'])
-     && request.resource.data.last == resource.data.last + 1
-     && subActive(resource.data.doctorId)
-     && doctorApproved(resource.data.doctorId)
-     && existsAfter(aPath(resource.data.doctorId, resource.data.date, request.auth.uid))
-     && getAfter(aPath(resource.data.doctorId, resource.data.date, request.auth.uid)).data.number == request.resource.data.last
-     && getAfter(aPath(resource.data.doctorId, resource.data.date, request.auth.uid)).data.status == 'PENDING'
-     && (!exists(aPath(resource.data.doctorId, resource.data.date, request.auth.uid))
-       || get(aPath(resource.data.doctorId, resource.data.date, request.auth.uid)).data.status == 'CANCELLED'))
-    || (userType() == 'patient'
-     && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['last','lastAppointmentId'])
-     && request.resource.data.last == resource.data.last + 1
-     && request.resource.data.lastAppointmentId is string
-     && subActive(resource.data.doctorId)
-     && doctorApproved(resource.data.doctorId)
-     && existsAfter(appointmentPath(request.resource.data.lastAppointmentId))
-     && getAfter(appointmentPath(request.resource.data.lastAppointmentId)).data.doctorId == resource.data.doctorId
-     && getAfter(appointmentPath(request.resource.data.lastAppointmentId)).data.date == resource.data.date
-     && getAfter(appointmentPath(request.resource.data.lastAppointmentId)).data.patientId == request.auth.uid
-     && getAfter(appointmentPath(request.resource.data.lastAppointmentId)).data.number == request.resource.data.last
-     && getAfter(appointmentPath(request.resource.data.lastAppointmentId)).data.status == 'PENDING'
-     && getAfter(appointmentPath(request.resource.data.lastAppointmentId)).data.visitType in ['CONSULTATION','FOLLOW_UP']
-     && request.resource.data.lastAppointmentId == resource.data.doctorId + '_' + resource.data.date + '_' + request.auth.uid + '_' + getAfter(appointmentPath(request.resource.data.lastAppointmentId)).data.visitType
-     && (!exists(appointmentPath(request.resource.data.lastAppointmentId))
-       || get(appointmentPath(request.resource.data.lastAppointmentId)).data.status == 'CANCELLED')));
+   // Patient booking writes are restricted to the trusted Worker transaction.
+   allow create: if false;
+   allow update: if signedIn()
+    && request.auth.uid == resource.data.doctorId
+    && userType() in ['doctor','clinic']
+    && doctorApproved(request.auth.uid)
+    && subActive(request.auth.uid)
+    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['current'])
+    && request.resource.data.current == resource.data.current + 1
+    && request.resource.data.current <= resource.data.last;
    allow delete: if false;
   }
   match /prescriptions/{id} {
