@@ -419,10 +419,14 @@ try {
   await assertFails(deleteDoc(doc(doctor, "subscriptions", doctorId)));
   await assertSucceeds(getDoc(doc(doctor, "subscriptions", doctorId)));
 
+  // Inspect the exact state used by the doctor queue-advance rule before exercising it.
+  const doctorUserCheck = await getDoc(doc(doctor, "users", doctorId));
+  const doctorProfileCheck = await getDoc(doc(doctor, "doctors", doctorId));
+  const doctorSubCheck = await getDoc(doc(doctor, "subscriptions", doctorId));
+  const queueBeforeAdvance = await getDoc(doc(doctor, "queues", `${doctorId}_${date}`));
+  console.log("QUEUE_ADVANCE_DIAGNOSTIC", JSON.stringify({ user: doctorUserCheck.data(), profile: doctorProfileCheck.data(), subscription: doctorSubCheck.data(), queue: queueBeforeAdvance.data() }));
   // The appointment was already confirmed above; the approved doctor can now advance the queue.
-  await assertSucceeds(updateDoc(doc(doctor, "queues", `${doctorId}_${date}`), {
-    current: 1
-  }));
+  await assertSucceeds(updateDoc(doc(doctor, "queues", `${doctorId}_${date}`), { current: 1 }));
 
   // Private two-way conversation and messages.
   await assertSucceeds(setDoc(doc(patient, "conversations", conversationId), {
