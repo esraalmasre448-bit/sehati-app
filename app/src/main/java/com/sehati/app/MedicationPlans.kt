@@ -65,6 +65,10 @@ fun MedicationPlansScreen(onBack: () -> Unit) {
                                 active = doc.getBoolean("active") == true
                             )
                         }.sortedWith(compareBy<MedicationPlan> { !it.active }.thenBy { it.time })
+                        plans.forEach { plan ->
+                            if (plan.active) MedicationReminderScheduler.schedule(ctx, plan.id, plan.medicine, plan.dose, plan.time)
+                            else MedicationReminderScheduler.cancel(ctx, plan.id)
+                        }
                         error = ""
                     }
                     loaded = true
