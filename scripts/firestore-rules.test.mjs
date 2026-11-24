@@ -236,6 +236,16 @@ try {
     followUpTime: "10:00",
     followUpSetAt: serverTimestamp()
   }));
+  await assertSucceeds(updateDoc(doc(doctor, "appointments", appointmentId), { status: "DONE" }));
+  await assertFails(updateDoc(doc(patient, "appointments", appointmentId), {
+    paidAmount: 125, paidCurrency: "SYP", paidRecordedAt: serverTimestamp()
+  }));
+  await assertSucceeds(updateDoc(doc(doctor, "appointments", appointmentId), {
+    paidAmount: 125, paidCurrency: "SYP", paidRecordedAt: serverTimestamp()
+  }));
+  await assertFails(updateDoc(doc(doctor, "appointments", appointmentId), {
+    paidAmount: 150, paidCurrency: "SYP", paidRecordedAt: serverTimestamp()
+  }));
 
   // A patient may book a different visit type with the same doctor on the same day.
   // The shared queue advances, while each appointment receives a stable type-specific ID.
