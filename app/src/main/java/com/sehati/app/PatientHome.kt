@@ -120,8 +120,7 @@ fun PatientHome(
             Spacer(Modifier.weight(1f))
             Text("أطباء وعيادات", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
         }
-        PatientDoctorList(onOpen)
-
+        // الخدمات الأساسية تظهر قبل قائمة الأطباء لتسهيل الوصول للحجز والمتابعة.
         Row(
             Modifier.fillMaxWidth()
                 .background(
@@ -143,6 +142,8 @@ fun PatientHome(
             }
             Icon(Icons.Filled.ArrowBackIosNew, contentDescription = null, tint = Color.White)
         }
+
+        PatientDoctorList(onOpen)
 
         Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text("خدماتي الصحية", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
