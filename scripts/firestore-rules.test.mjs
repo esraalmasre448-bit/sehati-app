@@ -239,18 +239,37 @@ try {
     followUpTime: "10:00",
     followUpSetAt: serverTimestamp()
   }));
-  console.log("TEST_APPOINTMENT_DONE");
-  await assertSucceeds(updateDoc(doc(doctor, "appointments", appointmentId), { status: "DONE" }));
+  // Payment analytics use a separate completed visit so later queue tests can keep using the first appointment.
+  const paymentDate = "2099-01-04";
+  const paymentAppointmentId = `${doctorId}_${paymentDate}_${patientId}_CONSULTATION`;
+  const paymentAppointmentRef = doc(patient, "appointments", paymentAppointmentId);
+  const paymentQueueRef = doc(patient, "queues", `${doctorId}_${paymentDate}`);
+  await assertSucceeds(runTransaction(patient, async (tx) => {
+    tx.set(paymentQueueRef, {
+      doctorId, date: paymentDate, last: 1, current: 0,
+      lastAppointmentId: paymentAppointmentId
+    });
+    tx.set(paymentAppointmentRef, {
+      patientId, patientName: "Patient", patientPhone: "",
+      doctorId, doctorName: "Doctor", specialty: "General",
+      clinicName: "", address: "", city: "Test",
+      date: paymentDate, slot: 540, time: "09:00",
+      number: 1, status: "PENDING", note: "",
+      visitType: "CONSULTATION", createdAt: serverTimestamp()
+    });
+  }));
+  await assertSucceeds(updateDoc(doc(doctor, "appointments", paymentAppointmentId), { status: "CONFIRMED" }));
+  await assertSucceeds(updateDoc(doc(doctor, "appointments", paymentAppointmentId), { status: "DONE" }));
   console.log("TEST_PATIENT_CANNOT_RECORD_PAYMENT");
-  await assertFails(updateDoc(doc(patient, "appointments", appointmentId), {
+  await assertFails(updateDoc(doc(patient, "appointments", paymentAppointmentId), {
     paidAmount: 125, paidCurrency: "SYP", paidRecordedAt: serverTimestamp()
   }));
   console.log("TEST_DOCTOR_RECORD_PAYMENT");
-  await assertSucceeds(updateDoc(doc(doctor, "appointments", appointmentId), {
+  await assertSucceeds(updateDoc(doc(doctor, "appointments", paymentAppointmentId), {
     paidAmount: 125, paidCurrency: "SYP", paidRecordedAt: serverTimestamp()
   }));
   console.log("TEST_PAYMENT_IMMUTABLE");
-  await assertFails(updateDoc(doc(doctor, "appointments", appointmentId), {
+  await assertFails(updateDoc(doc(doctor, "appointments", paymentAppointmentId), {
     paidAmount: 150, paidCurrency: "SYP", paidRecordedAt: serverTimestamp()
   }));
 
