@@ -545,9 +545,35 @@ service cloud.firestore {
     && request.resource.data.relation.size() <= 40;
    allow delete: if signedIn() && request.auth.uid == uid && userType() == 'patient';
   }
-  // الملف الصحي الشخصي: معلومات حساسة لا يقرأها أو يعدلها إلا صاحب الحساب المريض.
+  // منح وصول طبي مؤقت: المريض وحده يمنح الطبيب الصلاحية أو يسحبها.
+  match /healthAccessGrants/{patientUid}/doctors/{doctorUid} {
+   allow read: if signedIn() && (request.auth.uid == patientUid || request.auth.uid == doctorUid);
+   allow create, update: if signedIn()
+    && request.auth.uid == patientUid
+    && userType() == 'patient'
+    && request.resource.data.keys().hasOnly(['patientUid','doctorUid','expiresAt','grantedAt','revoked'])
+    && request.resource.data.patientUid == patientUid
+    && request.resource.data.doctorUid == doctorUid
+    && doctorApproved(doctorUid)
+    && subActive(doctorUid)
+    && request.resource.data.expiresAt is timestamp
+    && request.resource.data.expiresAt > request.time
+    && request.resource.data.expiresAt <= request.time + duration.value(30, 'd')
+    && request.resource.data.grantedAt == request.time
+    && request.resource.data.revoked == false;
+   allow delete: if signedIn() && request.auth.uid == patientUid && userType() == 'patient';
+  }
+  // الملف الصحي: المريض يقرأه دائماً، والطبيب يقرأه فقط بموافقة مؤقتة سارية.
   match /healthProfiles/{uid} {
-   allow read: if signedIn() && request.auth.uid == uid && userType() == 'patient';
+   allow read: if signedIn() && (
+    (request.auth.uid == uid && userType() == 'patient')
+    || (userType() in ['doctor','clinic']
+     && doctorApproved(request.auth.uid)
+     && subActive(request.auth.uid)
+     && exists(/databases/$(database)/documents/healthAccessGrants/$(uid)/doctors/$(request.auth.uid))
+     && get(/databases/$(database)/documents/healthAccessGrants/$(uid)/doctors/$(request.auth.uid)).data.revoked == false
+     && get(/databases/$(database)/documents/healthAccessGrants/$(uid)/doctors/$(request.auth.uid)).data.expiresAt > request.time)
+   );
    allow create, update: if signedIn()
     && request.auth.uid == uid
     && userType() == 'patient'
