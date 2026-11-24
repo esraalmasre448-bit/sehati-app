@@ -455,10 +455,16 @@ try {
     text: "tamper"
   }));
   await assertFails(updateDoc(rxRef, { text: "doctor edit" }));
-  await assertSucceeds(updateDoc(rxRef, {
+  await assertFails(updateDoc(rxRef, {
     status: "VOIDED",
     voidedAt: serverTimestamp(),
     voidedBy: doctorId
+  }));
+  await assertSucceeds(updateDoc(rxRef, {
+    status: "VOIDED",
+    voidedAt: serverTimestamp(),
+    voidedBy: doctorId,
+    voidReason: "Duplicate entry"
   }));
   await assertFails(deleteDoc(doc(patient, "prescriptions", "rx-1")));
   await assertFails(deleteDoc(rxRef));
