@@ -36,7 +36,7 @@ private fun estimate(last: Long, current: Long, today: Boolean, startMin: Int, s
 }
 
 private fun bookByQueue(
-    d: Map<String, Any?>, date: String, today: Boolean, note: String,
+    d: Map<String, Any?>, date: String, today: Boolean, note: String, visitType: String,
     onResult: (Boolean, String) -> Unit
 ) {
     val me = bAuth.currentUser
@@ -46,7 +46,7 @@ private fun bookByQueue(
     val endMin = (qNum(d["endHour"]) ?: 17) * 60
     val step = (qNum(d["slotMinutes"]) ?: 30).coerceAtLeast(10)
     val queueRef = bDb.collection("queues").document("${doctorId}_$date")
-    val apptRef = bDb.collection("appointments").document("${doctorId}_${date}_${me.uid}")
+    val apptRef = bDb.collection("appointments").document("${doctorId}_${date}_${me.uid}_${visitType}")
     bDb.collection("users").document(me.uid).get().addOnSuccessListener { u ->
         val pName = u.getString("name") ?: ""
         val pPhone = u.getString("phone") ?: ""
@@ -66,11 +66,14 @@ private fun bookByQueue(
             val (number, est) = estimate(last, current, today, startMin, step)
             if (est + step > endMin) return@runTransaction "FULL"
             if (q.exists()) {
-                tx.update(queueRef, "last", number)
+                tx.update(queueRef, mapOf("last" to number, "lastAppointmentId" to apptRef.id))
             } else {
                 tx.set(
                     queueRef,
-                    mapOf("doctorId" to doctorId, "date" to date, "last" to 1L, "current" to 0L)
+                    mapOf(
+                        "doctorId" to doctorId, "date" to date, "last" to 1L, "current" to 0L,
+                        "lastAppointmentId" to apptRef.id
+                    )
                 )
             }
             tx.set(
@@ -85,6 +88,7 @@ private fun bookByQueue(
                     "city" to (d["city"]?.toString() ?: ""),
                     "date" to date, "slot" to est, "time" to qTime(est),
                     "number" to number, "status" to "PENDING", "note" to note,
+                    "visitType" to visitType,
                     "createdAt" to FieldValue.serverTimestamp()
                 )
             )
@@ -131,6 +135,7 @@ fun QueueBookingScreen(d: Map<String, Any?>, onBack: () -> Unit, onDone: () -> U
     var last by remember { mutableLongStateOf(0L) }
     var current by remember { mutableLongStateOf(0L) }
     var note by remember { mutableStateOf("") }
+    var visitType by remember { mutableStateOf("CONSULTATION") }
     var busy by remember { mutableStateOf(false) }
     var msg by remember { mutableStateOf("") }
     var done by remember { mutableStateOf(false) }
@@ -175,6 +180,19 @@ fun QueueBookingScreen(d: Map<String, Any?>, onBack: () -> Unit, onDone: () -> U
                 onClick = onDone, modifier = Modifier.fillMaxWidth().height(52.dp)
             ) { Text("مواعيدي", color = Color.White) }
         } else {
+            Text("نوع الزيارة", color = BMuted, fontWeight = FontWeight.SemiBold)
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                FilterChip(
+                    selected = visitType == "CONSULTATION",
+                    onClick = { visitType = "CONSULTATION" },
+                    label = { Text("معاينة") }
+                )
+                FilterChip(
+                    selected = visitType == "FOLLOW_UP",
+                    onClick = { visitType = "FOLLOW_UP" },
+                    label = { Text("مراجعة") }
+                )
+            }
             Text("اختر اليوم", color = BMuted)
             if (hasWorkDays(d)) Text("أيام دوام الطبيب: " + workDaysLabel(workDaysOf(d)), color = BGreen, fontSize = 13.sp)
             DayChips(days, dayIdx) { dayIdx = it }
@@ -204,7 +222,7 @@ fun QueueBookingScreen(d: Map<String, Any?>, onBack: () -> Unit, onDone: () -> U
             RedButton("إرسال طلب الحجز", enabled = !busy && !full) {
                 busy = true
                 msg = ""
-                bookByQueue(d, date, isToday, note.trim().take(300)) { ok, text ->
+                bookByQueue(d, date, isToday, note.trim().take(300), visitType) { ok, text ->
                     busy = false
                     if (ok) { done = true; resultText = text } else msg = text
                 }
