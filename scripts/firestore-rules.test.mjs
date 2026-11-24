@@ -226,6 +226,17 @@ try {
     });
   }));
 
+  // Only the treating doctor may schedule a follow-up on a confirmed or completed visit.
+  await assertSucceeds(updateDoc(doc(doctor, "appointments", appointmentId), { status: "CONFIRMED" }));
+  await assertFails(updateDoc(doc(patient, "appointments", appointmentId), {
+    followUpDate: "2099-01-02", followUpTime: "10:00", followUpSetAt: serverTimestamp()
+  }));
+  await assertSucceeds(updateDoc(doc(doctor, "appointments", appointmentId), {
+    followUpDate: "2099-01-02",
+    followUpTime: "10:00",
+    followUpSetAt: serverTimestamp()
+  }));
+
   // A patient may book a different visit type with the same doctor on the same day.
   // The shared queue advances, while each appointment receives a stable type-specific ID.
   const followUpId = `${doctorId}_${date}_${patientId}_FOLLOW_UP`;
