@@ -319,15 +319,16 @@ fun DoctorDashboardContent(onBack: (() -> Unit)? = null) {
                 notes.filter { it["appointmentId"] == id }
                     .sortedBy { (it["createdAt"] as? com.google.firebase.Timestamp)?.seconds ?: 0L }
                     .forEach { n ->
-                        NoteBox(n) {
+                        NoteBox(n) { reason ->
                             bDb.collection("prescriptions").document(n["id"] as String).update(
                                 mapOf(
                                     "status" to "VOIDED",
                                     "voidedAt" to FieldValue.serverTimestamp(),
-                                    "voidedBy" to uid
+                                    "voidedBy" to uid,
+                                    "voidReason" to reason
                                 )
                             ).addOnSuccessListener {
-                                msg = "تم إلغاء المستند مع الاحتفاظ به في السجل الطبي"
+                                msg = "تم إلغاء المستند مع توثيق السبب والاحتفاظ به في السجل"
                             }.addOnFailureListener {
                                 msg = "تعذر إلغاء المستند، تحقق من الصلاحيات والاتصال"
                             }
@@ -432,17 +433,16 @@ fun DoctorDashboardContent(onBack: (() -> Unit)? = null) {
 }
 
 @Composable
-fun NoteBox(n: Map<String, Any?>, onVoid: (() -> Unit)?) {
+fun NoteBox(n: Map<String, Any?>, onVoid: ((String) -> Unit)?) {
     val rx = n["kind"] == "rx"
     val isVoided = n["status"] == "VOIDED"
     var showVoidConfirmation by remember(n["id"]) { mutableStateOf(false) }
+    var voidReason by remember(n["id"]) { mutableStateOf("") }
     val ts = (n["createdAt"] as? com.google.firebase.Timestamp)?.toDate()
     val dateTxt = if (ts != null) SimpleDateFormat("d/M/yyyy", Locale.US).format(ts) else ""
     Column(
-        Modifier.fillMaxWidth()
-            .background(BBg, RoundedCornerShape(10.dp))
-            .border(1.dp, BRed, RoundedCornerShape(10.dp))
-            .padding(10.dp),
+        Modifier.fillMaxWidth().background(BBg, RoundedCornerShape(10.dp))
+            .border(1.dp, BRed, RoundedCornerShape(10.dp)).padding(10.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         Text(
@@ -450,36 +450,40 @@ fun NoteBox(n: Map<String, Any?>, onVoid: (() -> Unit)?) {
                 (if (dateTxt.isNotEmpty()) " • $dateTxt" else "") +
                 (if (onVoid == null && "${n["doctorName"] ?: ""}".isNotBlank()) " • من د. ${n["doctorName"]}" else "") +
                 (if (isVoided) " • ملغاة" else ""),
-            color = if (isVoided) BDanger else BRed,
-            fontWeight = FontWeight.Bold,
-            fontSize = 13.sp
+            color = if (isVoided) BDanger else BRed, fontWeight = FontWeight.Bold, fontSize = 13.sp
         )
         Text("${n["text"] ?: ""}", color = Color.White)
         if (isVoided) {
             Text("أُلغي هذا المستند مع الاحتفاظ به في السجل الطبي.", color = BDanger, fontSize = 11.sp)
+            val reason = n["voidReason"]?.toString().orEmpty()
+            if (reason.isNotBlank()) Text("سبب الإلغاء: $reason", color = BMuted, fontSize = 12.sp)
         } else if (onVoid == null) {
             Text("ملاحظة طبية من الطبيب عبر التطبيق، وليست وصفة رسمية.", color = BMuted, fontSize = 11.sp)
         }
         if (onVoid != null && !isVoided) {
-            TextButton(onClick = { showVoidConfirmation = true }) {
-                Text("إلغاء المستند", color = BDanger)
-            }
+            TextButton(onClick = { showVoidConfirmation = true }) { Text("إلغاء المستند", color = BDanger) }
         }
     }
     if (showVoidConfirmation && onVoid != null && !isVoided) {
         AlertDialog(
             onDismissRequest = { showVoidConfirmation = false },
             title = { Text("إلغاء المستند الطبي؟") },
-            text = { Text("سيبقى المستند محفوظاً في سجل المريض، وستظهر حالته كملغاة.") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("سيبقى المستند محفوظاً في سجل المريض. اكتب سبب الإلغاء لتوثيقه.")
+                    OutlinedTextField(
+                        value = voidReason, onValueChange = { voidReason = it.take(300) },
+                        label = { Text("سبب الإلغاء (إلزامي)") }, minLines = 2
+                    )
+                }
+            },
             confirmButton = {
-                TextButton(onClick = {
+                TextButton(enabled = voidReason.isNotBlank(), onClick = {
                     showVoidConfirmation = false
-                    onVoid()
+                    onVoid(voidReason.trim())
                 }) { Text("تأكيد الإلغاء", color = BDanger) }
             },
-            dismissButton = {
-                TextButton(onClick = { showVoidConfirmation = false }) { Text("رجوع") }
-            }
+            dismissButton = { TextButton(onClick = { showVoidConfirmation = false }) { Text("رجوع") } }
         )
     }
 }
