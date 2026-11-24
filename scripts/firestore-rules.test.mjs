@@ -88,6 +88,19 @@ try {
     }
   });
 
+  // Family member records are private to the owning patient and can be removed by that owner.
+  const familyMemberRef = doc(patient, "familyProfiles", patientId, "members", "mother-1");
+  await assertSucceeds(setDoc(familyMemberRef, {
+    name: "Family Member",
+    relation: "Mother",
+    createdAt: serverTimestamp()
+  }));
+  await assertSucceeds(getDoc(familyMemberRef));
+  await assertFails(getDoc(doc(outsider, "familyProfiles", patientId, "members", "mother-1")));
+  await assertFails(getDoc(doc(doctor, "familyProfiles", patientId, "members", "mother-1")));
+  await assertSucceeds(updateDoc(familyMemberRef, { relation: "Parent" }));
+  await assertSucceeds(deleteDoc(familyMemberRef));
+
   // Health profile data is private to the patient; doctors and other patients cannot read it.
   const healthProfileRef = doc(patient, "healthProfiles", patientId);
   await assertSucceeds(setDoc(healthProfileRef, {
@@ -180,6 +193,7 @@ try {
       status: "PENDING",
       note: "",
       visitType: "CONSULTATION",
+      beneficiaryRelation: "Mother",
       createdAt: serverTimestamp()
     });
   }));
