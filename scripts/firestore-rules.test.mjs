@@ -375,16 +375,16 @@ try {
   }));
   await assertSucceeds(getDoc(legacyRef));
 
-  // A typed appointment cannot bypass an active legacy booking for the same patient/day.
-  const blockedTypedId = `${doctorId}_${legacyDate}_${patientId}_FOLLOW_UP`;
-  const blockedTypedRef = doc(patient, "appointments", blockedTypedId);
-  await assertFails(runTransaction(patient, async (tx) => {
-    const oldTyped = await tx.get(blockedTypedRef);
+  // A distinct visit type may be booked on the same day as a legacy appointment.
+  const additionalTypedId = `${doctorId}_${legacyDate}_${patientId}_FOLLOW_UP`;
+  const additionalTypedRef = doc(patient, "appointments", additionalTypedId);
+  await assertSucceeds(runTransaction(patient, async (tx) => {
+    const oldTyped = await tx.get(additionalTypedRef);
     const oldQueue = await tx.get(legacyQueue);
     if (oldTyped.exists()) throw new Error("Unexpected typed booking");
     const next = (oldQueue.get("last") || 0) + 1;
-    tx.update(legacyQueue, { last: next, lastAppointmentId: blockedTypedId });
-    tx.set(blockedTypedRef, {
+    tx.update(legacyQueue, { last: next, lastAppointmentId: additionalTypedId });
+    tx.set(additionalTypedRef, {
       patientId,
       patientName: "Patient",
       patientPhone: "",
