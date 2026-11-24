@@ -196,35 +196,28 @@ try {
   const apptRef = doc(patient, "appointments", appointmentId);
   const queueRef = doc(patient, "queues", `${doctorId}_${date}`);
 
-  // Patient booking and queue creation must succeed atomically.
-  await assertSucceeds(runTransaction(patient, async (tx) => {
-    const oldAppointment = await tx.get(apptRef);
-    const oldQueue = await tx.get(queueRef);
-    if (oldAppointment.exists() || oldQueue.exists()) {
-      throw new Error("Unexpected seeded booking");
-    }
-    tx.set(queueRef, { doctorId, date, last: 1, current: 0, lastAppointmentId: appointmentId });
-    tx.set(apptRef, {
-      patientId,
-      patientName: "Patient",
-      patientPhone: "",
-      doctorId,
-      doctorName: "Doctor",
-      specialty: "General",
-      clinicName: "",
-      address: "",
-      city: "Test",
-      date,
-      slot: 540,
-      time: "09:00",
-      number: 1,
-      status: "PENDING",
-      note: "",
-      visitType: "CONSULTATION",
-      beneficiaryRelation: "Mother",
-      createdAt: serverTimestamp()
-    });
+  // Direct client writes are blocked; the trusted Worker owns booking transactions.
+  await assertFails(setDoc(queueRef, { doctorId, date, last: 1, current: 0, lastAppointmentId: appointmentId }));
+  await assertFails(setDoc(apptRef, {
+    patientId, patientName: "Patient", patientPhone: "", doctorId,
+    doctorName: "Doctor", specialty: "General", clinicName: "", address: "",
+    city: "Test", date, slot: 540, time: "09:00", number: 1,
+    status: "PENDING", note: "", visitType: "CONSULTATION",
+    beneficiaryRelation: "Mother", createdAt: serverTimestamp()
   }));
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, "queues", `${doctorId}_${date}`), {
+      doctorId, date, last: 1, current: 0, lastAppointmentId: appointmentId
+    });
+    await setDoc(doc(db, "appointments", appointmentId), {
+      patientId, patientName: "Patient", patientPhone: "", doctorId,
+      doctorName: "Doctor", specialty: "General", clinicName: "", address: "",
+      city: "Test", date, slot: 540, time: "09:00", number: 1,
+      status: "PENDING", note: "", visitType: "CONSULTATION",
+      beneficiaryRelation: "Mother", createdAt: Timestamp.now()
+    });
+  });
 
   // Only the treating doctor may schedule a follow-up on a confirmed or completed visit.
   console.log("TEST_APPOINTMENT_CONFIRM");
@@ -243,20 +236,21 @@ try {
   const paymentAppointmentId = `${doctorId}_${paymentDate}_${patientId}_CONSULTATION`;
   const paymentAppointmentRef = doc(patient, "appointments", paymentAppointmentId);
   const paymentQueueRef = doc(patient, "queues", `${doctorId}_${paymentDate}`);
-  await assertSucceeds(runTransaction(patient, async (tx) => {
-    tx.set(paymentQueueRef, {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, "queues", `${doctorId}_${paymentDate}`), {
       doctorId, date: paymentDate, last: 1, current: 0,
       lastAppointmentId: paymentAppointmentId
     });
-    tx.set(paymentAppointmentRef, {
+    await setDoc(doc(db, "appointments", paymentAppointmentId), {
       patientId, patientName: "Patient", patientPhone: "",
       doctorId, doctorName: "Doctor", specialty: "General",
       clinicName: "", address: "", city: "Test",
       date: paymentDate, slot: 540, time: "09:00",
       number: 1, status: "PENDING", note: "",
-      visitType: "CONSULTATION", createdAt: serverTimestamp()
+      visitType: "CONSULTATION", createdAt: Timestamp.now()
     });
-  }));
+  });
   await assertSucceeds(updateDoc(doc(doctor, "appointments", paymentAppointmentId), { status: "CONFIRMED" }));
   await assertSucceeds(updateDoc(doc(doctor, "appointments", paymentAppointmentId), { status: "DONE" }));
   console.log("TEST_PATIENT_CANNOT_RECORD_PAYMENT");
@@ -272,36 +266,27 @@ try {
     paidAmount: 150, paidCurrency: "SYP", paidRecordedAt: serverTimestamp()
   }));
 
-  // A patient may book a different visit type with the same doctor on the same day.
-  // The shared queue advances, while each appointment receives a stable type-specific ID.
+  // A direct client cannot create the second visit type or mutate the shared queue.
   const followUpId = `${doctorId}_${date}_${patientId}_FOLLOW_UP`;
   const followUpRef = doc(patient, "appointments", followUpId);
-  await assertSucceeds(runTransaction(patient, async (tx) => {
-    const oldFollowUp = await tx.get(followUpRef);
-    const oldQueue = await tx.get(queueRef);
-    if (oldFollowUp.exists()) throw new Error("Unexpected existing follow-up");
-    const next = (oldQueue.get("last") || 0) + 1;
-    tx.update(queueRef, { last: next, lastAppointmentId: followUpId });
-    tx.set(followUpRef, {
-      patientId,
-      patientName: "Patient",
-      patientPhone: "",
-      doctorId,
-      doctorName: "Doctor",
-      specialty: "General",
-      clinicName: "",
-      address: "",
-      city: "Test",
-      date,
-      slot: 570,
-      time: "09:30",
-      number: next,
-      status: "PENDING",
-      note: "",
-      visitType: "FOLLOW_UP",
-      createdAt: serverTimestamp()
-    });
+  await assertFails(setDoc(followUpRef, {
+    patientId, patientName: "Patient", patientPhone: "", doctorId,
+    doctorName: "Doctor", specialty: "General", clinicName: "", address: "",
+    city: "Test", date, slot: 570, time: "09:30", number: 2,
+    status: "PENDING", note: "", visitType: "FOLLOW_UP", createdAt: serverTimestamp()
   }));
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await updateDoc(doc(db, "queues", `${doctorId}_${date}`), {
+      last: 2, lastAppointmentId: followUpId
+    });
+    await setDoc(doc(db, "appointments", followUpId), {
+      patientId, patientName: "Patient", patientPhone: "", doctorId,
+      doctorName: "Doctor", specialty: "General", clinicName: "", address: "",
+      city: "Test", date, slot: 570, time: "09:30", number: 2,
+      status: "PENDING", note: "", visitType: "FOLLOW_UP", createdAt: Timestamp.now()
+    });
+  });
   await assertSucceeds(getDoc(followUpRef));
   await assertSucceeds(getDoc(doc(doctor, "appointments", followUpId)));
   await assertFails(getDoc(doc(outsider, "appointments", followUpId)));
@@ -311,99 +296,52 @@ try {
   const firstTypedId = `${doctorId}_${secondDate}_${patientId}_CONSULTATION`;
   const firstTypedRef = doc(patient, "appointments", firstTypedId);
   const firstTypedQueue = doc(patient, "queues", `${doctorId}_${secondDate}`);
-  await assertSucceeds(runTransaction(patient, async (tx) => {
-    const oldAppointment = await tx.get(firstTypedRef);
-    const oldQueue = await tx.get(firstTypedQueue);
-    if (oldAppointment.exists() || oldQueue.exists()) throw new Error("Unexpected typed queue");
-    tx.set(firstTypedQueue, {
-      doctorId,
-      date: secondDate,
-      last: 1,
-      current: 0,
-      lastAppointmentId: firstTypedId
-    });
-    tx.set(firstTypedRef, {
-      patientId,
-      patientName: "Patient",
-      patientPhone: "",
-      doctorId,
-      doctorName: "Doctor",
-      specialty: "General",
-      clinicName: "",
-      address: "",
-      city: "Test",
-      date: secondDate,
-      slot: 540,
-      time: "09:00",
-      number: 1,
-      status: "PENDING",
-      note: "",
-      visitType: "CONSULTATION",
-      createdAt: serverTimestamp()
-    });
+  await assertFails(setDoc(firstTypedQueue, {
+    doctorId, date: secondDate, last: 1, current: 0, lastAppointmentId: firstTypedId
   }));
-  await assertSucceeds(getDoc(firstTypedRef));
+  await assertFails(setDoc(firstTypedRef, {
+    patientId, patientName: "Patient", patientPhone: "", doctorId,
+    doctorName: "Doctor", specialty: "General", clinicName: "", address: "",
+    city: "Test", date: secondDate, slot: 540, time: "09:00", number: 1,
+    status: "PENDING", note: "", visitType: "CONSULTATION", createdAt: serverTimestamp()
+  }));
 
   // Legacy clients can still create/read the old appointment and queue shape.
   const legacyDate = "2099-01-03";
   const legacyId = `${doctorId}_${legacyDate}_${patientId}`;
   const legacyRef = doc(patient, "appointments", legacyId);
   const legacyQueue = doc(patient, "queues", `${doctorId}_${legacyDate}`);
-  await assertSucceeds(runTransaction(patient, async (tx) => {
-    const oldAppointment = await tx.get(legacyRef);
-    const oldQueue = await tx.get(legacyQueue);
-    if (oldAppointment.exists() || oldQueue.exists()) throw new Error("Unexpected legacy queue");
-    tx.set(legacyQueue, { doctorId, date: legacyDate, last: 1, current: 0 });
-    tx.set(legacyRef, {
-      patientId,
-      patientName: "Patient",
-      patientPhone: "",
-      doctorId,
-      doctorName: "Doctor",
-      specialty: "General",
-      clinicName: "",
-      address: "",
-      city: "Test",
-      date: legacyDate,
-      slot: 540,
-      time: "09:00",
-      number: 1,
-      status: "PENDING",
-      note: "",
-      createdAt: serverTimestamp()
-    });
+  await assertFails(setDoc(legacyQueue, { doctorId, date: legacyDate, last: 1, current: 0 }));
+  await assertFails(setDoc(legacyRef, {
+    patientId, patientName: "Patient", patientPhone: "", doctorId,
+    doctorName: "Doctor", specialty: "General", clinicName: "", address: "",
+    city: "Test", date: legacyDate, slot: 540, time: "09:00", number: 1,
+    status: "PENDING", note: "", createdAt: serverTimestamp()
   }));
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, "queues", `${doctorId}_${legacyDate}`), {
+      doctorId, date: legacyDate, last: 1, current: 0
+    });
+    await setDoc(doc(db, "appointments", legacyId), {
+      patientId, patientName: "Patient", patientPhone: "", doctorId,
+      doctorName: "Doctor", specialty: "General", clinicName: "", address: "",
+      city: "Test", date: legacyDate, slot: 540, time: "09:00", number: 1,
+      status: "PENDING", note: "", createdAt: Timestamp.now()
+    });
+  });
   await assertSucceeds(getDoc(legacyRef));
 
-  // A distinct visit type may be booked on the same day as a legacy appointment.
+  // The legacy appointment remains readable; all additional booking writes go through the Worker.
   const additionalTypedId = `${doctorId}_${legacyDate}_${patientId}_FOLLOW_UP`;
   const additionalTypedRef = doc(patient, "appointments", additionalTypedId);
-  await assertSucceeds(runTransaction(patient, async (tx) => {
-    const oldTyped = await tx.get(additionalTypedRef);
-    const oldQueue = await tx.get(legacyQueue);
-    if (oldTyped.exists()) throw new Error("Unexpected typed booking");
-    const next = (oldQueue.get("last") || 0) + 1;
-    tx.update(legacyQueue, { last: next, lastAppointmentId: additionalTypedId });
-    tx.set(additionalTypedRef, {
-      patientId,
-      patientName: "Patient",
-      patientPhone: "",
-      doctorId,
-      doctorName: "Doctor",
-      specialty: "General",
-      clinicName: "",
-      address: "",
-      city: "Test",
-      date: legacyDate,
-      slot: 570,
-      time: "09:30",
-      number: next,
-      status: "PENDING",
-      note: "",
-      visitType: "FOLLOW_UP",
-      createdAt: serverTimestamp()
-    });
+  await assertFails(setDoc(additionalTypedRef, {
+    patientId, patientName: "Patient", patientPhone: "", doctorId,
+    doctorName: "Doctor", specialty: "General", clinicName: "", address: "",
+    city: "Test", date: legacyDate, slot: 570, time: "09:30", number: 2,
+    status: "PENDING", note: "", visitType: "FOLLOW_UP", createdAt: serverTimestamp()
   }));
+  await assertFails(updateDoc(legacyQueue, { last: 2, lastAppointmentId: additionalTypedId }));
 
   // Only the patient and treating doctor can read the appointment.
   await assertSucceeds(getDoc(apptRef));
@@ -566,38 +504,12 @@ try {
   }));
   await assertSucceeds(deleteDoc(tokenRef));
 
-  // A cancelled visit can be rebooked with the next queue number.
+  // Cancellation remains patient-accessible; direct rebooking is denied and must use the Worker.
   await assertSucceeds(updateDoc(doc(doctor, "appointments", appointmentId), {
     status: "CANCELLED"
   }));
-  await assertSucceeds(runTransaction(patient, async (tx) => {
-    const appointment = await tx.get(apptRef);
-    const queue = await tx.get(queueRef);
-    if (!appointment.exists() || !queue.exists() ||
-        appointment.data().status !== "CANCELLED") {
-      throw new Error("Expected a cancelled appointment");
-    }
-    const next = (queue.data().last || 0) + 1;
-    tx.update(queueRef, { last: next, lastAppointmentId: appointmentId });
-    tx.set(apptRef, {
-      patientId,
-      patientName: "Patient",
-      patientPhone: "",
-      doctorId,
-      doctorName: "Doctor",
-      specialty: "General",
-      clinicName: "",
-      address: "",
-      city: "Test",
-      date,
-      slot: 570,
-      time: "09:30",
-      number: next,
-      status: "PENDING",
-      note: "Rebooked",
-      visitType: "CONSULTATION",
-      createdAt: serverTimestamp()
-    });
+  await assertFails(updateDoc(apptRef, {
+    status: "PENDING", number: 3, time: "10:00", slot: 600, createdAt: serverTimestamp()
   }));
 
   // Account deletion first anonymizes appointment details but retains the visit.
