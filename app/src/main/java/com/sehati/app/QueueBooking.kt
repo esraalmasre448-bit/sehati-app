@@ -47,12 +47,17 @@ private fun bookByQueue(
     val step = (qNum(d["slotMinutes"]) ?: 30).coerceAtLeast(10)
     val queueRef = bDb.collection("queues").document("${doctorId}_$date")
     val apptRef = bDb.collection("appointments").document("${doctorId}_${date}_${me.uid}_${visitType}")
+    val legacyApptRef = bDb.collection("appointments").document("${doctorId}_${date}_${me.uid}")
     bDb.collection("users").document(me.uid).get().addOnSuccessListener { u ->
         val pName = u.getString("name") ?: ""
         val pPhone = u.getString("phone") ?: ""
         bDb.runTransaction<String> { tx ->
             val a = tx.get(apptRef)
+            val legacy = tx.get(legacyApptRef)
             val q = tx.get(queueRef)
+            if (legacy.exists() && legacy.getString("status") in listOf("PENDING", "CONFIRMED")) {
+                return@runTransaction "LEGACY_EXIST|${legacy.getLong("number") ?: 0L}|${legacy.getString("time") ?: ""}"
+            }
             if (a.exists()) {
                 val st = a.getString("status")
                 if (st == "CONFIRMED") {
@@ -97,7 +102,11 @@ private fun bookByQueue(
             val p = r.split("|")
             when (p[0]) {
                 "FULL" -> onResult(false, "الأدوار ممتلئة لهذا اليوم، اختر يومًا آخر")
-                "BLOCKED" -> onResult(false, "لديك موعد سابق عند هذا الطبيب بهذا اليوم، اختر يومًا آخر")
+                "BLOCKED" -> onResult(false, "تعذر إنشاء الحجز بسبب حالة موعد سابق.")
+                "LEGACY_EXIST" -> onResult(
+                    false,
+                    "لديك موعد قديم غير مصنف عند هذا الطبيب في هذا اليوم. لتجنب تكرار الحجز، لا يمكن إضافة زيارة أخرى قبل انتهاء الموعد أو إلغائه."
+                )
                 "PENDING_EXIST" -> onResult(true, "طلبك السابق بانتظار موافقة الطبيب. رقم الدور: ${p.getOrElse(1) { "" }} — الوقت التقديري: ${p.getOrElse(2) { "" }}")
                 "EXIST" -> onResult(
                     true,
