@@ -239,6 +239,7 @@ fun App() {
         screen == "myappts" -> MyAppointmentsContent(
             onFind = { screen = "search" }, onBack = { screen = "main" }
         )
+        screen == "visit_summary" -> PatientVisitSummaryScreen(onBack = { screen = "main" })
         screen == "queue" -> QueueScreen(onBack = { screen = "main" }, onFind = { screen = "search" })
         screen == "route" -> RouteScreen(onBack = { screen = "main" }, onFind = { screen = "search" })
         screen == "profile" -> DoctorProfileScreen { screen = "main" }
