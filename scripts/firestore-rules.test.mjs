@@ -227,22 +227,29 @@ try {
   }));
 
   // Only the treating doctor may schedule a follow-up on a confirmed or completed visit.
+  console.log("TEST_APPOINTMENT_CONFIRM");
   await assertSucceeds(updateDoc(doc(doctor, "appointments", appointmentId), { status: "CONFIRMED" }));
+  console.log("TEST_PATIENT_CANNOT_SET_FOLLOWUP");
   await assertFails(updateDoc(doc(patient, "appointments", appointmentId), {
     followUpDate: "2099-01-02", followUpTime: "10:00", followUpSetAt: serverTimestamp()
   }));
+  console.log("TEST_DOCTOR_SET_FOLLOWUP");
   await assertSucceeds(updateDoc(doc(doctor, "appointments", appointmentId), {
     followUpDate: "2099-01-02",
     followUpTime: "10:00",
     followUpSetAt: serverTimestamp()
   }));
+  console.log("TEST_APPOINTMENT_DONE");
   await assertSucceeds(updateDoc(doc(doctor, "appointments", appointmentId), { status: "DONE" }));
+  console.log("TEST_PATIENT_CANNOT_RECORD_PAYMENT");
   await assertFails(updateDoc(doc(patient, "appointments", appointmentId), {
     paidAmount: 125, paidCurrency: "SYP", paidRecordedAt: serverTimestamp()
   }));
+  console.log("TEST_DOCTOR_RECORD_PAYMENT");
   await assertSucceeds(updateDoc(doc(doctor, "appointments", appointmentId), {
     paidAmount: 125, paidCurrency: "SYP", paidRecordedAt: serverTimestamp()
   }));
+  console.log("TEST_PAYMENT_IMMUTABLE");
   await assertFails(updateDoc(doc(doctor, "appointments", appointmentId), {
     paidAmount: 150, paidCurrency: "SYP", paidRecordedAt: serverTimestamp()
   }));
