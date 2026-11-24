@@ -122,6 +122,31 @@ fun PatientHome(
         }
         PatientDoctorList(onOpen)
 
+        Row(
+            Modifier.fillMaxWidth()
+                .background(
+                    Brush.horizontalGradient(listOf(Color(0xFF351316), Color(0xFF171B25))),
+                    RoundedCornerShape(18.dp)
+                )
+                .border(1.dp, BRed.copy(alpha = 0.75f), RoundedCornerShape(18.dp))
+                .clickable { onGo("services") }
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(
+                Modifier.size(48.dp).background(BRed, CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Filled.Apps, contentDescription = null, tint = Color.White, modifier = Modifier.size(27.dp))
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text("مركز الخدمات الصحية", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text("كل أدواتك الطبية في مكان واحد", color = BMuted, fontSize = 12.sp)
+            }
+            Icon(Icons.Filled.ArrowBackIosNew, contentDescription = null, tint = Color.White)
+        }
+
         Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text("خدماتي الصحية", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
             Text("متابعة مواعيدك وملفك الصحي من مكان واحد", color = BMuted, fontSize = 12.sp)
