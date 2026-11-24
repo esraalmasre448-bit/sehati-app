@@ -16,7 +16,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FieldValue
+import java.util.Date
 import com.google.firebase.firestore.ListenerRegistration
 
 @Composable
@@ -31,6 +33,8 @@ fun PatientHealthProfileScreen(onBack: () -> Unit) {
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf("") }
     var info by remember { mutableStateOf("") }
+    var doctorUid by remember { mutableStateOf("") }
+    var grants by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
 
     DisposableEffect(uid) {
         if (uid.isBlank()) {
@@ -55,6 +59,19 @@ fun PatientHealthProfileScreen(onBack: () -> Unit) {
         }
     }
 
+    DisposableEffect(uid) {
+        if (uid.isBlank()) onDispose { }
+        else {
+            val grantListener = bDb.collection("healthAccessGrants").document(uid).collection("doctors")
+                .addSnapshotListener { snapshot, _ ->
+                    grants = snapshot?.documents.orEmpty().map { doc ->
+                        doc.id to (doc.getTimestamp("expiresAt")?.toDate()?.toString().orEmpty())
+                    }
+                }
+            onDispose { grantListener.remove() }
+        }
+    }
+
     Column(
         Modifier.fillMaxSize().background(Color(0xCC0A0C11)).verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -66,7 +83,7 @@ fun PatientHealthProfileScreen(onBack: () -> Unit) {
             Text("ملفي الصحي", color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.Bold)
         }
         Text(
-            "سجل معلوماتك الصحية المهمة لتكون منظمة في مكان واحد. هذا الملف خاص بحسابك ولا يستطيع الطبيب أو أي مستخدم آخر قراءته حالياً.",
+            "سجل معلوماتك الصحية المهمة في مكان واحد. لا يطلع الطبيب عليها إلا إذا منحته صلاحية مؤقتة من قسم المشاركة أدناه.",
             color = Color(0xFFB6C6DA), fontSize = 13.sp
         )
         if (!loaded) {
@@ -135,6 +152,53 @@ fun PatientHealthProfileScreen(onBack: () -> Unit) {
         }
         if (error.isNotBlank()) Text(error, color = Color(0xFFFF6674), fontSize = 13.sp)
         if (info.isNotBlank()) Text(info, color = Color(0xFF39D6A3), fontSize = 13.sp)
+        Column(
+            Modifier.fillMaxWidth().background(Color(0xEE14171D), RoundedCornerShape(16.dp))
+                .border(1.dp, Color(0xFF30343D), RoundedCornerShape(16.dp)).padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text("مشاركة الملف مع طبيب", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+            Text("أدخل معرّف الطبيب (UID) لمنحه صلاحية قراءة الملف لمدة 30 يوماً. يمكنك سحبها في أي وقت.", color = Color(0xFFB6C6DA), fontSize = 12.sp)
+            OutlinedTextField(
+                value = doctorUid, onValueChange = { doctorUid = it.trim().take(128) },
+                modifier = Modifier.fillMaxWidth(), label = { Text("معرّف الطبيب UID") }, singleLine = true
+            )
+            Button(
+                enabled = doctorUid.matches(Regex("^[A-Za-z0-9_-]{6,128}$")),
+                onClick = {
+                    val did = doctorUid
+                    bDb.collection("healthAccessGrants").document(uid).collection("doctors").document(did)
+                        .set(mapOf(
+                            "patientUid" to uid,
+                            "doctorUid" to did,
+                            "expiresAt" to Timestamp(Date(System.currentTimeMillis() + 30L * 24 * 60 * 60 * 1000)),
+                            "grantedAt" to FieldValue.serverTimestamp(),
+                            "revoked" to false
+                        )).addOnSuccessListener {
+                            doctorUid = ""
+                            info = "تم منح الطبيب صلاحية مؤقتة لمدة 30 يوماً."
+                        }.addOnFailureListener {
+                            error = "تعذر منح الصلاحية. تأكد من معرّف طبيب معتمد واشتراك نشط."
+                        }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("منح صلاحية لمدة 30 يوماً") }
+            Text("الأطباء الذين لديهم صلاحية حالياً", color = Color.White, fontWeight = FontWeight.SemiBold)
+            if (grants.isEmpty()) Text("لم تشارك ملفك مع أي طبيب.", color = Color(0xFFB6C6DA), fontSize = 12.sp)
+            grants.forEach { (did, expiry) ->
+                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(did, color = Color.White, fontSize = 12.sp)
+                        Text("تنتهي: $expiry", color = Color(0xFFB6C6DA), fontSize = 10.sp)
+                    }
+                    TextButton(onClick = {
+                        bDb.collection("healthAccessGrants").document(uid).collection("doctors").document(did)
+                            .delete().addOnSuccessListener { info = "تم سحب صلاحية الطبيب." }
+                            .addOnFailureListener { error = "تعذر سحب الصلاحية." }
+                    }) { Text("سحب", color = Color(0xFFFF6674)) }
+                }
+            }
+        }
         Text(
             "لا تستبدل هذه البيانات مراجعة الطبيب. لا تكتب معلومات طبية لا تعرف صحتها، ويمكنك ترك أي حقل فارغاً.",
             color = Color(0xFFB6C6DA), fontSize = 12.sp

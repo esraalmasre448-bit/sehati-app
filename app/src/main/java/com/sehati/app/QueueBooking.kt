@@ -46,6 +46,7 @@ private fun bookByQueue(
     val startMin = (qNum(d["startHour"]) ?: 9) * 60
     val endMin = (qNum(d["endHour"]) ?: 17) * 60
     val step = (qNum(d["slotMinutes"]) ?: 30).coerceAtLeast(10)
+    val dailyCapacity = (qNum(d["dailyCapacity"]) ?: 30).coerceIn(1, 500)
     val queueRef = bDb.collection("queues").document("${doctorId}_$date")
     val apptRef = bDb.collection("appointments").document("${doctorId}_${date}_${me.uid}_${visitType}")
     val legacyApptRef = bDb.collection("appointments").document("${doctorId}_${date}_${me.uid}")
@@ -69,6 +70,7 @@ private fun bookByQueue(
             }
             val last = if (q.exists()) (q.getLong("last") ?: 0L) else 0L
             val current = if (q.exists()) (q.getLong("current") ?: 0L) else 0L
+            if (last >= dailyCapacity) return@runTransaction "CAPACITY"
             val (number, est) = estimate(last, current, today, startMin, step)
             if (est + step > endMin) return@runTransaction "FULL"
             if (q.exists()) {
@@ -104,6 +106,7 @@ private fun bookByQueue(
             val p = r.split("|")
             when (p[0]) {
                 "FULL" -> onResult(false, "الأدوار ممتلئة لهذا اليوم، اختر يومًا آخر")
+                "CAPACITY" -> onResult(false, "وصل الطبيب إلى الحد الأقصى للمواعيد لهذا اليوم، اختر يوماً آخر")
                 "BLOCKED" -> onResult(false, "تعذر إنشاء الحجز بسبب حالة موعد سابق.")
                 "LEGACY_EXIST" -> onResult(
                     false,
@@ -172,6 +175,7 @@ fun QueueBookingScreen(d: Map<String, Any?>, onBack: () -> Unit, onDone: () -> U
     val startMin = (qNum(d["startHour"]) ?: 9) * 60
     val endMin = (qNum(d["endHour"]) ?: 17) * 60
     val step = (qNum(d["slotMinutes"]) ?: 30).coerceAtLeast(10)
+    val dailyCapacity = (qNum(d["dailyCapacity"]) ?: 30).coerceIn(1, 500)
 
     DisposableEffect(doctorId, date) {
         last = 0L
@@ -185,7 +189,7 @@ fun QueueBookingScreen(d: Map<String, Any?>, onBack: () -> Unit, onDone: () -> U
     }
 
     val (nextNo, estMin) = estimate(last, current, isToday, startMin, step)
-    val full = estMin + step > endMin
+    val full = estMin + step > endMin || nextNo > dailyCapacity
 
     Column(
         Modifier.fillMaxSize().background(BBg).padding(20.dp).verticalScroll(rememberScrollState()),
@@ -252,7 +256,7 @@ fun QueueBookingScreen(d: Map<String, Any?>, onBack: () -> Unit, onDone: () -> U
                 Text("آخر رقم صدر: $last", color = Color.White, fontSize = 16.sp)
                 if (full) {
                     Text(
-                        "الأدوار ممتلئة لهذا اليوم، اختر يومًا آخر",
+                        if (nextNo > dailyCapacity) "اكتملت الطاقة الاستيعابية للطبيب لهذا اليوم، اختر يوماً آخر" else "الأدوار ممتلئة لهذا اليوم، اختر يومًا آخر",
                         color = BDanger, fontWeight = FontWeight.Bold
                     )
                 } else {

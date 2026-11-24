@@ -142,6 +142,7 @@ fun App() {
     var splash by remember { mutableStateOf(true) }
     var loggedIn by remember { mutableStateOf(auth.currentUser != null) }
     var screen by remember { mutableStateOf("main") }
+    var selectedHealthPatient by remember { mutableStateOf("") }
     var selected by remember { mutableStateOf<Map<String, Any?>?>(null) }
     var detailReturnScreen by remember { mutableStateOf("search") }
     var initialQuery by remember { mutableStateOf("") }
@@ -242,7 +243,7 @@ fun App() {
         screen == "route" -> RouteScreen(onBack = { screen = "main" }, onFind = { screen = "search" })
         screen == "profile" -> DoctorProfileScreen { screen = "main" }
         screen == "settings" -> ClinicSettingsScreen { screen = "main" }
-        screen == "dash" -> DoctorDashboardContent(onBack = { screen = "main" })
+        screen == "dash" -> DoctorDashboardContent(onBack = { screen = "main" }, onOpenHealthRecord = { selectedHealthPatient = it; screen = "doctor_health_record" })
         screen == "admin" -> AdminGate(onBack = { screen = "main" })
         screen == "renew" -> RenewalScreen(onBack = { screen = "main" })
         screen == "prescriptions" -> DoctorPrescriptionsScreen(onBack = { screen = "main" })
@@ -250,6 +251,9 @@ fun App() {
         screen == "medication_plans" -> MedicationPlansScreen(onBack = { screen = "main" })
         screen == "health_profile" -> PatientHealthProfileScreen(onBack = { screen = "main" })
         screen == "family_profiles" -> FamilyProfilesScreen(onBack = { screen = "main" })
+        screen == "doctor_analytics" -> DoctorAnalyticsScreen(onBack = { screen = "main" })
+        screen == "clinic_branches" -> ClinicBranchesScreen(onBack = { screen = "main" })
+        screen == "doctor_health_record" -> DoctorSharedHealthProfileScreen(patientUid = selectedHealthPatient, onBack = { screen = "main" })
         screen == "emergency" -> EmergencyScreen(onBack = { screen = "main" })
         screen == "privacy" -> PrivacyScreen(onBack = { screen = "main" })
         screen == "messages" -> MessagesScreen(
@@ -264,7 +268,10 @@ fun App() {
             onOpen = { selected = it; screen = "detail" },
             onGo = {
                 if (it.startsWith("search:")) { initialQuery = it.removePrefix("search:"); screen = "search" }
-                else { if (it == "search") initialQuery = ""; screen = it }
+                else if (it.startsWith("healthrecord:")) {
+                    selectedHealthPatient = it.removePrefix("healthrecord:")
+                    screen = "doctor_health_record"
+                } else { if (it == "search") initialQuery = ""; screen = it }
             },
             onLogout = {
                 PushTokenManager.unregister(ctx) {
@@ -632,7 +639,7 @@ fun MainShell(notificationState: NotifState, onGo: (String) -> Unit, onOpen: (Ma
         Box(Modifier.padding(pad).fillMaxSize()) {
             when (tab) {
                 0 -> HomeTab(name, type, unread, onGo, onOpen, onTab = { tab = it })
-                1 -> if (type == "doctor" || type == "clinic") DoctorDashboardContent()
+                1 -> if (type == "doctor" || type == "clinic") DoctorDashboardContent(onOpenHealthRecord = { onGo("healthrecord:$it") })
                 else MyAppointmentsContent(onFind = { onGo("search") })
                 4 -> NotifTab(ns.items, fresh)
                 else -> ProfileTab(name, email, typeLabel, onLogout, onPrivacy = { onGo("privacy") }, isAdmin = isAdmin, onAdmin = { onGo("admin") })

@@ -108,6 +108,7 @@ fun DoctorDetailFull(d: Map<String, Any?>, onBack: () -> Unit, onBook: () -> Uni
     var phone by remember { mutableStateOf(d["phone"]?.toString().orEmpty()) }
     var last by remember { mutableLongStateOf(0L) }
     var current by remember { mutableLongStateOf(0L) }
+    var clinicBranches by remember { mutableStateOf<List<Map<String, Any?>>>(emptyList()) }
 
     LaunchedEffect(doctorId) {
         if (phone.isBlank() && doctorId.isNotBlank()) {
@@ -127,6 +128,18 @@ fun DoctorDetailFull(d: Map<String, Any?>, onBack: () -> Unit, onBook: () -> Uni
                     current = s?.getLong("current") ?: 0L
                 }
         onDispose { reg?.remove() }
+    }
+
+    DisposableEffect(doctorId) {
+        if (doctorId.isBlank()) onDispose { }
+        else {
+            val reg = bDb.collection("doctorBranches").document(doctorId).collection("items")
+                .whereEqualTo("active", true)
+                .addSnapshotListener { snapshot, _ ->
+                    clinicBranches = snapshot?.documents?.map { it.data.orEmpty() }.orEmpty()
+                }
+            onDispose { reg.remove() }
+        }
     }
 
     val startMin = ((d["startHour"] as? Number)?.toInt() ?: 9) * 60
@@ -193,6 +206,18 @@ fun DoctorDetailFull(d: Map<String, Any?>, onBack: () -> Unit, onBook: () -> Uni
                 OutlinedButton(onClick = { msg = openWorkPlaceRoute(ctx, hospitalPlace, "المشفى") ?: "" },
                     modifier = Modifier.fillMaxWidth().height(50.dp)) {
                     Text("الاتجاهات إلى المشفى", color = Color.White)
+                }
+            }
+            if (clinicBranches.isNotEmpty()) {
+                Text("فروع العيادة", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                clinicBranches.forEachIndexed { index, branch ->
+                    SxInfoRow("الفرع ${index + 1}", branch["name"], Icons.Filled.Business)
+                    SxInfoRow("المدينة", branch["city"], Icons.Filled.LocationOn)
+                    SxInfoRow("العنوان", branch["address"], Icons.Filled.LocationOn)
+                    OutlinedButton(
+                        onClick = { msg = openWorkPlaceRoute(ctx, branch, "الفرع") ?: "" },
+                        modifier = Modifier.fillMaxWidth().height(48.dp)
+                    ) { Text("الاتجاهات إلى ${branch["name"] ?: "الفرع"}", color = Color.White) }
                 }
             }
         }

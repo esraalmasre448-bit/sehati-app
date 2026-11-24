@@ -294,6 +294,10 @@ private fun DoctorHomeContent(
                 DoctorServiceCard(Icons.Filled.Group, "قائمة المرضى", Modifier.weight(1f)) { onPatients() }
             }
             DoctorServiceCard(Icons.Filled.Description, "الوصفات الطبية", Modifier.fillMaxWidth()) { onGo("prescriptions") }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                DoctorServiceCard(Icons.Filled.Analytics, "الإحصائيات", Modifier.weight(1f)) { onGo("doctor_analytics") }
+                DoctorServiceCard(Icons.Filled.AddLocationAlt, "فروع العيادة", Modifier.weight(1f)) { onGo("clinic_branches") }
+            }
         }
         }
     }

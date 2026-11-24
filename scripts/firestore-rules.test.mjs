@@ -123,6 +123,34 @@ try {
   }));
   await assertFails(deleteDoc(healthProfileRef));
 
+  // A doctor may read the health profile only while the patient has an active explicit grant.
+  const grantRef = doc(patient, "healthAccessGrants", patientId, "doctors", doctorId);
+  await assertSucceeds(setDoc(grantRef, {
+    patientUid: patientId,
+    doctorUid: doctorId,
+    expiresAt: Timestamp.fromDate(new Date(Date.now() + 30 * 86400000)),
+    grantedAt: serverTimestamp(),
+    revoked: false
+  }));
+  await assertSucceeds(getDoc(doc(doctor, "healthProfiles", patientId)));
+  await assertFails(getDoc(doc(outsider, "healthProfiles", patientId)));
+  await assertSucceeds(deleteDoc(grantRef));
+  await assertFails(getDoc(doc(doctor, "healthProfiles", patientId)));
+
+  // Approved doctors can manage their own branches; active branch locations are public to signed-in users.
+  const branchRef = doc(doctor, "doctorBranches", doctorId, "items", "clinic-1");
+  await assertSucceeds(setDoc(branchRef, {
+    name: "Main Clinic", city: "Test City", address: "Test Street",
+    active: true, updatedAt: serverTimestamp()
+  }));
+  await assertSucceeds(getDoc(doc(patient, "doctorBranches", doctorId, "items", "clinic-1")));
+  await assertFails(setDoc(doc(patient, "doctorBranches", doctorId, "items", "bad-branch"), {
+    name: "Fake", city: "Test", address: "", active: true, updatedAt: serverTimestamp()
+  }));
+  await assertSucceeds(updateDoc(branchRef, { active: false, updatedAt: serverTimestamp() }));
+  await assertFails(getDoc(doc(patient, "doctorBranches", doctorId, "items", "clinic-1")));
+  await assertSucceeds(deleteDoc(branchRef));
+
   // Patient favorites are private, limited to approved doctors, and removable by their owner.
   const favoriteRef = doc(patient, "favorites", patientId, "doctors", doctorId);
   await assertSucceeds(setDoc(favoriteRef, {
@@ -196,6 +224,52 @@ try {
       beneficiaryRelation: "Mother",
       createdAt: serverTimestamp()
     });
+  }));
+
+  // Only the treating doctor may schedule a follow-up on a confirmed or completed visit.
+  console.log("TEST_APPOINTMENT_CONFIRM");
+  await assertSucceeds(updateDoc(doc(doctor, "appointments", appointmentId), { status: "CONFIRMED" }));
+  console.log("TEST_PATIENT_CANNOT_SET_FOLLOWUP");
+  await assertFails(updateDoc(doc(patient, "appointments", appointmentId), {
+    followUpDate: "2099-01-02", followUpTime: "10:00", followUpSetAt: serverTimestamp()
+  }));
+  console.log("TEST_DOCTOR_SET_FOLLOWUP");
+  await assertSucceeds(updateDoc(doc(doctor, "appointments", appointmentId), {
+    followUpDate: "2099-01-02",
+    followUpTime: "10:00"
+  }));
+  // Payment analytics use a separate completed visit so later queue tests can keep using the first appointment.
+  const paymentDate = "2099-01-04";
+  const paymentAppointmentId = `${doctorId}_${paymentDate}_${patientId}_CONSULTATION`;
+  const paymentAppointmentRef = doc(patient, "appointments", paymentAppointmentId);
+  const paymentQueueRef = doc(patient, "queues", `${doctorId}_${paymentDate}`);
+  await assertSucceeds(runTransaction(patient, async (tx) => {
+    tx.set(paymentQueueRef, {
+      doctorId, date: paymentDate, last: 1, current: 0,
+      lastAppointmentId: paymentAppointmentId
+    });
+    tx.set(paymentAppointmentRef, {
+      patientId, patientName: "Patient", patientPhone: "",
+      doctorId, doctorName: "Doctor", specialty: "General",
+      clinicName: "", address: "", city: "Test",
+      date: paymentDate, slot: 540, time: "09:00",
+      number: 1, status: "PENDING", note: "",
+      visitType: "CONSULTATION", createdAt: serverTimestamp()
+    });
+  }));
+  await assertSucceeds(updateDoc(doc(doctor, "appointments", paymentAppointmentId), { status: "CONFIRMED" }));
+  await assertSucceeds(updateDoc(doc(doctor, "appointments", paymentAppointmentId), { status: "DONE" }));
+  console.log("TEST_PATIENT_CANNOT_RECORD_PAYMENT");
+  await assertFails(updateDoc(doc(patient, "appointments", paymentAppointmentId), {
+    paidAmount: 125, paidCurrency: "SYP", paidRecordedAt: serverTimestamp()
+  }));
+  console.log("TEST_DOCTOR_RECORD_PAYMENT");
+  await assertSucceeds(updateDoc(doc(doctor, "appointments", paymentAppointmentId), {
+    paidAmount: 125, paidCurrency: "SYP", paidRecordedAt: serverTimestamp()
+  }));
+  console.log("TEST_PAYMENT_IMMUTABLE");
+  await assertFails(updateDoc(doc(doctor, "appointments", paymentAppointmentId), {
+    paidAmount: 150, paidCurrency: "SYP", paidRecordedAt: serverTimestamp()
   }));
 
   // A patient may book a different visit type with the same doctor on the same day.
@@ -345,10 +419,7 @@ try {
   await assertFails(deleteDoc(doc(doctor, "subscriptions", doctorId)));
   await assertSucceeds(getDoc(doc(doctor, "subscriptions", doctorId)));
 
-  // Only the approved, subscribed doctor can approve and advance the queue.
-  await assertSucceeds(updateDoc(doc(doctor, "appointments", appointmentId), {
-    status: "CONFIRMED"
-  }));
+  // The appointment was already confirmed above; the approved doctor can now advance the queue.
   await assertSucceeds(updateDoc(doc(doctor, "queues", `${doctorId}_${date}`), {
     current: 1
   }));
@@ -427,10 +498,16 @@ try {
     text: "tamper"
   }));
   await assertFails(updateDoc(rxRef, { text: "doctor edit" }));
-  await assertSucceeds(updateDoc(rxRef, {
+  await assertFails(updateDoc(rxRef, {
     status: "VOIDED",
     voidedAt: serverTimestamp(),
     voidedBy: doctorId
+  }));
+  await assertSucceeds(updateDoc(rxRef, {
+    status: "VOIDED",
+    voidedAt: serverTimestamp(),
+    voidedBy: doctorId,
+    voidReason: "Duplicate entry"
   }));
   await assertFails(deleteDoc(doc(patient, "prescriptions", "rx-1")));
   await assertFails(deleteDoc(rxRef));

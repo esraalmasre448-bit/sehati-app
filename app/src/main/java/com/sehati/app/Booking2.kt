@@ -197,7 +197,7 @@ fun RouteScreen(onBack: () -> Unit, onFind: () -> Unit) {
 }
 
 @Composable
-fun DoctorDashboardContent(onBack: (() -> Unit)? = null) {
+fun DoctorDashboardContent(onBack: (() -> Unit)? = null, onOpenHealthRecord: (String) -> Unit = {}) {
     val uid = bAuth.currentUser?.uid ?: ""
     val st = subState(uid)
     val active = st == "active"
@@ -217,6 +217,16 @@ fun DoctorDashboardContent(onBack: (() -> Unit)? = null) {
     var noteText by remember { mutableStateOf("") }
     var noteBusy by remember { mutableStateOf(false) }
     var noteMsg by remember { mutableStateOf("") }
+    var followUpTarget by remember { mutableStateOf<Map<String, Any?>?>(null) }
+    var followUpDate by remember { mutableStateOf("") }
+    var followUpTime by remember { mutableStateOf("09:00") }
+    var followUpBusy by remember { mutableStateOf(false) }
+    var followUpMsg by remember { mutableStateOf("") }
+    var paymentTarget by remember { mutableStateOf<Map<String, Any?>?>(null) }
+    var paymentAmount by remember { mutableStateOf("") }
+    var paymentCurrency by remember { mutableStateOf("SYP") }
+    var paymentBusy by remember { mutableStateOf(false) }
+    var paymentMsg by remember { mutableStateOf("") }
 
     LaunchedEffect(uid) {
         if (uid.isNotEmpty()) {
@@ -316,18 +326,23 @@ fun DoctorDashboardContent(onBack: (() -> Unit)? = null) {
                 val note = a["note"]?.toString().orEmpty()
                 if (note.isNotBlank()) Text("ملاحظة: $note", color = BMuted)
                 Text(label, color = color, fontWeight = FontWeight.Bold)
+                OutlinedButton(
+                    onClick = { onOpenHealthRecord(a["patientId"]?.toString().orEmpty()) },
+                    enabled = !a["patientId"]?.toString().isNullOrBlank()
+                ) { Text("السجل الصحي بموافقة المريض", color = Color.White) }
                 notes.filter { it["appointmentId"] == id }
                     .sortedBy { (it["createdAt"] as? com.google.firebase.Timestamp)?.seconds ?: 0L }
                     .forEach { n ->
-                        NoteBox(n) {
+                        NoteBox(n) { reason ->
                             bDb.collection("prescriptions").document(n["id"] as String).update(
                                 mapOf(
                                     "status" to "VOIDED",
                                     "voidedAt" to FieldValue.serverTimestamp(),
-                                    "voidedBy" to uid
+                                    "voidedBy" to uid,
+                                    "voidReason" to reason
                                 )
                             ).addOnSuccessListener {
-                                msg = "تم إلغاء المستند مع الاحتفاظ به في السجل الطبي"
+                                msg = "تم إلغاء المستند مع توثيق السبب والاحتفاظ به في السجل"
                             }.addOnFailureListener {
                                 msg = "تعذر إلغاء المستند، تحقق من الصلاحيات والاتصال"
                             }
@@ -387,8 +402,133 @@ fun DoctorDashboardContent(onBack: (() -> Unit)? = null) {
                         ) { Text("إلغاء الحجز", color = Color.White) }
                     }
                 }
+                if (a["status"] == "CONFIRMED" || a["status"] == "DONE") {
+                    OutlinedButton(
+                        enabled = active,
+                        onClick = {
+                            followUpTarget = a
+                            followUpDate = ""
+                            followUpTime = "09:00"
+                            followUpMsg = ""
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("تحديد موعد متابعة", color = Color.White) }
+                }
+                if (a["status"] == "DONE") {
+                    val paid = a["paidAmount"] as? Number
+                    if (paid != null) {
+                        Text("المبلغ المسجل: " + paid.toDouble() + " " + (a["paidCurrency"] ?: ""), color = BGreen, fontSize = 13.sp)
+                    } else {
+                        OutlinedButton(
+                            enabled = active,
+                            onClick = {
+                                paymentTarget = a
+                                paymentAmount = ""
+                                paymentCurrency = "SYP"
+                                paymentMsg = ""
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("تسجيل المبلغ المدفوع", color = Color.White) }
+                    }
+                }
             }
         }
+    }
+
+    val followUp = followUpTarget
+    if (followUp != null) {
+        AlertDialog(
+            onDismissRequest = { if (!followUpBusy) followUpTarget = null },
+            title = { Text("تحديد موعد متابعة") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("سيصل المريض إشعاراً فور حفظ موعد المتابعة. أدخل التاريخ والوقت المحليين للعيادة.")
+                    OutlinedTextField(value = followUpDate, onValueChange = { followUpDate = it.take(10) }, label = { Text("التاريخ YYYY-MM-DD") }, singleLine = true)
+                    OutlinedTextField(value = followUpTime, onValueChange = { followUpTime = it.take(5) }, label = { Text("الوقت HH:MM") }, singleLine = true)
+                    if (followUpMsg.isNotBlank()) Text(followUpMsg, color = BDanger)
+                }
+            },
+            confirmButton = {
+                TextButton(enabled = !followUpBusy, onClick = {
+                    val dateOk = Regex("^\\d{4}-\\d{2}-\\d{2}$").matches(followUpDate) && followUpDate >= todayKey()
+                    val timeOk = Regex("^([01]\\d|2[0-3]):[0-5]\\d$").matches(followUpTime)
+                    if (!dateOk || !timeOk) {
+                        followUpMsg = "تحقق من التاريخ والوقت بصيغتهما الصحيحة."
+                        return@TextButton
+                    }
+                    followUpBusy = true
+                    val appointmentId = followUp["id"]?.toString().orEmpty()
+                    bDb.collection("appointments").document(appointmentId).update(
+                        mapOf(
+                            "followUpDate" to followUpDate,
+                            "followUpTime" to followUpTime
+                        )
+                    ).addOnSuccessListener {
+                        followUpBusy = false
+                        followUpTarget = null
+                        PushSender.notifyFollowUp(appointmentId)
+                        msg = "تم حفظ موعد المتابعة وإرسال إشعار للمريض."
+                    }.addOnFailureListener {
+                        followUpBusy = false
+                        followUpMsg = "تعذر حفظ المتابعة. تحقق من الصلاحيات والاشتراك."
+                    }
+                }) { Text("حفظ وإشعار المريض") }
+            },
+            dismissButton = { TextButton(enabled = !followUpBusy, onClick = { followUpTarget = null }) { Text("إلغاء") } }
+        )
+    }
+
+    val payment = paymentTarget
+    if (payment != null) {
+        AlertDialog(
+            onDismissRequest = { if (!paymentBusy) paymentTarget = null },
+            title = { Text("تسجيل المبلغ المدفوع") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("سجّل المبلغ الذي استلمه الطبيب فعلياً. هذا إدخال يدوي وليس إثبات دفع إلكتروني.")
+                    OutlinedTextField(
+                        value = paymentAmount, onValueChange = { paymentAmount = it.take(14) },
+                        label = { Text("المبلغ") }, singleLine = true
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf("SYP", "EUR", "USD").forEach { currency ->
+                            FilterChip(
+                                selected = paymentCurrency == currency,
+                                onClick = { paymentCurrency = currency },
+                                label = { Text(currency) }
+                            )
+                        }
+                    }
+                    if (paymentMsg.isNotBlank()) Text(paymentMsg, color = BDanger)
+                }
+            },
+            confirmButton = {
+                TextButton(enabled = !paymentBusy, onClick = {
+                    val amount = paymentAmount.replace(",", ".").toDoubleOrNull()
+                    if (amount == null || amount <= 0.0 || amount > 100000000000.0) {
+                        paymentMsg = "أدخل مبلغاً صحيحاً أكبر من صفر."
+                        return@TextButton
+                    }
+                    paymentBusy = true
+                    val appointmentId = payment["id"]?.toString().orEmpty()
+                    bDb.collection("appointments").document(appointmentId).update(
+                        mapOf(
+                            "paidAmount" to amount,
+                            "paidCurrency" to paymentCurrency,
+                            "paidRecordedAt" to FieldValue.serverTimestamp()
+                        )
+                    ).addOnSuccessListener {
+                        paymentBusy = false
+                        paymentTarget = null
+                        msg = "تم تسجيل المبلغ المدفوع."
+                    }.addOnFailureListener {
+                        paymentBusy = false
+                        paymentMsg = "تعذر تسجيل المبلغ. قد يكون قد سُجل مسبقاً."
+                    }
+                }) { Text("حفظ المبلغ") }
+            },
+            dismissButton = { TextButton(enabled = !paymentBusy, onClick = { paymentTarget = null }) { Text("إلغاء") } }
+        )
     }
 
     val nf = noteFor
@@ -432,17 +572,16 @@ fun DoctorDashboardContent(onBack: (() -> Unit)? = null) {
 }
 
 @Composable
-fun NoteBox(n: Map<String, Any?>, onVoid: (() -> Unit)?) {
+fun NoteBox(n: Map<String, Any?>, onVoid: ((String) -> Unit)? = null) {
     val rx = n["kind"] == "rx"
     val isVoided = n["status"] == "VOIDED"
     var showVoidConfirmation by remember(n["id"]) { mutableStateOf(false) }
+    var voidReason by remember(n["id"]) { mutableStateOf("") }
     val ts = (n["createdAt"] as? com.google.firebase.Timestamp)?.toDate()
     val dateTxt = if (ts != null) SimpleDateFormat("d/M/yyyy", Locale.US).format(ts) else ""
     Column(
-        Modifier.fillMaxWidth()
-            .background(BBg, RoundedCornerShape(10.dp))
-            .border(1.dp, BRed, RoundedCornerShape(10.dp))
-            .padding(10.dp),
+        Modifier.fillMaxWidth().background(BBg, RoundedCornerShape(10.dp))
+            .border(1.dp, BRed, RoundedCornerShape(10.dp)).padding(10.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         Text(
@@ -450,36 +589,40 @@ fun NoteBox(n: Map<String, Any?>, onVoid: (() -> Unit)?) {
                 (if (dateTxt.isNotEmpty()) " • $dateTxt" else "") +
                 (if (onVoid == null && "${n["doctorName"] ?: ""}".isNotBlank()) " • من د. ${n["doctorName"]}" else "") +
                 (if (isVoided) " • ملغاة" else ""),
-            color = if (isVoided) BDanger else BRed,
-            fontWeight = FontWeight.Bold,
-            fontSize = 13.sp
+            color = if (isVoided) BDanger else BRed, fontWeight = FontWeight.Bold, fontSize = 13.sp
         )
         Text("${n["text"] ?: ""}", color = Color.White)
         if (isVoided) {
             Text("أُلغي هذا المستند مع الاحتفاظ به في السجل الطبي.", color = BDanger, fontSize = 11.sp)
+            val reason = n["voidReason"]?.toString().orEmpty()
+            if (reason.isNotBlank()) Text("سبب الإلغاء: $reason", color = BMuted, fontSize = 12.sp)
         } else if (onVoid == null) {
             Text("ملاحظة طبية من الطبيب عبر التطبيق، وليست وصفة رسمية.", color = BMuted, fontSize = 11.sp)
         }
         if (onVoid != null && !isVoided) {
-            TextButton(onClick = { showVoidConfirmation = true }) {
-                Text("إلغاء المستند", color = BDanger)
-            }
+            TextButton(onClick = { showVoidConfirmation = true }) { Text("إلغاء المستند", color = BDanger) }
         }
     }
     if (showVoidConfirmation && onVoid != null && !isVoided) {
         AlertDialog(
             onDismissRequest = { showVoidConfirmation = false },
             title = { Text("إلغاء المستند الطبي؟") },
-            text = { Text("سيبقى المستند محفوظاً في سجل المريض، وستظهر حالته كملغاة.") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("سيبقى المستند محفوظاً في سجل المريض. اكتب سبب الإلغاء لتوثيقه.")
+                    OutlinedTextField(
+                        value = voidReason, onValueChange = { voidReason = it.take(300) },
+                        label = { Text("سبب الإلغاء (إلزامي)") }, minLines = 2
+                    )
+                }
+            },
             confirmButton = {
-                TextButton(onClick = {
+                TextButton(enabled = voidReason.isNotBlank(), onClick = {
                     showVoidConfirmation = false
-                    onVoid()
+                    onVoid(voidReason.trim())
                 }) { Text("تأكيد الإلغاء", color = BDanger) }
             },
-            dismissButton = {
-                TextButton(onClick = { showVoidConfirmation = false }) { Text("رجوع") }
-            }
+            dismissButton = { TextButton(onClick = { showVoidConfirmation = false }) { Text("رجوع") } }
         )
     }
 }

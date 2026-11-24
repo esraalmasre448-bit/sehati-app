@@ -255,6 +255,16 @@ async function sendAppointmentNotification(projectId, accessToken, senderUid, in
     receiverUid = patientUid;
     title = "اكتملت زيارتك";
     body = "أنهى " + doctorName + " زيارتك. نتمنى لك دوام الصحة.";
+  } else if (event === "followup_scheduled") {
+    const followUpDate = str(appointment, "followUpDate");
+    const followUpTime = str(appointment, "followUpTime");
+    if (senderUid !== doctorUid || !/^\d{4}-\d{2}-\d{2}$/.test(followUpDate) ||
+        !/^([01]\d|2[0-3]):[0-5]\d$/.test(followUpTime)) {
+      return json({ error: "forbidden" }, 403);
+    }
+    receiverUid = patientUid;
+    title = "تم تحديد موعد متابعة";
+    body = doctorName + " حدّد لك موعد متابعة بتاريخ " + followUpDate + " الساعة " + followUpTime;
   } else {
     return json({ error: "invalid_event" }, 400);
   }
