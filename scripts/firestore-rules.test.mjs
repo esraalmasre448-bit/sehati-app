@@ -236,8 +236,7 @@ try {
   console.log("TEST_DOCTOR_SET_FOLLOWUP");
   await assertSucceeds(updateDoc(doc(doctor, "appointments", appointmentId), {
     followUpDate: "2099-01-02",
-    followUpTime: "10:00",
-    followUpSetAt: serverTimestamp()
+    followUpTime: "10:00"
   }));
   // Payment analytics use a separate completed visit so later queue tests can keep using the first appointment.
   const paymentDate = "2099-01-04";
