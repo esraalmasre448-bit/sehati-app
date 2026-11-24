@@ -123,6 +123,34 @@ try {
   }));
   await assertFails(deleteDoc(healthProfileRef));
 
+  // A doctor may read the health profile only while the patient has an active explicit grant.
+  const grantRef = doc(patient, "healthAccessGrants", patientId, "doctors", doctorId);
+  await assertSucceeds(setDoc(grantRef, {
+    patientUid: patientId,
+    doctorUid: doctorId,
+    expiresAt: Timestamp.fromDate(new Date(Date.now() + 30 * 86400000)),
+    grantedAt: serverTimestamp(),
+    revoked: false
+  }));
+  await assertSucceeds(getDoc(doc(doctor, "healthProfiles", patientId)));
+  await assertFails(getDoc(doc(outsider, "healthProfiles", patientId)));
+  await assertSucceeds(deleteDoc(grantRef));
+  await assertFails(getDoc(doc(doctor, "healthProfiles", patientId)));
+
+  // Approved doctors can manage their own branches; active branch locations are public to signed-in users.
+  const branchRef = doc(doctor, "doctorBranches", doctorId, "items", "clinic-1");
+  await assertSucceeds(setDoc(branchRef, {
+    name: "Main Clinic", city: "Test City", address: "Test Street",
+    active: true, updatedAt: serverTimestamp()
+  }));
+  await assertSucceeds(getDoc(doc(patient, "doctorBranches", doctorId, "items", "clinic-1")));
+  await assertFails(setDoc(doc(patient, "doctorBranches", doctorId, "items", "bad-branch"), {
+    name: "Fake", city: "Test", address: "", active: true, updatedAt: serverTimestamp()
+  }));
+  await assertSucceeds(updateDoc(branchRef, { active: false, updatedAt: serverTimestamp() }));
+  await assertFails(getDoc(doc(patient, "doctorBranches", doctorId, "items", "clinic-1")));
+  await assertSucceeds(deleteDoc(branchRef));
+
   // Patient favorites are private, limited to approved doctors, and removable by their owner.
   const favoriteRef = doc(patient, "favorites", patientId, "doctors", doctorId);
   await assertSucceeds(setDoc(favoriteRef, {
