@@ -58,6 +58,11 @@ object MedicationReminderScheduler {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().remove(id).apply()
     }
 
+    fun cancelAll(context: Context) {
+        val ids = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).all.keys.toList()
+        ids.forEach { cancel(context, it) }
+    }
+
     fun restore(context: Context) {
         val all = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).all
         all.forEach { (id, raw) ->
