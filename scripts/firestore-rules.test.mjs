@@ -483,7 +483,7 @@ try {
       throw new Error("Expected a cancelled appointment");
     }
     const next = (queue.data().last || 0) + 1;
-    tx.update(queueRef, { last: next });
+    tx.update(queueRef, { last: next, lastAppointmentId: appointmentId });
     tx.set(apptRef, {
       patientId,
       patientName: "Patient",
@@ -500,6 +500,7 @@ try {
       number: next,
       status: "PENDING",
       note: "Rebooked",
+      visitType: "CONSULTATION",
       createdAt: serverTimestamp()
     });
   }));
