@@ -283,16 +283,12 @@ service cloud.firestore {
      && userType() == 'patient'
      && resource.data.status == 'CANCELLED'
      && request.resource.data.keys().hasOnly(apptKeys())
-     && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-      'patientName','patientPhone','doctorName','specialty','clinicName',
-      'address','city','slot','time','number','status','note','createdAt','beneficiaryRelation','visitType'
-     ])
      && request.resource.data.status == 'PENDING'
      && request.resource.data.patientId == request.auth.uid
      && request.resource.data.doctorId == resource.data.doctorId
      && request.resource.data.date == resource.data.date
      && request.resource.data.number is int
-     && request.resource.data.createdAt is timestamp
+     && request.resource.data.number is int
      && getAfter(qPath(resource.data.doctorId, resource.data.date)).data.last == request.resource.data.number
      && getAfter(qPath(resource.data.doctorId, resource.data.date)).data.lastAppointmentId == id
      && subActive(resource.data.doctorId)
