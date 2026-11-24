@@ -33,6 +33,7 @@ private data class WorkPlaceDraft(
     val end: String = "17",
     val days: Set<Int> = (1..7).toSet(),
     val step: Int = 30,
+    val dailyCapacity: Int = 30,
     val location: String = ""
 )
 
@@ -63,6 +64,7 @@ fun ClinicSettingsScreen(onBack: () -> Unit) {
                     end = (p["endHour"] as? Number)?.toInt()?.toString() ?: "17",
                     days = (p["workDays"] as? List<*>)?.mapNotNull { (it as? Number)?.toInt() }?.toSet()?.takeIf { it.isNotEmpty() } ?: (1..7).toSet(),
                     step = ((p["slotMinutes"] as? Number)?.toInt() ?: 30).coerceIn(10, 180),
+                    dailyCapacity = ((p["dailyCapacity"] as? Number)?.toInt() ?: 30).coerceIn(1, 500),
                     location = when {
                         p["lat"] is Number && p["lng"] is Number -> "${p["lat"]},${p["lng"]}"
                         else -> p["mapLink"]?.toString().orEmpty()
@@ -77,6 +79,7 @@ fun ClinicSettingsScreen(onBack: () -> Unit) {
                         end = (d.getLong("endHour") ?: 17L).toString(),
                         days = workDaysOf(d.data),
                         step = (d.getLong("slotMinutes") ?: 30L).toInt(),
+                        dailyCapacity = (d.getLong("dailyCapacity") ?: 30L).toInt().coerceIn(1, 500),
                         location = if (lat != null && lng != null) "$lat,$lng" else d.getString("mapLink").orEmpty()
                     )
                 }
@@ -210,7 +213,8 @@ fun ClinicSettingsScreen(onBack: () -> Unit) {
                     "startHour" to p.start.trim().toInt(),
                     "endHour" to p.end.trim().toInt(),
                     "workDays" to p.days.sorted(),
-                    "slotMinutes" to p.step
+                    "slotMinutes" to p.step,
+                    "dailyCapacity" to p.dailyCapacity
                 )
                 val ll = parseLatLng(p.location)
                 if (ll != null) {
@@ -227,6 +231,7 @@ fun ClinicSettingsScreen(onBack: () -> Unit) {
                 "startHour" to clinic.start.trim().toInt(),
                 "endHour" to clinic.end.trim().toInt(),
                 "slotMinutes" to clinic.step,
+                "dailyCapacity" to clinic.dailyCapacity,
                 "workDays" to clinic.days.sorted(),
                 "hospitalName" to if (hospitalConfigured) hospital.name.trim() else "",
                 "hospitalHours" to if (hospitalConfigured) (hospital.start + ":00 - " + hospital.end + ":00") else "",
@@ -301,6 +306,9 @@ private fun WorkPlaceEditor(
                 FilterChip(selected = value.step == m, onClick = { onChange(value.copy(step = m)) }, label = { Text("$m د") })
             }
         }
+        Field(value.dailyCapacity.toString(), {
+            onChange(value.copy(dailyCapacity = (it.toIntOrNull() ?: value.dailyCapacity).coerceIn(1, 500)))
+        }, "الحد الأقصى للمواعيد يومياً", keyboard = KeyboardType.Number)
         Field(value.location, { onChange(value.copy(location = it)) }, "رابط خرائط Google أو إحداثيات")
         OutlinedButton(onClick = onGps, modifier = Modifier.fillMaxWidth().height(48.dp)) {
             Text("التقاط موقع $title من GPS", color = Color.White)
