@@ -204,6 +204,7 @@ fun App() {
             onUnlock = { locked = false },
             onForgot = {
                 PushTokenManager.unregister(ctx) {
+                    MedicationReminderScheduler.cancelAll(ctx)
                     AppLockStore.clear(ctx)
                     auth.signOut()
                     loggedIn = false
@@ -266,6 +267,7 @@ fun App() {
             },
             onLogout = {
                 PushTokenManager.unregister(ctx) {
+                    MedicationReminderScheduler.cancelAll(ctx)
                     AppLockStore.clear(ctx)
                     auth.signOut()
                     loggedIn = false
