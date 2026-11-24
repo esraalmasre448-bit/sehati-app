@@ -226,9 +226,7 @@ service cloud.firestore {
       && id == request.resource.data.doctorId + '_' + request.resource.data.date + '_' + request.auth.uid)
      || ('visitType' in request.resource.data
       && request.resource.data.visitType in ['CONSULTATION','FOLLOW_UP']
-      && id == request.resource.data.doctorId + '_' + request.resource.data.date + '_' + request.auth.uid + '_' + request.resource.data.visitType
-      && (!exists(aPath(request.resource.data.doctorId, request.resource.data.date, request.auth.uid))
-       || get(aPath(request.resource.data.doctorId, request.resource.data.date, request.auth.uid)).data.status in ['CANCELLED','DONE']))
+      && id == request.resource.data.doctorId + '_' + request.resource.data.date + '_' + request.auth.uid + '_' + request.resource.data.visitType)
     )
     && subActive(request.resource.data.doctorId)
     && doctorApproved(request.resource.data.doctorId)
