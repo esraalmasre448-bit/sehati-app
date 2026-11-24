@@ -141,6 +141,10 @@ fun PatientHome(
             Tile(Icons.Filled.Favorite, "أطبائي المفضلون", false, Modifier.weight(1f)) { onGo("favorites") }
             Tile(Icons.Filled.Medication, "جدول أدويتي", false, Modifier.weight(1f)) { onGo("medication_plans") }
         }
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Tile(Icons.Filled.HealthAndSafety, "ملفي الصحي", false, Modifier.weight(1f)) { onGo("health_profile") }
+            Tile(Icons.Filled.FamilyRestroom, "ملفات العائلة", false, Modifier.weight(1f)) { onGo("family_profiles") }
+        }
     }
 }
 

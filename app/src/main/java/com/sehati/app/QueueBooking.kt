@@ -36,7 +36,8 @@ private fun estimate(last: Long, current: Long, today: Boolean, startMin: Int, s
 }
 
 private fun bookByQueue(
-    d: Map<String, Any?>, date: String, today: Boolean, note: String,
+    d: Map<String, Any?>, date: String, today: Boolean, note: String, visitType: String,
+    beneficiaryName: String, beneficiaryRelation: String,
     onResult: (Boolean, String) -> Unit
 ) {
     val me = bAuth.currentUser
@@ -46,13 +47,18 @@ private fun bookByQueue(
     val endMin = (qNum(d["endHour"]) ?: 17) * 60
     val step = (qNum(d["slotMinutes"]) ?: 30).coerceAtLeast(10)
     val queueRef = bDb.collection("queues").document("${doctorId}_$date")
-    val apptRef = bDb.collection("appointments").document("${doctorId}_${date}_${me.uid}")
+    val apptRef = bDb.collection("appointments").document("${doctorId}_${date}_${me.uid}_${visitType}")
+    val legacyApptRef = bDb.collection("appointments").document("${doctorId}_${date}_${me.uid}")
     bDb.collection("users").document(me.uid).get().addOnSuccessListener { u ->
-        val pName = u.getString("name") ?: ""
+        val pName = beneficiaryName.ifBlank { u.getString("name") ?: "" }
         val pPhone = u.getString("phone") ?: ""
         bDb.runTransaction<String> { tx ->
             val a = tx.get(apptRef)
+            val legacy = tx.get(legacyApptRef)
             val q = tx.get(queueRef)
+            if (legacy.exists() && legacy.getString("status")?.let { it == "PENDING" || it == "CONFIRMED" } == true) {
+                return@runTransaction "LEGACY_EXIST|${legacy.getLong("number") ?: 0L}|${legacy.getString("time") ?: ""}"
+            }
             if (a.exists()) {
                 val st = a.getString("status")
                 if (st == "CONFIRMED") {
@@ -66,17 +72,21 @@ private fun bookByQueue(
             val (number, est) = estimate(last, current, today, startMin, step)
             if (est + step > endMin) return@runTransaction "FULL"
             if (q.exists()) {
-                tx.update(queueRef, "last", number)
+                tx.update(queueRef, mapOf("last" to number, "lastAppointmentId" to apptRef.id))
             } else {
                 tx.set(
                     queueRef,
-                    mapOf("doctorId" to doctorId, "date" to date, "last" to 1L, "current" to 0L)
+                    mapOf(
+                        "doctorId" to doctorId, "date" to date, "last" to 1L, "current" to 0L,
+                        "lastAppointmentId" to apptRef.id
+                    )
                 )
             }
             tx.set(
                 apptRef,
                 mapOf(
                     "patientId" to me.uid, "patientName" to pName, "patientPhone" to pPhone,
+                    "beneficiaryRelation" to beneficiaryRelation,
                     "doctorId" to doctorId,
                     "doctorName" to (d["name"]?.toString() ?: ""),
                     "specialty" to (d["specialty"]?.toString() ?: ""),
@@ -85,6 +95,7 @@ private fun bookByQueue(
                     "city" to (d["city"]?.toString() ?: ""),
                     "date" to date, "slot" to est, "time" to qTime(est),
                     "number" to number, "status" to "PENDING", "note" to note,
+                    "visitType" to visitType,
                     "createdAt" to FieldValue.serverTimestamp()
                 )
             )
@@ -93,7 +104,11 @@ private fun bookByQueue(
             val p = r.split("|")
             when (p[0]) {
                 "FULL" -> onResult(false, "الأدوار ممتلئة لهذا اليوم، اختر يومًا آخر")
-                "BLOCKED" -> onResult(false, "لديك موعد سابق عند هذا الطبيب بهذا اليوم، اختر يومًا آخر")
+                "BLOCKED" -> onResult(false, "تعذر إنشاء الحجز بسبب حالة موعد سابق.")
+                "LEGACY_EXIST" -> onResult(
+                    false,
+                    "لديك موعد قديم غير مصنف عند هذا الطبيب في هذا اليوم. لتجنب تكرار الحجز، لا يمكن إضافة زيارة أخرى قبل انتهاء الموعد أو إلغائه."
+                )
                 "PENDING_EXIST" -> onResult(true, "طلبك السابق بانتظار موافقة الطبيب. رقم الدور: ${p.getOrElse(1) { "" }} — الوقت التقديري: ${p.getOrElse(2) { "" }}")
                 "EXIST" -> onResult(
                     true,
@@ -131,12 +146,29 @@ fun QueueBookingScreen(d: Map<String, Any?>, onBack: () -> Unit, onDone: () -> U
     var last by remember { mutableLongStateOf(0L) }
     var current by remember { mutableLongStateOf(0L) }
     var note by remember { mutableStateOf("") }
+    var visitType by remember { mutableStateOf("CONSULTATION") }
+    var familyMembers by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
+    var selectedFamily by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var familyMenu by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var msg by remember { mutableStateOf("") }
     var done by remember { mutableStateOf(false) }
     var resultText by remember { mutableStateOf("") }
     val date = dateKey(days[dayIdx])
     val isToday = date == todayKey()
+    val patientUid = bAuth.currentUser?.uid.orEmpty()
+    DisposableEffect(patientUid) {
+        if (patientUid.isBlank()) onDispose { }
+        else {
+            val registration = bDb.collection("familyProfiles").document(patientUid).collection("members")
+                .addSnapshotListener { snapshot, _ ->
+                    familyMembers = snapshot?.documents.orEmpty().map {
+                        it.getString("name").orEmpty() to it.getString("relation").orEmpty()
+                    }.filter { it.first.isNotBlank() }
+                }
+            onDispose { registration.remove() }
+        }
+    }
     val startMin = (qNum(d["startHour"]) ?: 9) * 60
     val endMin = (qNum(d["endHour"]) ?: 17) * 60
     val step = (qNum(d["slotMinutes"]) ?: 30).coerceAtLeast(10)
@@ -175,6 +207,39 @@ fun QueueBookingScreen(d: Map<String, Any?>, onBack: () -> Unit, onDone: () -> U
                 onClick = onDone, modifier = Modifier.fillMaxWidth().height(52.dp)
             ) { Text("مواعيدي", color = Color.White) }
         } else {
+            Text("نوع الزيارة", color = BMuted, fontWeight = FontWeight.SemiBold)
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                FilterChip(
+                    selected = visitType == "CONSULTATION",
+                    onClick = { visitType = "CONSULTATION" },
+                    label = { Text("معاينة") }
+                )
+                FilterChip(
+                    selected = visitType == "FOLLOW_UP",
+                    onClick = { visitType = "FOLLOW_UP" },
+                    label = { Text("مراجعة") }
+                )
+            }
+            Box {
+                OutlinedButton(onClick = { familyMenu = true }, modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        selectedFamily?.let { "الحجز لـ: ${it.first} (${it.second})" } ?: "الحجز لي شخصياً",
+                        color = Color.White
+                    )
+                }
+                DropdownMenu(expanded = familyMenu, onDismissRequest = { familyMenu = false }) {
+                    DropdownMenuItem(
+                        text = { Text("أنا") },
+                        onClick = { selectedFamily = null; familyMenu = false }
+                    )
+                    familyMembers.forEach { member ->
+                        DropdownMenuItem(
+                            text = { Text("${member.first} — ${member.second}") },
+                            onClick = { selectedFamily = member; familyMenu = false }
+                        )
+                    }
+                }
+            }
             Text("اختر اليوم", color = BMuted)
             if (hasWorkDays(d)) Text("أيام دوام الطبيب: " + workDaysLabel(workDaysOf(d)), color = BGreen, fontSize = 13.sp)
             DayChips(days, dayIdx) { dayIdx = it }
@@ -204,7 +269,10 @@ fun QueueBookingScreen(d: Map<String, Any?>, onBack: () -> Unit, onDone: () -> U
             RedButton("إرسال طلب الحجز", enabled = !busy && !full) {
                 busy = true
                 msg = ""
-                bookByQueue(d, date, isToday, note.trim().take(300)) { ok, text ->
+                bookByQueue(
+                    d, date, isToday, note.trim().take(300), visitType,
+                    selectedFamily?.first.orEmpty(), selectedFamily?.second.orEmpty()
+                ) { ok, text ->
                     busy = false
                     if (ok) { done = true; resultText = text } else msg = text
                 }

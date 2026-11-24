@@ -11,6 +11,7 @@ on:
       - security/firestore-rules-fix-verified-2026-10-31
       - feature/bidirectional-chat-push-notifications
       - main
+      - feature/complete-health-platform-batch-2026-11-24
 env:
   KS_PASS: ${{ secrets.KS_PASS }}
   PUSH_WORKER_URL: ${{ secrets.PUSH_WORKER_URL }}

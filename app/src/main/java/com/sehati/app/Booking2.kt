@@ -94,6 +94,12 @@ private fun QueueCard(a: Map<String, Any?>) {
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         Text("${a["doctorName"]}", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
+        val visitLabel = when (a["visitType"]) {
+            "CONSULTATION" -> "معاينة"
+            "FOLLOW_UP" -> "مراجعة"
+            else -> "زيارة"
+        }
+        Text("نوع الزيارة: $visitLabel", color = BRed, fontWeight = FontWeight.SemiBold)
         Text("الساعة ${a["time"]}", color = BMuted)
         Text("رقمك: $number", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = Color.White)
         Text("الرقم الحالي: $current", color = Color.White, fontSize = 16.sp)
@@ -172,6 +178,15 @@ fun RouteScreen(onBack: () -> Unit, onFind: () -> Unit) {
                 Text("${a["doctorName"]}", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
                 Text("${a["clinicName"] ?: ""}  ${a["city"] ?: ""}", color = BMuted)
                 Text("${a["date"]}  •  ${a["time"]}", color = Color.White)
+                Text(
+                    "نوع الزيارة: " + when (a["visitType"]) {
+                        "CONSULTATION" -> "معاينة"
+                        "FOLLOW_UP" -> "مراجعة"
+                        else -> "زيارة"
+                    },
+                    color = BRed,
+                    fontWeight = FontWeight.SemiBold
+                )
                 Button(
                     onClick = { routeToDoctor(ctx, a["doctorId"].toString()) { msg = it } },
                     colors = ButtonDefaults.buttonColors(containerColor = BRed, contentColor = BOnAccent)

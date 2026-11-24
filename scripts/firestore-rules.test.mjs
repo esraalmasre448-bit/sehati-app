@@ -33,7 +33,7 @@ const adminId = "admin1";
 const unapprovedDoctorId = "doctor2";
 const expiredDoctorId = "doctor3";
 const date = "2099-01-01";
-const appointmentId = `${doctorId}_${date}_${patientId}`;
+const appointmentId = `${doctorId}_${date}_${patientId}_CONSULTATION`;
 const conversationId = `${doctorId}_${patientId}`;
 
 const patient = env.authenticatedContext(patientId).firestore();
@@ -88,6 +88,41 @@ try {
     }
   });
 
+  // Family member records are private to the owning patient and can be removed by that owner.
+  const familyMemberRef = doc(patient, "familyProfiles", patientId, "members", "mother-1");
+  await assertSucceeds(setDoc(familyMemberRef, {
+    name: "Family Member",
+    relation: "Mother",
+    createdAt: serverTimestamp()
+  }));
+  await assertSucceeds(getDoc(familyMemberRef));
+  await assertFails(getDoc(doc(outsider, "familyProfiles", patientId, "members", "mother-1")));
+  await assertFails(getDoc(doc(doctor, "familyProfiles", patientId, "members", "mother-1")));
+  await assertSucceeds(updateDoc(familyMemberRef, { relation: "Parent" }));
+  await assertSucceeds(deleteDoc(familyMemberRef));
+
+  // Health profile data is private to the patient; doctors and other patients cannot read it.
+  const healthProfileRef = doc(patient, "healthProfiles", patientId);
+  await assertSucceeds(setDoc(healthProfileRef, {
+    uid: patientId,
+    bloodType: "O+",
+    allergies: "Pollen",
+    conditions: "None",
+    emergencyContact: "Family contact",
+    notes: "Test profile",
+    updatedAt: serverTimestamp()
+  }));
+  await assertSucceeds(getDoc(healthProfileRef));
+  await assertFails(getDoc(doc(outsider, "healthProfiles", patientId)));
+  await assertFails(getDoc(doc(doctor, "healthProfiles", patientId)));
+  await assertFails(updateDoc(doc(doctor, "healthProfiles", patientId), {
+    notes: "Unauthorized", updatedAt: serverTimestamp()
+  }));
+  await assertSucceeds(updateDoc(healthProfileRef, {
+    notes: "Updated by owner", updatedAt: serverTimestamp()
+  }));
+  await assertFails(deleteDoc(healthProfileRef));
+
   // Patient favorites are private, limited to approved doctors, and removable by their owner.
   const favoriteRef = doc(patient, "favorites", patientId, "doctors", doctorId);
   await assertSucceeds(setDoc(favoriteRef, {
@@ -140,7 +175,7 @@ try {
     if (oldAppointment.exists() || oldQueue.exists()) {
       throw new Error("Unexpected seeded booking");
     }
-    tx.set(queueRef, { doctorId, date, last: 1, current: 0 });
+    tx.set(queueRef, { doctorId, date, last: 1, current: 0, lastAppointmentId: appointmentId });
     tx.set(apptRef, {
       patientId,
       patientName: "Patient",
@@ -157,6 +192,141 @@ try {
       number: 1,
       status: "PENDING",
       note: "",
+      visitType: "CONSULTATION",
+      beneficiaryRelation: "Mother",
+      createdAt: serverTimestamp()
+    });
+  }));
+
+  // A patient may book a different visit type with the same doctor on the same day.
+  // The shared queue advances, while each appointment receives a stable type-specific ID.
+  const followUpId = `${doctorId}_${date}_${patientId}_FOLLOW_UP`;
+  const followUpRef = doc(patient, "appointments", followUpId);
+  await assertSucceeds(runTransaction(patient, async (tx) => {
+    const oldFollowUp = await tx.get(followUpRef);
+    const oldQueue = await tx.get(queueRef);
+    if (oldFollowUp.exists()) throw new Error("Unexpected existing follow-up");
+    const next = (oldQueue.get("last") || 0) + 1;
+    tx.update(queueRef, { last: next, lastAppointmentId: followUpId });
+    tx.set(followUpRef, {
+      patientId,
+      patientName: "Patient",
+      patientPhone: "",
+      doctorId,
+      doctorName: "Doctor",
+      specialty: "General",
+      clinicName: "",
+      address: "",
+      city: "Test",
+      date,
+      slot: 570,
+      time: "09:30",
+      number: next,
+      status: "PENDING",
+      note: "",
+      visitType: "FOLLOW_UP",
+      createdAt: serverTimestamp()
+    });
+  }));
+  await assertSucceeds(getDoc(followUpRef));
+  await assertSucceeds(getDoc(doc(doctor, "appointments", followUpId)));
+  await assertFails(getDoc(doc(outsider, "appointments", followUpId)));
+
+  // A first-ever typed booking must also create its queue atomically.
+  const secondDate = "2099-01-02";
+  const firstTypedId = `${doctorId}_${secondDate}_${patientId}_CONSULTATION`;
+  const firstTypedRef = doc(patient, "appointments", firstTypedId);
+  const firstTypedQueue = doc(patient, "queues", `${doctorId}_${secondDate}`);
+  await assertSucceeds(runTransaction(patient, async (tx) => {
+    const oldAppointment = await tx.get(firstTypedRef);
+    const oldQueue = await tx.get(firstTypedQueue);
+    if (oldAppointment.exists() || oldQueue.exists()) throw new Error("Unexpected typed queue");
+    tx.set(firstTypedQueue, {
+      doctorId,
+      date: secondDate,
+      last: 1,
+      current: 0,
+      lastAppointmentId: firstTypedId
+    });
+    tx.set(firstTypedRef, {
+      patientId,
+      patientName: "Patient",
+      patientPhone: "",
+      doctorId,
+      doctorName: "Doctor",
+      specialty: "General",
+      clinicName: "",
+      address: "",
+      city: "Test",
+      date: secondDate,
+      slot: 540,
+      time: "09:00",
+      number: 1,
+      status: "PENDING",
+      note: "",
+      visitType: "CONSULTATION",
+      createdAt: serverTimestamp()
+    });
+  }));
+  await assertSucceeds(getDoc(firstTypedRef));
+
+  // Legacy clients can still create/read the old appointment and queue shape.
+  const legacyDate = "2099-01-03";
+  const legacyId = `${doctorId}_${legacyDate}_${patientId}`;
+  const legacyRef = doc(patient, "appointments", legacyId);
+  const legacyQueue = doc(patient, "queues", `${doctorId}_${legacyDate}`);
+  await assertSucceeds(runTransaction(patient, async (tx) => {
+    const oldAppointment = await tx.get(legacyRef);
+    const oldQueue = await tx.get(legacyQueue);
+    if (oldAppointment.exists() || oldQueue.exists()) throw new Error("Unexpected legacy queue");
+    tx.set(legacyQueue, { doctorId, date: legacyDate, last: 1, current: 0 });
+    tx.set(legacyRef, {
+      patientId,
+      patientName: "Patient",
+      patientPhone: "",
+      doctorId,
+      doctorName: "Doctor",
+      specialty: "General",
+      clinicName: "",
+      address: "",
+      city: "Test",
+      date: legacyDate,
+      slot: 540,
+      time: "09:00",
+      number: 1,
+      status: "PENDING",
+      note: "",
+      createdAt: serverTimestamp()
+    });
+  }));
+  await assertSucceeds(getDoc(legacyRef));
+
+  // A typed appointment cannot bypass an active legacy booking for the same patient/day.
+  const blockedTypedId = `${doctorId}_${legacyDate}_${patientId}_FOLLOW_UP`;
+  const blockedTypedRef = doc(patient, "appointments", blockedTypedId);
+  await assertFails(runTransaction(patient, async (tx) => {
+    const oldTyped = await tx.get(blockedTypedRef);
+    const oldQueue = await tx.get(legacyQueue);
+    if (oldTyped.exists()) throw new Error("Unexpected typed booking");
+    const next = (oldQueue.get("last") || 0) + 1;
+    tx.update(legacyQueue, { last: next, lastAppointmentId: blockedTypedId });
+    tx.set(blockedTypedRef, {
+      patientId,
+      patientName: "Patient",
+      patientPhone: "",
+      doctorId,
+      doctorName: "Doctor",
+      specialty: "General",
+      clinicName: "",
+      address: "",
+      city: "Test",
+      date: legacyDate,
+      slot: 570,
+      time: "09:30",
+      number: next,
+      status: "PENDING",
+      note: "",
+      visitType: "FOLLOW_UP",
       createdAt: serverTimestamp()
     });
   }));
@@ -327,7 +497,7 @@ try {
       throw new Error("Expected a cancelled appointment");
     }
     const next = (queue.data().last || 0) + 1;
-    tx.update(queueRef, { last: next });
+    tx.update(queueRef, { last: next, lastAppointmentId: appointmentId });
     tx.set(apptRef, {
       patientId,
       patientName: "Patient",
@@ -344,6 +514,7 @@ try {
       number: next,
       status: "PENDING",
       note: "Rebooked",
+      visitType: "CONSULTATION",
       createdAt: serverTimestamp()
     });
   }));

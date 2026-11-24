@@ -204,6 +204,7 @@ fun App() {
             onUnlock = { locked = false },
             onForgot = {
                 PushTokenManager.unregister(ctx) {
+                    MedicationReminderScheduler.cancelAll(ctx)
                     AppLockStore.clear(ctx)
                     auth.signOut()
                     loggedIn = false
@@ -247,6 +248,8 @@ fun App() {
         screen == "prescriptions" -> DoctorPrescriptionsScreen(onBack = { screen = "main" })
         screen == "patient_prescriptions" -> PatientPrescriptionsScreen(onBack = { screen = "main" })
         screen == "medication_plans" -> MedicationPlansScreen(onBack = { screen = "main" })
+        screen == "health_profile" -> PatientHealthProfileScreen(onBack = { screen = "main" })
+        screen == "family_profiles" -> FamilyProfilesScreen(onBack = { screen = "main" })
         screen == "emergency" -> EmergencyScreen(onBack = { screen = "main" })
         screen == "privacy" -> PrivacyScreen(onBack = { screen = "main" })
         screen == "messages" -> MessagesScreen(
@@ -265,6 +268,7 @@ fun App() {
             },
             onLogout = {
                 PushTokenManager.unregister(ctx) {
+                    MedicationReminderScheduler.cancelAll(ctx)
                     AppLockStore.clear(ctx)
                     auth.signOut()
                     loggedIn = false

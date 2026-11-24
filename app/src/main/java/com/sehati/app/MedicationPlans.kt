@@ -12,6 +12,7 @@ import androidx.compose.material.icons.filled.Medication
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -31,6 +32,7 @@ private data class MedicationPlan(
 @Composable
 fun MedicationPlansScreen(onBack: () -> Unit) {
     val uid = bAuth.currentUser?.uid.orEmpty()
+    val ctx = LocalContext.current
     var medicine by remember { mutableStateOf("") }
     var dose by remember { mutableStateOf("") }
     var time by remember { mutableStateOf("") }
@@ -63,6 +65,10 @@ fun MedicationPlansScreen(onBack: () -> Unit) {
                                 active = doc.getBoolean("active") == true
                             )
                         }.sortedWith(compareBy<MedicationPlan> { !it.active }.thenBy { it.time })
+                        plans.forEach { plan ->
+                            if (plan.active) MedicationReminderScheduler.schedule(ctx, "$uid:${plan.id}", plan.medicine, plan.dose, plan.time)
+                            else MedicationReminderScheduler.cancel(ctx, "$uid:${plan.id}")
+                        }
                         error = ""
                     }
                     loaded = true
@@ -80,7 +86,7 @@ fun MedicationPlansScreen(onBack: () -> Unit) {
             Text("جدول أدويتي", color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.Bold)
         }
         Text(
-            "سجّل أدويتك وجرعاتها وأوقاتها في مكان واحد. هذا الجدول للتنظيم داخل التطبيق ولا يرسل تنبيهات تلقائية حالياً.",
+            "سجّل أدويتك وجرعاتها وحدد وقتاً بصيغة 24 ساعة مثل 08:30 لتصلك تذكرة يومية على هاتفك.",
             color = Color(0xFFB6C6DA), fontSize = 13.sp
         )
         Column(
@@ -100,7 +106,7 @@ fun MedicationPlansScreen(onBack: () -> Unit) {
             )
             OutlinedTextField(
                 value = time, onValueChange = { time = it; error = "" },
-                modifier = Modifier.fillMaxWidth(), label = { Text("الوقت (مثال: 08:00 صباحاً)") },
+                modifier = Modifier.fillMaxWidth(), label = { Text("وقت التذكير (مثال: 08:00)") },
                 singleLine = true, enabled = !busy
             )
             Button(
@@ -110,8 +116,8 @@ fun MedicationPlansScreen(onBack: () -> Unit) {
                     val t = time.trim()
                     if (m.isBlank() || d.isBlank() || t.isBlank()) {
                         error = "اكتب اسم الدواء والجرعة والوقت."
-                    } else if (m.length > 100 || d.length > 80 || t.length > 40) {
-                        error = "تحقق من طول البيانات المدخلة."
+                    } else if (m.length > 100 || d.length > 80 || !Regex("^([01]\\d|2[0-3]):[0-5]\\d$").matches(t)) {
+                        error = "اكتب الوقت بصيغة 24 ساعة مثل 08:00."
                     } else {
                         busy = true
                         error = ""
@@ -128,8 +134,9 @@ fun MedicationPlansScreen(onBack: () -> Unit) {
                                 "updatedAt" to FieldValue.serverTimestamp()
                             )
                         ).addOnSuccessListener {
+                            MedicationReminderScheduler.schedule(ctx, "$uid:${ref.id}", m, d, t)
                             medicine = ""; dose = ""; time = ""
-                            info = "تمت إضافة الدواء إلى جدولك."
+                            info = "تمت إضافة الدواء وتفعيل التذكير اليومي على هذا الجهاز."
                             busy = false
                         }.addOnFailureListener {
                             error = if (it is com.google.firebase.firestore.FirebaseFirestoreException &&
@@ -179,6 +186,10 @@ fun MedicationPlansScreen(onBack: () -> Unit) {
                                 bDb.collection("medicationReminders").document(uid).collection("items")
                                     .document(plan.id)
                                     .update(mapOf("active" to active, "updatedAt" to FieldValue.serverTimestamp()))
+                                    .addOnSuccessListener {
+                                        if (active) MedicationReminderScheduler.schedule(ctx, "$uid:${plan.id}", plan.medicine, plan.dose, plan.time)
+                                        else MedicationReminderScheduler.cancel(ctx, "$uid:${plan.id}")
+                                    }
                                     .addOnFailureListener {
                                         error = "تعذر تحديث حالة الدواء. لم تتغير البيانات."
                                     }
