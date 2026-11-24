@@ -420,10 +420,7 @@ try {
   await assertFails(deleteDoc(doc(doctor, "subscriptions", doctorId)));
   await assertSucceeds(getDoc(doc(doctor, "subscriptions", doctorId)));
 
-  // Only the approved, subscribed doctor can approve and advance the queue.
-  await assertSucceeds(updateDoc(doc(doctor, "appointments", appointmentId), {
-    status: "CONFIRMED"
-  }));
+  // The appointment was already confirmed above; the approved doctor can now advance the queue.
   await assertSucceeds(updateDoc(doc(doctor, "queues", `${doctorId}_${date}`), {
     current: 1
   }));
