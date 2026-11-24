@@ -51,10 +51,13 @@ fun DoctorAnalyticsScreen(onBack: () -> Unit) {
     val completed = appointments.count { it["status"] == "DONE" }
     val cancelled = appointments.count { it["status"] == "CANCELLED" }
     val patients = appointments.mapNotNull { it["patientId"] as? String }.toSet().size
-    val recordedRevenue = appointments.sumOf {
-        (it["paidAmount"] as? Number)?.toDouble() ?: 0.0
-    }
-    val hasRevenueData = appointments.any { it["paidAmount"] is Number }
+    val revenueByCurrency = appointments.filter { it["paidAmount"] is Number }
+        .groupBy { it["paidCurrency"]?.toString()?.takeIf { value -> value.isNotBlank() } ?: "غير محدد" }
+        .mapValues { entry -> entry.value.sumOf { (it["paidAmount"] as Number).toDouble() } }
+    val revenueText = if (revenueByCurrency.isEmpty()) "غير مسجلة"
+        else revenueByCurrency.entries.joinToString(" • ") {
+            it.key + " " + String.format(java.util.Locale.US, "%.2f", it.value)
+        }
 
     LazyColumn(
         Modifier.fillMaxSize().background(BBg).padding(horizontal = 16.dp),
@@ -93,13 +96,13 @@ fun DoctorAnalyticsScreen(onBack: () -> Unit) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Box(Modifier.weight(1f)) { Metric("ملغاة", cancelled.toString(), Icons.Filled.CalendarMonth) }
                 Box(Modifier.weight(1f)) {
-                    Metric("الإيرادات", if (hasRevenueData) "%.2f".format(recordedRevenue) else "غير مسجلة", Icons.Filled.Analytics)
+                    Metric("المبالغ المسجلة", revenueText, Icons.Filled.Analytics)
                 }
             }
         }
         item {
             Text(
-                "الإيرادات لا تُقدّر من أجور الكشف؛ ستظهر فقط عندما تُسجّل عملية دفع فعلية في الموعد. البيانات المعروضة حتى آخر 500 موعد.",
+                "المبالغ يدوّنها الطبيب يدوياً بعد استلامها، وليست تحققاً إلكترونياً من الدفع. تُعرض كل عملة على حدة. البيانات المعروضة حتى آخر 500 موعد.",
                 color = BMuted, fontSize = 12.sp
             )
         }
