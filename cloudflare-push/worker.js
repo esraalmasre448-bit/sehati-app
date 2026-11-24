@@ -220,6 +220,17 @@ async function bookAppointment(projectId, accessToken, patientUid, input) {
         if (status !== "CANCELLED") return json({ status: "BLOCKED" }, 409);
       }
 
+      const configuredWorkDays = field(doctor, "workDays")?.arrayValue?.values || [];
+      if (configuredWorkDays.length > 0) {
+        const requestedWeekDay = new Date(date + "T12:00:00Z").getUTCDay() + 1;
+        const allowedDays = configuredWorkDays
+          .map(item => Number(item.integerValue ?? item.doubleValue ?? 0))
+          .filter(day => day >= 1 && day <= 7);
+        if (allowedDays.length > 0 && !allowedDays.includes(requestedWeekDay)) {
+          return json({ status: "DAY_OFF" });
+        }
+      }
+
       const last = queue ? numeric(queue, "last") : 0;
       const current = queue ? numeric(queue, "current") : 0;
       const capacityValue = numeric(doctor, "dailyCapacity");
