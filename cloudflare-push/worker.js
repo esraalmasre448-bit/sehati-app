@@ -161,8 +161,11 @@ async function bookAppointment(projectId, accessToken, patientUid, input) {
   const nowMinutes = Number.isInteger(input.nowMinutes) && input.nowMinutes >= 0 && input.nowMinutes < 1440
     ? input.nowMinutes : 0;
 
+  const parsedDate = /^\d{4}-\d{2}-\d{2}$/.test(date) ? new Date(date + "T00:00:00.000Z") : null;
+  const validDate = parsedDate && Number.isFinite(parsedDate.getTime()) &&
+    parsedDate.toISOString().slice(0, 10) === date;
   if (!/^[A-Za-z0-9_-]{1,128}$/.test(doctorId) ||
-      !/^\d{4}-\d{2}-\d{2}$/.test(date) ||
+      !validDate ||
       !["CONSULTATION", "FOLLOW_UP"].includes(visitType) ||
       note.length > 300 || beneficiaryName.length > 100 || beneficiaryRelation.length > 40) {
     return json({ status: "INVALID", error: "invalid_booking" }, 400);
