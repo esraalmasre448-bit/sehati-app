@@ -66,8 +66,8 @@ fun MedicationPlansScreen(onBack: () -> Unit) {
                             )
                         }.sortedWith(compareBy<MedicationPlan> { !it.active }.thenBy { it.time })
                         plans.forEach { plan ->
-                            if (plan.active) MedicationReminderScheduler.schedule(ctx, plan.id, plan.medicine, plan.dose, plan.time)
-                            else MedicationReminderScheduler.cancel(ctx, plan.id)
+                            if (plan.active) MedicationReminderScheduler.schedule(ctx, "$uid:${plan.id}", plan.medicine, plan.dose, plan.time)
+                            else MedicationReminderScheduler.cancel(ctx, "$uid:${plan.id}")
                         }
                         error = ""
                     }
@@ -134,7 +134,7 @@ fun MedicationPlansScreen(onBack: () -> Unit) {
                                 "updatedAt" to FieldValue.serverTimestamp()
                             )
                         ).addOnSuccessListener {
-                            MedicationReminderScheduler.schedule(ctx, ref.id, m, d, t)
+                            MedicationReminderScheduler.schedule(ctx, "$uid:${ref.id}", m, d, t)
                             medicine = ""; dose = ""; time = ""
                             info = "تمت إضافة الدواء وتفعيل التذكير اليومي على هذا الجهاز."
                             busy = false
@@ -187,8 +187,8 @@ fun MedicationPlansScreen(onBack: () -> Unit) {
                                     .document(plan.id)
                                     .update(mapOf("active" to active, "updatedAt" to FieldValue.serverTimestamp()))
                                     .addOnSuccessListener {
-                                        if (active) MedicationReminderScheduler.schedule(ctx, plan.id, plan.medicine, plan.dose, plan.time)
-                                        else MedicationReminderScheduler.cancel(ctx, plan.id)
+                                        if (active) MedicationReminderScheduler.schedule(ctx, "$uid:${plan.id}", plan.medicine, plan.dose, plan.time)
+                                        else MedicationReminderScheduler.cancel(ctx, "$uid:${plan.id}")
                                     }
                                     .addOnFailureListener {
                                         error = "تعذر تحديث حالة الدواء. لم تتغير البيانات."
