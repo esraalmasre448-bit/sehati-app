@@ -549,7 +549,7 @@ service cloud.firestore {
   }
   // منح وصول طبي مؤقت: المريض وحده يمنح الطبيب الصلاحية أو يسحبها.
   match /healthAccessGrants/{patientUid}/doctors/{doctorUid} {
-   allow read: if signedIn() && (request.auth.uid == patientUid || request.auth.uid == doctorUid);
+   allow read: if signedIn() && request.auth.uid == patientUid;
    allow create, update: if signedIn()
     && request.auth.uid == patientUid
     && userType() == 'patient'
