@@ -127,6 +127,8 @@ fun PatientHome(
             Text("متابعة مواعيدك وملفك الصحي من مكان واحد", color = BMuted, fontSize = 12.sp)
         }
 
+        Tile(Icons.Filled.AssignmentTurnedIn, "الاستعداد للزيارة", false, Modifier.fillMaxWidth()) { onGo("visit_preparation") }
+
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Tile(Icons.Filled.Person, stringResource(R.string.my_turn), false, Modifier.weight(1f)) { onGo("queue") }
             Tile(Icons.Filled.LocationOn, stringResource(R.string.way_to_clinic), false, Modifier.weight(1f)) { onGo("route") }
