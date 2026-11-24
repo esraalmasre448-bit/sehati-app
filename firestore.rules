@@ -232,7 +232,7 @@ service cloud.firestore {
     )
     && subActive(request.resource.data.doctorId)
     && doctorApproved(request.resource.data.doctorId)
-    && request.resource.data.number <= get(/databases/$(database)/documents/doctors/$(request.resource.data.doctorId)).data.dailyCapacity
+    && (!('dailyCapacity' in get(/databases/$(database)/documents/doctors/$(request.resource.data.doctorId)).data) || request.resource.data.number <= get(/databases/$(database)/documents/doctors/$(request.resource.data.doctorId)).data.dailyCapacity)
     && getAfter(qPath(request.resource.data.doctorId, request.resource.data.date)).data.last == request.resource.data.number
     && (!('visitType' in request.resource.data)
       || getAfter(qPath(request.resource.data.doctorId, request.resource.data.date)).data.lastAppointmentId == id)
@@ -284,6 +284,7 @@ service cloud.firestore {
      && request.resource.data.doctorId == resource.data.doctorId
      && request.resource.data.date == resource.data.date
      && request.resource.data.number is int
+     && (!("dailyCapacity" in get(/databases/$(database)/documents/doctors/$(resource.data.doctorId)).data) || request.resource.data.number <= get(/databases/$(database)/documents/doctors/$(resource.data.doctorId)).data.dailyCapacity)
      && request.resource.data.createdAt == request.time
      && exists(qPath(resource.data.doctorId, resource.data.date))
      && get(qPath(resource.data.doctorId, resource.data.date)).data.last + 1 == request.resource.data.number
