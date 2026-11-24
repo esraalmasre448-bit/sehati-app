@@ -37,6 +37,7 @@ private fun estimate(last: Long, current: Long, today: Boolean, startMin: Int, s
 
 private fun bookByQueue(
     d: Map<String, Any?>, date: String, today: Boolean, note: String, visitType: String,
+    beneficiaryName: String, beneficiaryRelation: String,
     onResult: (Boolean, String) -> Unit
 ) {
     val me = bAuth.currentUser
@@ -49,7 +50,7 @@ private fun bookByQueue(
     val apptRef = bDb.collection("appointments").document("${doctorId}_${date}_${me.uid}_${visitType}")
     val legacyApptRef = bDb.collection("appointments").document("${doctorId}_${date}_${me.uid}")
     bDb.collection("users").document(me.uid).get().addOnSuccessListener { u ->
-        val pName = u.getString("name") ?: ""
+        val pName = beneficiaryName.ifBlank { u.getString("name") ?: "" }
         val pPhone = u.getString("phone") ?: ""
         bDb.runTransaction<String> { tx ->
             val a = tx.get(apptRef)
@@ -85,6 +86,7 @@ private fun bookByQueue(
                 apptRef,
                 mapOf(
                     "patientId" to me.uid, "patientName" to pName, "patientPhone" to pPhone,
+                    "beneficiaryRelation" to beneficiaryRelation,
                     "doctorId" to doctorId,
                     "doctorName" to (d["name"]?.toString() ?: ""),
                     "specialty" to (d["specialty"]?.toString() ?: ""),
@@ -145,12 +147,28 @@ fun QueueBookingScreen(d: Map<String, Any?>, onBack: () -> Unit, onDone: () -> U
     var current by remember { mutableLongStateOf(0L) }
     var note by remember { mutableStateOf("") }
     var visitType by remember { mutableStateOf("CONSULTATION") }
+    var familyMembers by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
+    var selectedFamily by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var familyMenu by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var msg by remember { mutableStateOf("") }
     var done by remember { mutableStateOf(false) }
     var resultText by remember { mutableStateOf("") }
     val date = dateKey(days[dayIdx])
     val isToday = date == todayKey()
+    val patientUid = bAuth.currentUser?.uid.orEmpty()
+    DisposableEffect(patientUid) {
+        if (patientUid.isBlank()) onDispose { }
+        else {
+            val registration = bDb.collection("familyProfiles").document(patientUid).collection("members")
+                .addSnapshotListener { snapshot, _ ->
+                    familyMembers = snapshot?.documents.orEmpty().map {
+                        it.getString("name").orEmpty() to it.getString("relation").orEmpty()
+                    }.filter { it.first.isNotBlank() }
+                }
+            onDispose { registration.remove() }
+        }
+    }
     val startMin = (qNum(d["startHour"]) ?: 9) * 60
     val endMin = (qNum(d["endHour"]) ?: 17) * 60
     val step = (qNum(d["slotMinutes"]) ?: 30).coerceAtLeast(10)
@@ -202,6 +220,26 @@ fun QueueBookingScreen(d: Map<String, Any?>, onBack: () -> Unit, onDone: () -> U
                     label = { Text("مراجعة") }
                 )
             }
+            Box {
+                OutlinedButton(onClick = { familyMenu = true }, modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        selectedFamily?.let { "الحجز لـ: ${it.first} (${it.second})" } ?: "الحجز لي شخصياً",
+                        color = Color.White
+                    )
+                }
+                DropdownMenu(expanded = familyMenu, onDismissRequest = { familyMenu = false }) {
+                    DropdownMenuItem(
+                        text = { Text("أنا") },
+                        onClick = { selectedFamily = null; familyMenu = false }
+                    )
+                    familyMembers.forEach { member ->
+                        DropdownMenuItem(
+                            text = { Text("${member.first} — ${member.second}") },
+                            onClick = { selectedFamily = member; familyMenu = false }
+                        )
+                    }
+                }
+            }
             Text("اختر اليوم", color = BMuted)
             if (hasWorkDays(d)) Text("أيام دوام الطبيب: " + workDaysLabel(workDaysOf(d)), color = BGreen, fontSize = 13.sp)
             DayChips(days, dayIdx) { dayIdx = it }
@@ -231,7 +269,10 @@ fun QueueBookingScreen(d: Map<String, Any?>, onBack: () -> Unit, onDone: () -> U
             RedButton("إرسال طلب الحجز", enabled = !busy && !full) {
                 busy = true
                 msg = ""
-                bookByQueue(d, date, isToday, note.trim().take(300), visitType) { ok, text ->
+                bookByQueue(
+                    d, date, isToday, note.trim().take(300), visitType,
+                    selectedFamily?.first.orEmpty(), selectedFamily?.second.orEmpty()
+                ) { ok, text ->
                     busy = false
                     if (ok) { done = true; resultText = text } else msg = text
                 }
