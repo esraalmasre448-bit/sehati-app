@@ -197,7 +197,7 @@ fun RouteScreen(onBack: () -> Unit, onFind: () -> Unit) {
 }
 
 @Composable
-fun DoctorDashboardContent(onBack: (() -> Unit)? = null) {
+fun DoctorDashboardContent(onBack: (() -> Unit)? = null, onOpenHealthRecord: (String) -> Unit = {}) {
     val uid = bAuth.currentUser?.uid ?: ""
     val st = subState(uid)
     val active = st == "active"
@@ -321,6 +321,10 @@ fun DoctorDashboardContent(onBack: (() -> Unit)? = null) {
                 val note = a["note"]?.toString().orEmpty()
                 if (note.isNotBlank()) Text("ملاحظة: $note", color = BMuted)
                 Text(label, color = color, fontWeight = FontWeight.Bold)
+                OutlinedButton(
+                    onClick = { onOpenHealthRecord(a["patientId"]?.toString().orEmpty()) },
+                    enabled = !a["patientId"]?.toString().isNullOrBlank()
+                ) { Text("السجل الصحي بموافقة المريض", color = Color.White) }
                 notes.filter { it["appointmentId"] == id }
                     .sortedBy { (it["createdAt"] as? com.google.firebase.Timestamp)?.seconds ?: 0L }
                     .forEach { n ->
