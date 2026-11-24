@@ -55,7 +55,7 @@ private fun bookByQueue(
             val a = tx.get(apptRef)
             val legacy = tx.get(legacyApptRef)
             val q = tx.get(queueRef)
-            if (legacy.exists() && legacy.getString("status") in listOf("PENDING", "CONFIRMED")) {
+            if (legacy.exists() && legacy.getString("status")?.let { it == "PENDING" || it == "CONFIRMED" } == true) {
                 return@runTransaction "LEGACY_EXIST|${legacy.getLong("number") ?: 0L}|${legacy.getString("time") ?: ""}"
             }
             if (a.exists()) {
