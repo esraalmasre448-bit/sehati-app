@@ -25,6 +25,8 @@ object MedicationReminderScheduler {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .edit().putString(id, listOf(medicine, dose, time).joinToString("\u001f")).apply()
 
+        // احسب الموعد التالي حسب الساعة المحلية في كل مرة، بدلاً من تكرار 24 ساعة ثابتة
+        // الذي قد يزيح التذكير ساعة عند تغيّر التوقيت الصيفي أو المنطقة الزمنية.
         val next = Calendar.getInstance().apply {
             set(Calendar.HOUR_OF_DAY, hour)
             set(Calendar.MINUTE, minute)
@@ -43,9 +45,8 @@ object MedicationReminderScheduler {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val alarm = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        alarm.setInexactRepeating(
-            AlarmManager.RTC_WAKEUP, next.timeInMillis, AlarmManager.INTERVAL_DAY, pending
-        )
+        // منبّه يومي أحادي؛ يعاد ضبطه بعد الإطلاق وفق الساعة المحلية.
+        alarm.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, next.timeInMillis, pending)
     }
 
     fun cancel(context: Context, id: String) {
@@ -79,6 +80,7 @@ class MedicationReminderReceiver : BroadcastReceiver() {
         val medicine = intent.getStringExtra("medicine").orEmpty()
         val dose = intent.getStringExtra("dose").orEmpty()
         val id = intent.getStringExtra("id").orEmpty()
+        val time = intent.getStringExtra("time").orEmpty()
         if (medicine.isBlank() || id.isBlank()) return
 
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -111,12 +113,18 @@ class MedicationReminderReceiver : BroadcastReceiver() {
             .setAutoCancel(true)
             .build()
         manager.notify(id.hashCode(), notification)
+
+        // جدولة اليوم التالي محلياً؛ لا نَعِد بتوقيت دقيق لأن Android قد يؤخر المنبّهات غير الدقيقة.
+        if (time.isNotBlank()) MedicationReminderScheduler.schedule(context, id, medicine, dose, time)
     }
 }
 
 class MedicationReminderBootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action == Intent.ACTION_BOOT_COMPLETED) {
+        if (intent.action == Intent.ACTION_BOOT_COMPLETED ||
+            intent.action == Intent.ACTION_TIME_CHANGED ||
+            intent.action == Intent.ACTION_TIMEZONE_CHANGED
+        ) {
             MedicationReminderScheduler.restore(context)
         }
     }
