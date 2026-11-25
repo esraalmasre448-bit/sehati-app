@@ -256,6 +256,7 @@ fun App() {
         screen == "doctor_analytics" -> DoctorAnalyticsScreen(onBack = { screen = "main" })
         screen == "clinic_branches" -> ClinicBranchesScreen(onBack = { screen = "main" })
         screen == "doctor_health_record" -> DoctorSharedHealthProfileScreen(patientUid = selectedHealthPatient, onBack = { screen = "main" })
+        screen == "services" -> PatientServicesHub(onBack = { screen = "main" }, onNavigate = { screen = it })
         screen == "emergency" -> EmergencyScreen(onBack = { screen = "main" })
         screen == "privacy" -> PrivacyScreen(onBack = { screen = "main" })
         screen == "messages" -> MessagesScreen(
