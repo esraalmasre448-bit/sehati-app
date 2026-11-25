@@ -1,3 +1,5 @@
+import { checkDatabase } from "./db";
+
 export interface Env {
   ALLOWED_ORIGINS?: string;
   DATABASE_URL?: string;
@@ -57,11 +59,13 @@ export default {
     }
 
     if (url.pathname === "/ready") {
-      // Database connectivity is intentionally not claimed until the PostgreSQL
-      // adapter and its bounded health probe are implemented.
+      const databaseReady = await checkDatabase(env);
       return response(
-        { status: "not_ready", dependencies: { postgres: "not_configured" } },
-        503,
+        {
+          status: databaseReady ? "ready" : "not_ready",
+          dependencies: { postgres: databaseReady ? "connected" : "unavailable" },
+        },
+        databaseReady ? 200 : 503,
         requestId,
         corsHeaders,
       );
