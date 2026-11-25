@@ -173,3 +173,12 @@ test("booking endpoint rejects missing Firebase authentication", async () => {
   }), env);
   assert.equal(response.status, 401);
 });
+
+test("booking endpoint supports a legacy base URL path prefix without bypassing authentication", async () => {
+  const response = await worker.fetch(new Request("https://sehati-chat-push.test/send/book-appointment", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: "{}"
+  }), env);
+  assert.equal(response.status, 401);
+});
