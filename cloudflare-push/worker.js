@@ -595,7 +595,12 @@ async function sendQueueNotifications(projectId, accessToken, senderUid, input) 
 
 export default {
   async fetch(request, env) {
-    const path = new URL(request.url).pathname;
+    // PUSH_WORKER_URL may contain a legacy endpoint suffix (for example /send).
+    // Resolve the endpoint by its final path segment so both the bare Worker URL
+    // and older prefixed URLs route consistently. Authentication is still mandatory.
+    const url = new URL(request.url);
+    const finalSegment = url.pathname.split("/").filter(Boolean).pop() || "";
+    const path = "/" + finalSegment;
     if (request.method !== "POST" ||
         !["/send", "/notify-appointment", "/notify-prescription", "/notify-queue", "/book-appointment"].includes(path)) {
       return json({ error: "not_found" }, 404);
