@@ -1,0 +1,34 @@
+name: Backend API checks
+
+on:
+  push:
+    branches:
+      - backend/self-hosted-core
+    paths:
+      - "backend/api/**"
+      - ".github/workflows/backend-api.yml"
+  pull_request:
+    paths:
+      - "backend/api/**"
+      - ".github/workflows/backend-api.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/api/package-lock.json
+      - run: npm install --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm test
