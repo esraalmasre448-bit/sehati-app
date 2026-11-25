@@ -128,6 +128,7 @@ fun PatientHome(
         }
 
         Tile(Icons.Filled.Assignment, "ملخص قبل زيارة الطبيب", false, Modifier.fillMaxWidth()) { onGo("visit_summary") }
+        Tile(Icons.Filled.AssignmentTurnedIn, "الاستعداد للزيارة", false, Modifier.fillMaxWidth()) { onGo("visit_preparation") }
 
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Tile(Icons.Filled.Person, stringResource(R.string.my_turn), false, Modifier.weight(1f)) { onGo("queue") }
