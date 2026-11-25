@@ -9,8 +9,8 @@ The repository includes a GitHub Actions workflow that deploys the Worker for yo
 1. Create a free Cloudflare account. Open **Workers & Pages → Create → Worker**, name it exactly `sehati-chat-push`, and deploy the starter Worker once. The deployment workflow updates this existing Worker; it does not need permission to create or delete Workers.
 2. Create a Cloudflare API token. Give it **Workers Editor** scoped only to the `sehati-chat-push` Worker (or the legacy **Workers Scripts: Edit** permission scoped to that Worker), plus **Account Settings: Read** if Wrangler requests account metadata. Do not grant account-wide Admin.
 3. Copy the Cloudflare **Account ID** from the account's Workers & Pages overview.
-4. In Google Cloud Console for the same Firebase project, open **IAM & Admin → Service Accounts → Create service account**. Name it `sehati-push-worker`. Create a JSON key for this dedicated account and keep the file private; never commit it or send it in chat. Do not use a broad Owner/Editor service account.
-5. Enable the **Firebase Cloud Messaging API**. Grant the dedicated service account **Cloud Datastore Viewer** (read-only Firestore access) and **Firebase Cloud Messaging API Admin** (permission to send FCM messages). These are the minimum practical predefined roles for this Worker; do not grant Owner or Editor.
+4. In Google Cloud Console for the same Firebase project, open **IAM & Admin → Service Accounts** and use the existing dedicated `sehati-push-worker` account already configured for this Worker. If it does not exist, create it once and use it consistently. Keep its JSON key private; never commit it or send it in chat. Do not use a broad Owner/Editor service account.
+5. Enable the **Firebase Cloud Messaging API**. Grant the dedicated service account **Firebase Cloud Messaging API Admin** for notifications. For secure appointment booking, the Worker also needs Firestore write access. Prefer a custom project role named `SehatiBookingWorker` containing only `datastore.databases.get`, `datastore.entities.get`, `datastore.entities.list`, `datastore.entities.create`, and `datastore.entities.update`. Assign that role to this dedicated service account in the same project. If custom roles are unavailable, use **Cloud Datastore User** instead of Viewer; do not grant Owner or Editor. This service account is privileged and must remain dedicated to this Worker.
 6. In GitHub → **Settings → Secrets and variables → Actions**, add these repository secrets:
    - `CLOUDFLARE_API_TOKEN`: the token from step 2.
    - `CLOUDFLARE_ACCOUNT_ID`: the Account ID from step 3.
@@ -26,6 +26,8 @@ The repository includes a GitHub Actions workflow that deploys the Worker for yo
 
 - Validates the Firebase ID token with Firebase Authentication.
 - Reads the referenced message and conversation using the service account.
+- Exposes an authenticated `/book-appointment` endpoint. It verifies the Firebase user, patient account, doctor approval and active subscription, then atomically creates or rebooks a typed appointment and advances the shared queue in one Firestore transaction.
+- The Android app sends appointment requests to this endpoint. Firestore rules deny direct patient writes to appointments and queue counters, preventing clients from forging queue numbers or creating appointments without advancing the queue.
 - Verifies that the authenticated sender is a participant in that conversation and owns the message.
 - Finds all registered FCM devices for the other participant and sends a high-priority notification.
 - Uses the existing `sehati_general` Android notification channel, which has sound and vibration.
@@ -38,4 +40,5 @@ The repository includes a GitHub Actions workflow that deploys the Worker for yo
 - If the key is ever exposed, revoke it in Google Cloud immediately and generate a replacement.
 - The app registers one token per installation in `fcmTokens`; the Firestore rules restrict each user to their own token documents.
 - Android 13+ requires notification permission. Users must allow it in Android settings.
-- Chat push delivery is not active until the Worker is deployed, `PUSH_WORKER_URL` is saved, and a release APK is built with that URL.
+- Chat notifications and secure booking are not active until the Worker is deployed, `PUSH_WORKER_URL` is saved, the dedicated service account has the required Firestore permissions, and a release APK is built with that URL.
+- No Firebase Functions or Blaze plan is required for the Worker endpoint. Cloudflare Workers usage remains subject to Cloudflare's current free-tier limits.

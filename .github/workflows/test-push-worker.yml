@@ -21,3 +21,5 @@ jobs:
           node-version: 22
       - name: Validate Worker JavaScript syntax
         run: node --check cloudflare-push/worker.js
+      - name: Test secure booking endpoint
+        run: npm --prefix cloudflare-push test
