@@ -52,6 +52,7 @@ fun DoctorSearchScreen(onBack: () -> Unit, onOpen: (Map<String, Any?>) -> Unit, 
     var fCity by remember { mutableStateOf("") }
     var fSpec by remember { mutableStateOf("") }
     var fMax by remember { mutableStateOf("") }
+    var fAvailableOnly by remember { mutableStateOf(false) }
     val currentUid = bAuth.currentUser?.uid.orEmpty()
     var favoriteIds by remember(currentUid) { mutableStateOf<Set<String>>(emptySet()) }
 
@@ -87,11 +88,13 @@ fun DoctorSearchScreen(onBack: () -> Unit, onOpen: (Map<String, Any?>) -> Unit, 
 
     LaunchedEffect(Unit) { loadPage() }
 
-    LaunchedEffect(query, fSpec, fCity) {
+    LaunchedEffect(query, fSpec, fCity, fMax, fAvailableOnly) {
         val q = query.trim()
         val fs = fSpec
         val fc = fCity.trim()
-        if (q.isEmpty() && fs.isEmpty() && fc.isEmpty()) {
+        val maxFee = fMax.trim()
+        val onlyAvailable = fAvailableOnly
+        if (q.isEmpty() && fs.isEmpty() && fc.isEmpty() && maxFee.isEmpty() && !onlyAvailable) {
             found = emptyMap()
             searching = false
             return@LaunchedEffect
@@ -101,7 +104,7 @@ fun DoctorSearchScreen(onBack: () -> Unit, onOpen: (Map<String, Any?>) -> Unit, 
         error = ""
         bDb.collection("doctors").whereEqualTo("approved", true).limit(500).get()
             .addOnSuccessListener { snapshot ->
-                if (q == query.trim() && fs == fSpec && fc == fCity.trim()) {
+                if (q == query.trim() && fs == fSpec && fc == fCity.trim() && maxFee == fMax.trim() && onlyAvailable == fAvailableOnly) {
                     found = snapshot.documents.associate { doc ->
                         doc.id to (doc.data.orEmpty() + ("id" to doc.id))
                     }
@@ -109,7 +112,7 @@ fun DoctorSearchScreen(onBack: () -> Unit, onOpen: (Map<String, Any?>) -> Unit, 
                 }
             }
             .addOnFailureListener { e ->
-                if (q == query.trim() && fs == fSpec && fc == fCity.trim()) {
+                if (q == query.trim() && fs == fSpec && fc == fCity.trim() && maxFee == fMax.trim() && onlyAvailable == fAvailableOnly) {
                     searching = false
                     error = searchError(e)
                 }
@@ -117,7 +120,7 @@ fun DoctorSearchScreen(onBack: () -> Unit, onOpen: (Map<String, Any?>) -> Unit, 
     }
 
     val qNow = query.trim()
-    val filtersOn = qNow.isNotEmpty() || fSpec.isNotEmpty() || fCity.isNotBlank()
+    val filtersOn = qNow.isNotEmpty() || fSpec.isNotEmpty() || fCity.isNotBlank() || fMax.isNotBlank() || fAvailableOnly
     val qSpec = matchSpecialty(qNow)
     fun passes(d: Map<String, Any?>): Boolean {
         val text = "${d["name"]} ${d["specialty"]} ${d["clinicName"]} ${d["city"]}"
@@ -128,9 +131,10 @@ fun DoctorSearchScreen(onBack: () -> Unit, onOpen: (Map<String, Any?>) -> Unit, 
         val maxV = fMax.trim().toLongOrNull()
         val feeV = "${d["fee"] ?: ""}".trim().toLongOrNull()
         val fOk = maxV == null || (feeV != null && feeV <= maxV)
+        val availableOk = !fAvailableOnly || d["available"] == true || d["locationStatus"] == "AT_WORK"
         val hasClinic = "${d["clinicName"] ?: ""}".isNotBlank()
         val tOk = tab == 0 || (tab == 1 && !hasClinic) || (tab == 2 && hasClinic)
-        return d["approved"] == true && qOk && sOk && cOk && fOk && tOk
+        return d["approved"] == true && qOk && sOk && cOk && fOk && availableOk && tOk
     }
     val pool = if (filtersOn) (found.values.toList() + items).distinctBy { it["id"] as String } else items
     val shown = pool.filter { passes(it) }
@@ -181,8 +185,15 @@ fun DoctorSearchScreen(onBack: () -> Unit, onOpen: (Map<String, Any?>) -> Unit, 
                 SpecialtyPicker(fSpec) { fSpec = it }
                 if (fSpec.isNotEmpty()) TextButton(onClick = { fSpec = "" }) { Text("إلغاء فلتر التخصص", color = BRed) }
                 Field(fMax, { fMax = it.filter { c -> c.isDigit() } }, "أقصى سعر للكشفية", keyboard = KeyboardType.Number)
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = fAvailableOnly, onCheckedChange = { fAvailableOnly = it }, colors = CheckboxDefaults.colors(checkedColor = BRed))
+                    Column(Modifier.weight(1f)) {
+                        Text("الأطباء المتاحون فقط", color = Color.White, fontWeight = FontWeight.Bold)
+                        Text("يشمل الطبيب الذي أعلن التوفر أو أكد وجوده في مكان العمل", color = BMuted, fontSize = 11.sp)
+                    }
+                }
                 RedButton("تطبيق الفلتر") { showFilter = false }
-                TextButton(onClick = { fCity = ""; fSpec = ""; fMax = "" }) { Text("مسح كل الفلاتر", color = BMuted) }
+                TextButton(onClick = { fCity = ""; fSpec = ""; fMax = ""; fAvailableOnly = false }) { Text("مسح كل الفلاتر", color = BMuted) }
             }
         }
         Spacer(Modifier.height(10.dp))
