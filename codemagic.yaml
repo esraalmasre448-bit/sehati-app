@@ -1,0 +1,79 @@
+workflows:
+  sehati-android-release:
+    name: Sehaty Android APK
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      java: 17
+      groups:
+        - sehati_build
+    scripts:
+      - name: Prepare Android SDK configuration
+        script: |
+          set -e
+          echo "sdk.dir=${ANDROID_SDK_ROOT}" > "${CM_BUILD_DIR}/local.properties"
+          java -version
+          test -d "${ANDROID_SDK_ROOT}" || { echo "Android SDK was not found"; exit 1; }
+      - name: Validate secrets and prepare Firebase configuration
+        script: |
+          set -e
+          : "${KS_PASS:?Missing KS_PASS in the sehati_build variable group}"
+          : "${KEYSTORE_B64:?Missing KEYSTORE_B64 in the sehati_build variable group}"
+          : "${GOOGLE_SERVICES_JSON:?Missing GOOGLE_SERVICES_JSON in the sehati_build variable group}"
+          python3 - <<'PY'
+          import base64, json, os, sys
+          encoded = "".join(os.environ.get("KEYSTORE_B64", "").split())
+          try:
+              keystore = base64.b64decode(encoded, validate=True)
+              if not keystore:
+                  raise ValueError("empty keystore")
+          except Exception:
+              print("KEYSTORE_B64 is not valid Base64")
+              sys.exit(1)
+          with open("app/sehati.keystore", "wb") as f:
+              f.write(keystore)
+          raw = os.environ.get("GOOGLE_SERVICES_JSON", "")
+          try:
+              data = json.loads(raw)
+          except Exception:
+              print("GOOGLE_SERVICES_JSON is not valid JSON")
+              sys.exit(1)
+          packages = [
+              client.get("client_info", {}).get("android_client_info", {}).get("package_name")
+              for client in data.get("client", [])
+          ]
+          if "com.sehati.app" not in packages:
+              print("Firebase config does not contain com.sehati.app")
+              sys.exit(1)
+          with open("app/google-services.json", "w", encoding="utf-8") as f:
+              f.write(raw)
+          print("Keystore and Firebase configuration validated")
+          PY
+          keytool -list -keystore app/sehati.keystore -storetype PKCS12 -storepass "$KS_PASS" -alias sehati >/dev/null
+      - name: Install Gradle 8.7
+        script: |
+          set -e
+          curl --fail --location --silent --show-error https://services.gradle.org/distributions/gradle-8.7-bin.zip -o /tmp/gradle-8.7-bin.zip
+          unzip -q /tmp/gradle-8.7-bin.zip -d /tmp
+          /tmp/gradle-8.7/bin/gradle --version
+      - name: Build signed release APK
+        script: |
+          set -e
+          trap 'rm -f app/sehati.keystore app/google-services.json' EXIT
+          export GITHUB_RUN_NUMBER="${BUILD_NUMBER:-1}"
+          /tmp/gradle-8.7/bin/gradle --no-daemon assembleRelease
+          mkdir -p "$CM_EXPORT_DIR"
+          set -- app/build/outputs/apk/release/*.apk
+          test -f "$1" || { echo "Release APK was not produced"; exit 1; }
+          test "$#" -eq 1 || { echo "Expected one release APK, found multiple"; exit 1; }
+          cp "$1" "$CM_EXPORT_DIR/sehati-release.apk"
+      - name: Verify APK exists and is signed
+        script: |
+          set -e
+          APK="$CM_EXPORT_DIR/sehati-release.apk"
+          test -s "$APK"
+          APKSIGNER="$(find "$ANDROID_SDK_ROOT/build-tools" -type f -name apksigner | head -n 1)"
+          test -x "$APKSIGNER"
+          "$APKSIGNER" verify --print-certs "$APK"
+    artifacts:
+      - $CM_EXPORT_DIR/sehati-release.apk
