@@ -13,12 +13,12 @@ describe("Sehaty backend API scaffold", () => {
     expect(JSON.stringify(body)).not.toContain("DATABASE_URL");
   });
 
-  it("does not claim readiness before PostgreSQL is implemented", async () => {
+  it("does not claim database readiness when no connection is configured", async () => {
     const result = await worker.fetch(new Request("https://api.example.test/ready"), env);
     expect(result.status).toBe(503);
     const body = await result.json() as { status: string; dependencies: { postgres: string } };
     expect(body.status).toBe("not_ready");
-    expect(body.dependencies.postgres).toBe("not_configured");
+    expect(body.dependencies.postgres).toBe("unavailable");
   });
 
   it("serves the versioned API root", async () => {
