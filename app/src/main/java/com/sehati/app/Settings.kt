@@ -148,7 +148,7 @@ fun ClinicSettingsScreen(onBack: () -> Unit) {
             title = { Text("إذن الموقع طوال الوقت", color = Color.White) },
             text = {
                 Text(
-                    "حتى يعرف التطبيق أنك دخلت العيادة أو المشفى أو خرجت منه عندما يكون مغلقاً، افتح إعدادات التطبيق ثم الأذونات ثم الموقع واختر «السماح طوال الوقت» أو Allow all the time. لن نسجل مسارك أو نرسل إحداثيات متكررة؛ نستخدم نطاقاً حول موقعي العمل فقط.",
+                    "حتى يعرف التطبيق أنك دخلت العيادة أو المشفى أو خرجت منه عندما يكون مغلقاً، افتح إعدادات التطبيق ثم الأذونات ثم الموقع واختر «السماح طوال الوقت» أو Allow all the time. يجب أيضاً حفظ إحداثيات GPS للموقع؛ رابط خرائط Google وحده لا يكفي للتحديد التلقائي. لن نسجل مسارك أو نرسل إحداثيات متكررة؛ نستخدم نطاقاً حول موقعي العمل فقط.",
                     color = BMuted
                 )
             },
@@ -266,7 +266,7 @@ fun ClinicSettingsScreen(onBack: () -> Unit) {
                                 DoctorWorkplaceGeofencing.hasBackgroundPermission(ctx)
                             ) {
                                 DoctorWorkplaceGeofencing.sync(ctx, uid)
-                                msg = "تم حفظ موقعي العيادة والمشفى والدوام وتحديث مناطق التحديد التلقائي."
+                                msg = "تم حفظ المواقع والدوام. يعمل التحديد التلقائي للمواقع التي تحتوي على إحداثيات GPS."
                             } else {
                                 msg = "تم حفظ المواقع والدوام. فعّل إذن الموقع طوال الوقت لتحديث مكانك تلقائياً."
                             }
@@ -310,6 +310,11 @@ private fun WorkPlaceEditor(
             onChange(value.copy(dailyCapacity = (it.toIntOrNull() ?: value.dailyCapacity).coerceIn(1, 500)))
         }, "الحد الأقصى للمواعيد يومياً", keyboard = KeyboardType.Number)
         Field(value.location, { onChange(value.copy(location = it)) }, "رابط خرائط Google أو إحداثيات")
+        Text(
+            "للتحديد التلقائي عند الدخول والخروج، احفظ إحداثيات GPS لهذا الموقع؛ رابط الخرائط وحده لا يكفي.",
+            color = BMuted,
+            fontSize = 11.sp
+        )
         OutlinedButton(onClick = onGps, modifier = Modifier.fillMaxWidth().height(48.dp)) {
             Text("التقاط موقع $title من GPS", color = Color.White)
         }
