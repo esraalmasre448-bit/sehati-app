@@ -5,10 +5,20 @@ This is a separate Cloudflare Worker API. It does not import Firebase SDKs and d
 ## Current endpoints
 
 - `GET /health`: liveness only.
-- `GET /ready`: deliberately returns `503 not_ready` until the PostgreSQL adapter and a real bounded connectivity probe exist.
+- `GET /ready`: performs a PostgreSQL `SELECT 1` probe when `DATABASE_URL` is configured; otherwise returns `503 not_ready`. Connection failures are reported without exposing secrets.
 - `GET /v1`: versioned API metadata.
 
 All responses include a request ID. Browser CORS responses are enabled only for exact origins listed in the `ALLOWED_ORIGINS` Worker variable. No credentials belong in source control.
+
+## PostgreSQL
+
+- Driver: Neon serverless PostgreSQL client.
+- Initial migration: `migrations/0001_identity_and_profiles.sql`.
+- Initial tables: users, patient profiles, doctor profiles, clinic profiles.
+- Password storage is represented only by `password_hash`; authentication endpoints are not implemented yet.
+- The migration is a reviewed SQL file and has not been applied to a live database.
+
+Set `DATABASE_URL` as a secret in the Worker environment. Never commit it or put it in Android.
 
 ## Local checks
 
@@ -22,8 +32,8 @@ npm test
 
 ## Deployment status
 
-The Worker configuration is prepared, but this API is not deployed yet. Deployment waits for CI validation and explicit environment configuration. PostgreSQL, account authentication, and production routes are not implemented in this scaffold.
+The Worker configuration is prepared, but this API is not deployed yet. A live PostgreSQL database has not been provisioned or connected, and the migration has not been applied.
 
 ## Next milestone
 
-Add PostgreSQL schema migrations and a server-side database adapter with a bounded readiness probe. Only then should `/ready` become successful. Keep Firebase and the production Android app untouched until migration parity and rollback tests pass.
+Provision a managed PostgreSQL database, store its connection string as a Worker secret, apply the migration through a controlled migration process, and verify `/ready` against the real database. Then add registration, email verification, login, refresh-session rotation, and role authorization. Keep Firebase and the production Android app untouched until migration parity and rollback tests pass.
