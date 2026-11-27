@@ -10,6 +10,8 @@ Separate Cloudflare Worker API; it does not import Firebase SDKs and does not mo
 - `POST /v1/auth/register`: creates a pending account and emails a six-digit verification code.
 - `POST /v1/auth/login`: verifies credentials and issues a 15-minute access token plus a 30-day refresh token.
 - `POST /v1/auth/refresh`: rotates a refresh token; the previous token is revoked atomically.
+- `POST /v1/auth/password/reset/request`: sends a one-time password reset code without revealing whether the email exists.
+- `POST /v1/auth/password/reset/confirm`: changes the password and revokes all existing sessions.
 - `POST /v1/auth/logout`: revokes the supplied refresh token.
 - `GET /v1/auth/me`: returns the authenticated account identity.
 - `POST /v1/auth/email/verify`: verifies the six-digit code and activates the account.
@@ -55,16 +57,16 @@ Resend's unverified test sender can only deliver to the address that owns the Re
 ## Database
 
 - Driver: Neon serverless PostgreSQL.
-- Migrations: `migrations/0001_identity_and_profiles.sql`, `migrations/0002_auth_rate_limits.sql`, and `migrations/0003_auth_sessions.sql`.
-- They create users, patient/doctor/clinic profiles, hashed email verification state, and hashed rate-limit buckets, and hashed auth sessions.
+- Migrations: `migrations/0001_identity_and_profiles.sql`, `migrations/0002_auth_rate_limits.sql`, and `migrations/0003_auth_sessions.sql`, and `migrations/0004_password_reset.sql`.
+- They create users, patient/doctor/clinic profiles, hashed email verification state, and hashed rate-limit buckets, hashed auth sessions, and one-time password reset codes.
 - The migration has not been applied to the live Neon database yet.
 
 ## Current limitations / deployment status
 
 - Registration and email verification API routes are implemented in this branch but are not deployed.
 - No live email delivery has been tested; provider secrets and a verified sender domain are not configured.
-- Password reset, account recovery, multi-device session management UI, and Android integration are not implemented yet.
-- Expired rate-limit buckets are removed daily by a Cloudflare Cron Trigger.
+- Account recovery is implemented through one-time email codes; multi-device session management UI and Android integration are not implemented yet.
+- Expired rate-limit buckets, sessions, and password reset codes are cleaned daily by a Cloudflare Cron Trigger.
 - Firebase and the production Android app remain untouched. Do not cut over until migration, API, security, delivery, and rollback tests pass.
 
 ## Local checks
