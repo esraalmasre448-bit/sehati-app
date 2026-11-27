@@ -107,6 +107,28 @@ describe("Sehaty backend API", () => {
     expect(body.error).toBe("unauthorized");
   });
 
+  it("rejects malformed password reset requests", async () => {
+    const result = await worker.fetch(new Request("https://api.example.test/v1/auth/password/reset/request", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{broken",
+    }), env);
+    expect(result.status).toBe(400);
+    const body = await result.json() as { error: string };
+    expect(body.error).toBe("invalid_json");
+  });
+
+  it("rejects password reset confirmation with invalid code or weak password", async () => {
+    const result = await worker.fetch(new Request("https://api.example.test/v1/auth/password/reset/confirm", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "person@example.com", code: "12", newPassword: "short" }),
+    }), env);
+    expect(result.status).toBe(400);
+    const body = await result.json() as { error: string };
+    expect(body.error).toBe("invalid_password_reset_data");
+  });
+
   it("rejects unsupported methods", async () => {
     const result = await worker.fetch(new Request("https://api.example.test/health", { method: "PATCH" }), env);
     expect(result.status).toBe(405);
