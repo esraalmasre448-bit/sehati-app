@@ -170,9 +170,9 @@ async function resend(request: Request, env: Env): Promise<{ body: Record<string
   const userId = String(claimed[0].user_id);
   if (!await sendEmail(env, email, code)) {
     await releaseResendCooldown(sql, userId);
-    return { body: { error: "email_delivery_failed" }, status: 502 };
+    return { body: { status: "if_pending_account_exists_code_sent" }, status: 202 };
   }
-  return { body: { status: "verification_code_sent" }, status: 202 };
+  return { body: { status: "if_pending_account_exists_code_sent" }, status: 202 };
 }
 async function verify(request: Request, env: Env): Promise<{ body: Record<string, unknown>; status: number }> {
   let input: Record<string, unknown>;
