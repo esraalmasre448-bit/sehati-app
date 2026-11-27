@@ -50,16 +50,24 @@ async function passwordHash(password: string): Promise<string> {
 }
 async function sendEmail(env: Env, to: string, code: string): Promise<boolean> {
   if (!env.RESEND_API_KEY || !env.EMAIL_FROM) return false;
-  const result = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: { authorization: "Bearer " + env.RESEND_API_KEY, "content-type": "application/json" },
-    body: JSON.stringify({
-      from: env.EMAIL_FROM, to: [to], subject: "رمز التحقق - الطريق الصحي",
-      text: "رمز التحقق الخاص بك: " + code + "\nصلاحية الرمز 10 دقائق. لا تشاركه مع أي شخص.",
-      html: "<div dir=\"rtl\" style=\"font-family:Arial,sans-serif\"><h2>الطريق الصحي</h2><p>رمز التحقق الخاص بك:</p><div style=\"font-size:32px;font-weight:bold;letter-spacing:8px\">" + code + "</div><p>صلاحية الرمز 10 دقائق. لا تشاركه مع أي شخص.</p></div>",
-    }),
-  });
-  return result.ok;
+  try {
+    const result = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { authorization: "Bearer " + env.RESEND_API_KEY, "content-type": "application/json" },
+      signal: AbortSignal.timeout(8_000),
+      body: JSON.stringify({
+        from: env.EMAIL_FROM, to: [to], subject: "رمز التحقق - الطريق الصحي",
+        text: "رمز التحقق الخاص بك: " + code + "\\nصلاحية الرمز 10 دقائق. لا تشاركه مع أي شخص.",
+        html: "<div dir=\"rtl\" style=\"font-family:Arial,sans-serif\"><h2>الطريق الصحي</h2><p>رمز التحقق الخاص بك:</p><div style=\"font-size:32px;font-weight:bold;letter-spacing:8px\">" + code + "</div><p>صلاحية الرمز 10 دقائق. لا تشاركه مع أي شخص.</p></div>",
+      }),
+    });
+    return result.ok;
+  } catch {
+    return false;
+  }
+}
+async function releaseResendCooldown(sql: ReturnType<typeof neon>, userId: string): Promise<void> {
+  await sql.query("UPDATE email_verification_codes SET resend_after = now(), expires_at = LEAST(expires_at, now()) WHERE user_id = $1::uuid AND consumed_at IS NULL", [userId]);
 }
 async function storeCode(sql: ReturnType<typeof neon>, userId: string, email: string, env: Env): Promise<string> {
   const code = randomCode();
@@ -73,34 +81,42 @@ async function storeCode(sql: ReturnType<typeof neon>, userId: string, email: st
 async function register(request: Request, env: Env): Promise<{ body: Record<string, unknown>; status: number }> {
   if (!env.DATABASE_URL || !env.VERIFICATION_CODE_PEPPER || !env.RESEND_API_KEY || !env.EMAIL_FROM) return { body: { error: "registration_not_configured" }, status: 503 };
   let input: Record<string, unknown>;
-  try { input = await request.json() as Record<string, unknown>; } catch { return { body: { error: "invalid_json" }, status: 400 }; }
+  try {
+    const raw = await request.text();
+    if (raw.length > 16_384) return { body: { error: "request_too_large" }, status: 413 };
+    input = JSON.parse(raw) as Record<string, unknown>;
+    if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error("invalid_object");
+  } catch { return { body: { error: "invalid_json" }, status: 400 }; }
   const email = normalizeEmail(input.email);
   const displayName = typeof input.displayName === "string" ? input.displayName.trim() : "";
   const password = input.password;
   const role = String(input.role ?? "PATIENT");
+  const specialty = typeof input.specialtyName === "string" ? input.specialtyName.trim() : "";
+  const city = typeof input.city === "string" ? input.city.trim() : "";
   if (!email || typeof password !== "string" || password.length < 10 || password.length > 128 || displayName.length < 2 || displayName.length > 100 || !["PATIENT", "DOCTOR", "CLINIC"].includes(role)) {
     return { body: { error: "invalid_registration_data" }, status: 400 };
   }
+  if (role === "DOCTOR" && (!specialty || specialty.length > 100 || !city || city.length > 100)) return { body: { error: "doctor_profile_required" }, status: 400 };
+  if (role === "CLINIC" && (!city || city.length > 100)) return { body: { error: "clinic_profile_required" }, status: 400 };
   const sql = neon(env.DATABASE_URL);
-  const existing = await sql.query("SELECT id FROM users WHERE lower(email) = $1 LIMIT 1", [email]);
-  if (existing.length) return { body: { error: "email_already_registered" }, status: 409 };
   const hash = await passwordHash(password);
-  const created = await sql.query("INSERT INTO users (email, password_hash, role, account_status) VALUES ($1, $2, $3, 'PENDING_VERIFICATION') RETURNING id", [email, hash, role]);
+  // The unique index is the source of truth; this also closes the concurrent
+  // check-then-insert race that could otherwise surface as an uncaught 500.
+  const created = await sql.query("INSERT INTO users (email, password_hash, role, account_status) VALUES ($1, $2, $3, 'PENDING_VERIFICATION') ON CONFLICT DO NOTHING RETURNING id", [email, hash, role]);
+  if (!created.length) return { body: { error: "email_already_registered" }, status: 409 };
   const userId = String(created[0].id);
   if (role === "PATIENT") {
     await sql.query("INSERT INTO patient_profiles (user_id, display_name) VALUES ($1::uuid, $2)", [userId, displayName]);
   } else if (role === "DOCTOR") {
-    const specialty = typeof input.specialtyName === "string" ? input.specialtyName.trim() : "";
-    const city = typeof input.city === "string" ? input.city.trim() : "";
-    if (!specialty || !city) { await sql.query("DELETE FROM users WHERE id = $1::uuid", [userId]); return { body: { error: "doctor_profile_required" }, status: 400 }; }
     await sql.query("INSERT INTO doctor_profiles (user_id, display_name, specialty_name, city) VALUES ($1::uuid, $2, $3, $4)", [userId, displayName, specialty, city]);
   } else {
-    const city = typeof input.city === "string" ? input.city.trim() : "";
-    if (!city) { await sql.query("DELETE FROM users WHERE id = $1::uuid", [userId]); return { body: { error: "clinic_profile_required" }, status: 400 }; }
     await sql.query("INSERT INTO clinic_profiles (user_id, clinic_name, city) VALUES ($1::uuid, $2, $3)", [userId, displayName, city]);
   }
   const code = await storeCode(sql, userId, email, env);
-  if (!await sendEmail(env, email, code)) return { body: { error: "email_delivery_failed" }, status: 502 };
+  if (!await sendEmail(env, email, code)) {
+    await releaseResendCooldown(sql, userId);
+    return { body: { error: "email_delivery_failed" }, status: 502 };
+  }
   return { body: { status: "verification_required", message: "تم إنشاء الحساب وإرسال رمز التحقق إلى بريدك الإلكتروني." }, status: 202 };
 }
 async function resend(request: Request, env: Env): Promise<{ body: Record<string, unknown>; status: number }> {
@@ -114,7 +130,10 @@ async function resend(request: Request, env: Env): Promise<{ body: Record<string
   if (!rows.length) return { body: { status: "if_pending_account_exists_code_sent" }, status: 202 };
   if (rows[0].resend_after && new Date(String(rows[0].resend_after)).getTime() > Date.now()) return { body: { error: "resend_too_soon" }, status: 429 };
   const code = await storeCode(sql, String(rows[0].id), email, env);
-  if (!await sendEmail(env, email, code)) return { body: { error: "email_delivery_failed" }, status: 502 };
+  if (!await sendEmail(env, email, code)) {
+    await releaseResendCooldown(sql, String(rows[0].id));
+    return { body: { error: "email_delivery_failed" }, status: 502 };
+  }
   return { body: { status: "verification_code_sent" }, status: 202 };
 }
 async function verify(request: Request, env: Env): Promise<{ body: Record<string, unknown>; status: number }> {
@@ -145,7 +164,6 @@ async function verify(request: Request, env: Env): Promise<{ body: Record<string
   );
   if (state.length && Number(state[0].attempts) >= MAX_ATTEMPTS) return { body: { error: "too_many_attempts" }, status: 429 };
   return { body: { error: "code_invalid_or_expired" }, status: 400 };
-  return { body: { status: "email_verified", message: "تم تأكيد البريد الإلكتروني بنجاح." }, status: 200 };
 }
 
 export default {
@@ -165,14 +183,18 @@ export default {
       return response({ status: ready ? "ready" : "not_ready", dependencies: { postgres: ready ? "connected" : "unavailable" } }, ready ? 200 : 503, requestId, cors);
     }
     if (url.pathname === "/v1" && request.method === "GET") return response({ service: "sehati-backend-api", apiVersion: "v1", status: "email-verification-preview" }, 200, requestId, cors);
-    if (request.method === "POST" && url.pathname === "/v1/auth/register") {
-      const result = await register(request, env); return response(result.body, result.status, requestId, cors);
-    }
-    if (request.method === "POST" && url.pathname === "/v1/auth/email/resend") {
-      const result = await resend(request, env); return response(result.body, result.status, requestId, cors);
-    }
-    if (request.method === "POST" && url.pathname === "/v1/auth/email/verify") {
-      const result = await verify(request, env); return response(result.body, result.status, requestId, cors);
+    try {
+      if (request.method === "POST" && url.pathname === "/v1/auth/register") {
+        const result = await register(request, env); return response(result.body, result.status, requestId, cors);
+      }
+      if (request.method === "POST" && url.pathname === "/v1/auth/email/resend") {
+        const result = await resend(request, env); return response(result.body, result.status, requestId, cors);
+      }
+      if (request.method === "POST" && url.pathname === "/v1/auth/email/verify") {
+        const result = await verify(request, env); return response(result.body, result.status, requestId, cors);
+      }
+    } catch {
+      return response({ error: "internal_error" }, 500, requestId, cors);
     }
     if (request.method !== "GET" && request.method !== "POST") return response({ error: "method_not_allowed" }, 405, requestId, cors);
     return response({ error: "not_found" }, 404, requestId, cors);
