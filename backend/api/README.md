@@ -25,6 +25,7 @@ Verification JSON: `{ "email": "user@example.com", "code": "123456" }`.
 - Verification consumption and account activation happen in one atomic PostgreSQL statement.
 - Resend cooldown is claimed with a conditional database update, so concurrent requests cannot both replace the code.
 - Authentication endpoints enforce fixed-window request limits by Cloudflare client IP and normalized email; bucket keys are peppered hashes, not raw identifiers.
+- Resend responses are intentionally identical for unknown accounts and active cooldowns to reduce email-address enumeration.
 - Request bodies are capped at 16 KiB and email-provider calls time out after eight seconds.
 - A new code can be requested once per 60 seconds.
 - Accounts remain `PENDING_VERIFICATION` until the database records `email_verified_at`.
