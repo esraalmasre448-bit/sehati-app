@@ -111,6 +111,23 @@ async function sendEmail(env: Env, to: string, code: string): Promise<boolean> {
     return false;
   }
 }
+async function sendPasswordResetEmail(env: Env, to: string, code: string): Promise<boolean> {
+  if (!env.RESEND_API_KEY || !env.EMAIL_FROM) return false;
+  try {
+    const result = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { authorization: "Bearer " + env.RESEND_API_KEY, "content-type": "application/json" },
+      signal: AbortSignal.timeout(8_000),
+      body: JSON.stringify({
+        from: env.EMAIL_FROM, to: [to], subject: "إعادة تعيين كلمة المرور - الطريق الصحي",
+        text: "رمز إعادة تعيين كلمة المرور: " + code + "\nصلاحية الرمز 10 دقائق. إذا لم تطلب ذلك فتجاهل الرسالة.",
+        html: "<div dir=\"rtl\" style=\"font-family:Arial,sans-serif\"><h2>الطريق الصحي</h2><p>رمز إعادة تعيين كلمة المرور:</p><div style=\"font-size:32px;font-weight:bold;letter-spacing:8px\">" + code + "</div><p>صلاحية الرمز 10 دقائق. إذا لم تطلب ذلك فتجاهل الرسالة.</p></div>",
+      }),
+    });
+    if (!result.ok) { console.error("Resend rejected password reset email", result.status); return false; }
+    return true;
+  } catch { console.error("Password reset email request failed"); return false; }
+}
 async function releaseResendCooldown(sql: SqlClient, userId: string): Promise<void> {
   await sql.query("UPDATE email_verification_codes SET resend_after = now(), expires_at = LEAST(expires_at, now()) WHERE user_id = $1::uuid AND consumed_at IS NULL", [userId]);
 }
@@ -201,6 +218,69 @@ async function logout(request: Request, env: Env): Promise<{ body: Record<string
   await sql.query("UPDATE auth_sessions SET revoked_at = now() WHERE refresh_token_hash = $1 AND revoked_at IS NULL", [await digest(refreshToken)]);
   return { body: { status: "logged_out" }, status: 200 };
 }
+async function requestPasswordReset(request: Request, env: Env): Promise<{ body: Record<string, unknown>; status: number }> {
+  let input: Record<string, unknown>;
+  try {
+    const raw = await request.text();
+    if (raw.length > 16_384) return { body: { error: "request_too_large" }, status: 413 };
+    input = JSON.parse(raw) as Record<string, unknown>;
+    if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error("invalid_object");
+  } catch { return { body: { error: "invalid_json" }, status: 400 }; }
+  const email = normalizeEmail(input.email);
+  if (!email) return { body: { error: "invalid_email" }, status: 400 };
+  if (!env.DATABASE_URL || !env.VERIFICATION_CODE_PEPPER || env.VERIFICATION_CODE_PEPPER.length < 32 || !env.RESEND_API_KEY || !env.EMAIL_FROM) return { body: { error: "password_reset_not_configured" }, status: 503 };
+  const sql = neon(env.DATABASE_URL);
+  if (!await allowRateLimit(sql, env, "password-reset:ip:" + clientIp(request), 10, 3600) ||
+      !await allowRateLimit(sql, env, "password-reset:email:" + email, 5, 3600)) {
+    return { body: { error: "too_many_requests" }, status: 429 };
+  }
+  const code = randomCode();
+  const codeHash = await digest(env.VERIFICATION_CODE_PEPPER + ":password-reset:" + email + ":" + code);
+  const claimed = await sql.query(
+    "INSERT INTO password_reset_codes (user_id, code_hash, expires_at, resend_after) SELECT id, $2, now() + ($3 * interval '1 minute'), now() + ($4 * interval '1 second') FROM users WHERE lower(email) = $1 AND account_status = 'ACTIVE' AND email_verified_at IS NOT NULL ON CONFLICT (user_id) DO UPDATE SET code_hash = EXCLUDED.code_hash, expires_at = EXCLUDED.expires_at, resend_after = EXCLUDED.resend_after, attempts = 0, consumed_at = NULL, created_at = now() WHERE password_reset_codes.resend_after <= now() OR password_reset_codes.consumed_at IS NOT NULL RETURNING user_id",
+    [email, codeHash, TTL_MINUTES, RESEND_SECONDS],
+  );
+  if (claimed.length) {
+    if (!await sendPasswordResetEmail(env, email, code)) {
+      await sql.query("UPDATE password_reset_codes SET expires_at = now(), resend_after = now() WHERE user_id = $1::uuid AND consumed_at IS NULL", [String(claimed[0].user_id)]);
+    }
+  }
+  return { body: { status: "if_account_exists_reset_code_sent" }, status: 202 };
+}
+async function confirmPasswordReset(request: Request, env: Env): Promise<{ body: Record<string, unknown>; status: number }> {
+  let input: Record<string, unknown>;
+  try {
+    const raw = await request.text();
+    if (raw.length > 16_384) return { body: { error: "request_too_large" }, status: 413 };
+    input = JSON.parse(raw) as Record<string, unknown>;
+    if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error("invalid_object");
+  } catch { return { body: { error: "invalid_json" }, status: 400 }; }
+  const email = normalizeEmail(input.email);
+  const code = typeof input.code === "string" ? input.code.trim() : "";
+  const newPassword = input.newPassword;
+  if (!email || !/^\d{6}$/.test(code) || typeof newPassword !== "string" || newPassword.length < 10 || newPassword.length > 128) {
+    return { body: { error: "invalid_password_reset_data" }, status: 400 };
+  }
+  if (!env.DATABASE_URL || !env.VERIFICATION_CODE_PEPPER || env.VERIFICATION_CODE_PEPPER.length < 32) return { body: { error: "password_reset_not_configured" }, status: 503 };
+  const sql = neon(env.DATABASE_URL);
+  if (!await allowRateLimit(sql, env, "password-reset-confirm:ip:" + clientIp(request), 20, 900) ||
+      !await allowRateLimit(sql, env, "password-reset-confirm:email:" + email, 10, 900)) {
+    return { body: { error: "too_many_requests" }, status: 429 };
+  }
+  const submitted = await digest(env.VERIFICATION_CODE_PEPPER + ":password-reset:" + email + ":" + code);
+  const newHash = await passwordHash(newPassword);
+  const changed = await sql.query(
+    "WITH consumed AS (UPDATE password_reset_codes pr SET consumed_at = now(), code_hash = 'consumed' FROM users u WHERE pr.user_id = u.id AND lower(u.email) = $1 AND u.account_status = 'ACTIVE' AND u.email_verified_at IS NOT NULL AND pr.code_hash = $2 AND pr.expires_at > now() AND pr.consumed_at IS NULL AND pr.attempts < $3 RETURNING pr.user_id), updated AS (UPDATE users SET password_hash = $4, updated_at = now() WHERE id IN (SELECT user_id FROM consumed) RETURNING id), revoked AS (UPDATE auth_sessions SET revoked_at = now() WHERE user_id IN (SELECT id FROM updated) AND revoked_at IS NULL RETURNING id) SELECT id FROM updated",
+    [email, submitted, MAX_ATTEMPTS, newHash],
+  );
+  if (changed.length) return { body: { status: "password_reset", message: "تم تغيير كلمة المرور. سجّل الدخول من جديد." }, status: 200 };
+  await sql.query(
+    "UPDATE password_reset_codes pr SET attempts = attempts + 1 FROM users u WHERE pr.user_id = u.id AND lower(u.email) = $1 AND u.account_status = 'ACTIVE' AND pr.code_hash <> $2 AND pr.expires_at > now() AND pr.consumed_at IS NULL AND pr.attempts < $3",
+    [email, submitted, MAX_ATTEMPTS],
+  );
+  return { body: { error: "invalid_or_expired_reset_code" }, status: 400 };
+}
+
 async function currentUser(request: Request, env: Env): Promise<{ body: Record<string, unknown>; status: number }> {
   const token = bearerToken(request);
   if (!token) return { body: { error: "unauthorized" }, status: 401 };
@@ -365,6 +445,12 @@ export default {
     }
     if (url.pathname === "/v1" && request.method === "GET") return response({ service: "sehati-backend-api", apiVersion: "v1", status: "auth-preview" }, 200, requestId, cors);
     try {
+      if (request.method === "POST" && url.pathname === "/v1/auth/password/reset/request") {
+        const result = await requestPasswordReset(request, env); return response(result.body, result.status, requestId, cors);
+      }
+      if (request.method === "POST" && url.pathname === "/v1/auth/password/reset/confirm") {
+        const result = await confirmPasswordReset(request, env); return response(result.body, result.status, requestId, cors);
+      }
       if (request.method === "POST" && url.pathname === "/v1/auth/login") {
         const result = await login(request, env); return response(result.body, result.status, requestId, cors);
       }
