@@ -22,6 +22,10 @@ Verification JSON: `{ "email": "user@example.com", "code": "123456" }`.
 
 - Passwords are PBKDF2-SHA-256 hashes (310,000 iterations); plaintext passwords are never stored.
 - Verification codes are six digits, expire after 10 minutes, are stored only as peppered SHA-256 hashes, and allow at most five attempts.
+- Verification consumption and account activation happen in one atomic PostgreSQL statement.
+- Resend cooldown is claimed with a conditional database update, so concurrent requests cannot both replace the code.
+- Authentication endpoints enforce fixed-window request limits by Cloudflare client IP and normalized email; bucket keys are peppered hashes, not raw identifiers.
+- Request bodies are capped at 16 KiB and email-provider calls time out after eight seconds.
 - A new code can be requested once per 60 seconds.
 - Accounts remain `PENDING_VERIFICATION` until the database records `email_verified_at`.
 - Responses include request IDs and use `cache-control: no-store`.
@@ -43,15 +47,15 @@ Resend's unverified test sender can only deliver to the address that owns the Re
 ## Database
 
 - Driver: Neon serverless PostgreSQL.
-- Migration: `migrations/0001_identity_and_profiles.sql`.
-- The migration includes users, patient/doctor/clinic profiles, and hashed email verification state.
+- Migrations: `migrations/0001_identity_and_profiles.sql` and `migrations/0002_auth_rate_limits.sql`.
+- They create users, patient/doctor/clinic profiles, hashed email verification state, and hashed rate-limit buckets.
 - The migration has not been applied to the live Neon database yet.
 
 ## Current limitations / deployment status
 
 - Registration and email verification API routes are implemented in this branch but are not deployed.
 - No live email delivery has been tested; provider secrets and a verified sender domain are not configured.
-- Login, refresh-token sessions, password reset, IP-level abuse controls, and Android integration are not implemented yet.
+- Login, refresh-token sessions, password reset, scheduled cleanup of expired rate-limit buckets, and Android integration are not implemented yet.
 - Firebase and the production Android app remain untouched. Do not cut over until migration, API, security, delivery, and rollback tests pass.
 
 ## Local checks
