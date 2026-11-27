@@ -3,8 +3,8 @@ import worker from "../src/index";
 
 const env = { ALLOWED_ORIGINS: "https://app.example.test" };
 
-describe("Sehaty backend API scaffold", () => {
-  it("returns a minimal liveness response", async () => {
+describe("Sehaty backend API", () => {
+  it("returns liveness without exposing configuration", async () => {
     const result = await worker.fetch(new Request("https://api.example.test/health"), env);
     expect(result.status).toBe(200);
     const body = await result.json() as Record<string, unknown>;
@@ -13,7 +13,7 @@ describe("Sehaty backend API scaffold", () => {
     expect(JSON.stringify(body)).not.toContain("DATABASE_URL");
   });
 
-  it("does not claim database readiness when no connection is configured", async () => {
+  it("does not claim database readiness without a configured database", async () => {
     const result = await worker.fetch(new Request("https://api.example.test/ready"), env);
     expect(result.status).toBe(503);
     const body = await result.json() as { status: string; dependencies: { postgres: string } };
@@ -21,22 +21,30 @@ describe("Sehaty backend API scaffold", () => {
     expect(body.dependencies.postgres).toBe("unavailable");
   });
 
-  it("serves the versioned API root", async () => {
+  it("serves versioned API metadata", async () => {
     const result = await worker.fetch(new Request("https://api.example.test/v1"), env);
     expect(result.status).toBe(200);
     const body = await result.json() as Record<string, unknown>;
     expect(body.apiVersion).toBe("v1");
   });
 
-  it("allows only an explicitly configured browser origin", async () => {
-    const result = await worker.fetch(new Request("https://api.example.test/health", {
-      headers: { Origin: "https://app.example.test" },
+  it("requires server and email provider secrets before registration", async () => {
+    const result = await worker.fetch(new Request("https://api.example.test/v1/auth/register", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "person@example.com", password: "long-enough-password", displayName: "Test" }),
     }), env);
-    expect(result.status).toBe(200);
-    expect(result.headers.get("access-control-allow-origin")).toBe("https://app.example.test");
+    expect(result.status).toBe(503);
+    const body = await result.json() as { error: string };
+    expect(body.error).toBe("registration_not_configured");
   });
 
-  it("rejects an unapproved browser origin before routing", async () => {
+  it("rejects unsupported methods", async () => {
+    const result = await worker.fetch(new Request("https://api.example.test/health", { method: "PATCH" }), env);
+    expect(result.status).toBe(405);
+  });
+
+  it("rejects unapproved browser origins", async () => {
     const result = await worker.fetch(new Request("https://api.example.test/health", {
       headers: { Origin: "https://attacker.example" },
     }), env);
@@ -45,20 +53,12 @@ describe("Sehaty backend API scaffold", () => {
     expect(body.error).toBe("origin_not_allowed");
   });
 
-  it("answers preflight for an approved origin", async () => {
-    const result = await worker.fetch(new Request("https://api.example.test/health", {
-      method: "OPTIONS",
-      headers: { Origin: "https://app.example.test" },
+  it("answers preflight for approved origins", async () => {
+    const result = await worker.fetch(new Request("https://api.example.test/v1/auth/register", {
+      method: "OPTIONS", headers: { Origin: "https://app.example.test" },
     }), env);
     expect(result.status).toBe(204);
     expect(result.headers.get("access-control-allow-origin")).toBe("https://app.example.test");
-  });
-
-  it("rejects non-GET methods", async () => {
-    const result = await worker.fetch(new Request("https://api.example.test/health", {
-      method: "POST",
-    }), env);
-    expect(result.status).toBe(405);
   });
 
   it("returns 404 for unknown routes", async () => {
