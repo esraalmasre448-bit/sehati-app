@@ -80,15 +80,6 @@ async function allowRateLimit(sql: ReturnType<typeof neon>, env: Env, key: strin
 function clientIp(request: Request): string {
   return request.headers.get("CF-Connecting-IP")?.slice(0, 64) || "unknown";
 }
-async function storeCode(sql: ReturnType<typeof neon>, userId: string, email: string, env: Env): Promise<string> {
-  const code = randomCode();
-  const codeHash = await digest(env.VERIFICATION_CODE_PEPPER + ":" + email + ":" + code);
-  await sql.query(
-    "INSERT INTO email_verification_codes (user_id, code_hash, expires_at, resend_after) VALUES ($1::uuid, $2, now() + ($3 * interval '1 minute'), now() + ($4 * interval '1 second')) ON CONFLICT (user_id) DO UPDATE SET code_hash = EXCLUDED.code_hash, expires_at = EXCLUDED.expires_at, resend_after = EXCLUDED.resend_after, attempts = 0, consumed_at = NULL, created_at = now()",
-    [userId, codeHash, TTL_MINUTES, RESEND_SECONDS],
-  );
-  return code;
-}
 async function register(request: Request, env: Env): Promise<{ body: Record<string, unknown>; status: number }> {
   if (!env.DATABASE_URL || !env.VERIFICATION_CODE_PEPPER || !env.RESEND_API_KEY || !env.EMAIL_FROM) return { body: { error: "registration_not_configured" }, status: 503 };
   let input: Record<string, unknown>;
@@ -116,19 +107,29 @@ async function register(request: Request, env: Env): Promise<{ body: Record<stri
     return { body: { error: "too_many_requests" }, status: 429 };
   }
   const hash = await passwordHash(password);
-  // The unique index is the source of truth; this also closes the concurrent
-  // check-then-insert race that could otherwise surface as an uncaught 500.
-  const created = await sql.query("INSERT INTO users (email, password_hash, role, account_status) VALUES ($1, $2, $3, 'PENDING_VERIFICATION') ON CONFLICT DO NOTHING RETURNING id", [email, hash, role]);
-  if (!created.length) return { body: { error: "email_already_registered" }, status: 409 };
-  const userId = String(created[0].id);
+  const code = randomCode();
+  const codeHash = await digest(env.VERIFICATION_CODE_PEPPER + ":" + email + ":" + code);
+  // Create the identity, role profile, and verification challenge in one SQL
+  // statement. A profile/code failure rolls back the pending user as well.
+  let created: Record<string, unknown>[];
   if (role === "PATIENT") {
-    await sql.query("INSERT INTO patient_profiles (user_id, display_name) VALUES ($1::uuid, $2)", [userId, displayName]);
+    created = await sql.query(
+      "WITH created AS (INSERT INTO users (email, password_hash, role, account_status) VALUES ($1, $2, $3, 'PENDING_VERIFICATION') ON CONFLICT DO NOTHING RETURNING id), profile AS (INSERT INTO patient_profiles (user_id, display_name) SELECT id, $4 FROM created RETURNING user_id), verification AS (INSERT INTO email_verification_codes (user_id, code_hash, expires_at, resend_after) SELECT user_id, $5, now() + ($6 * interval '1 minute'), now() + ($7 * interval '1 second') FROM profile RETURNING user_id) SELECT user_id FROM verification",
+      [email, hash, role, displayName, codeHash, TTL_MINUTES, RESEND_SECONDS],
+    );
   } else if (role === "DOCTOR") {
-    await sql.query("INSERT INTO doctor_profiles (user_id, display_name, specialty_name, city) VALUES ($1::uuid, $2, $3, $4)", [userId, displayName, specialty, city]);
+    created = await sql.query(
+      "WITH created AS (INSERT INTO users (email, password_hash, role, account_status) VALUES ($1, $2, $3, 'PENDING_VERIFICATION') ON CONFLICT DO NOTHING RETURNING id), profile AS (INSERT INTO doctor_profiles (user_id, display_name, specialty_name, city) SELECT id, $4, $5, $6 FROM created RETURNING user_id), verification AS (INSERT INTO email_verification_codes (user_id, code_hash, expires_at, resend_after) SELECT user_id, $7, now() + ($8 * interval '1 minute'), now() + ($9 * interval '1 second') FROM profile RETURNING user_id) SELECT user_id FROM verification",
+      [email, hash, role, displayName, specialty, city, codeHash, TTL_MINUTES, RESEND_SECONDS],
+    );
   } else {
-    await sql.query("INSERT INTO clinic_profiles (user_id, clinic_name, city) VALUES ($1::uuid, $2, $3)", [userId, displayName, city]);
+    created = await sql.query(
+      "WITH created AS (INSERT INTO users (email, password_hash, role, account_status) VALUES ($1, $2, $3, 'PENDING_VERIFICATION') ON CONFLICT DO NOTHING RETURNING id), profile AS (INSERT INTO clinic_profiles (user_id, clinic_name, city) SELECT id, $4, $5 FROM created RETURNING user_id), verification AS (INSERT INTO email_verification_codes (user_id, code_hash, expires_at, resend_after) SELECT user_id, $6, now() + ($7 * interval '1 minute'), now() + ($8 * interval '1 second') FROM profile RETURNING user_id) SELECT user_id FROM verification",
+      [email, hash, role, displayName, city, codeHash, TTL_MINUTES, RESEND_SECONDS],
+    );
   }
-  const code = await storeCode(sql, userId, email, env);
+  if (!created.length) return { body: { error: "email_already_registered" }, status: 409 };
+  const userId = String(created[0].user_id);
   if (!await sendEmail(env, email, code)) {
     await releaseResendCooldown(sql, userId);
     return { body: { error: "email_delivery_failed" }, status: 502 };
