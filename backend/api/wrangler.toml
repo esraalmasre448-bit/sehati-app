@@ -1,0 +1,12 @@
+name = "sehati-backend-api"
+main = "src/index.ts"
+compatibility_date = "2026-11-25"
+workers_dev = true
+
+[vars]
+# Set ALLOWED_ORIGINS in the Cloudflare dashboard for the real application origin.
+# Do not put database credentials or other secrets in this file.
+
+[triggers]
+# Daily cleanup of expired hashed authentication rate-limit buckets.
+crons = ["17 3 * * *"]

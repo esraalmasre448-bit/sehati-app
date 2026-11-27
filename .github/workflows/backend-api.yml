@@ -1,0 +1,68 @@
+name: Backend API checks
+
+on:
+  push:
+    branches:
+      - backend/self-hosted-core
+    paths:
+      - "backend/api/**"
+      - ".github/workflows/backend-api.yml"
+  pull_request:
+    paths:
+      - "backend/api/**"
+      - ".github/workflows/backend-api.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: sehati_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d sehati_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    defaults:
+      run:
+        working-directory: backend/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.23.0
+          run_install: false
+      - run: pnpm install --no-frozen-lockfile
+      - run: pnpm run typecheck
+      - run: pnpm test
+      - name: Apply all PostgreSQL migrations
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/sehati_test
+          PGPASSWORD: postgres
+        run: |
+          for migration in migrations/*.sql; do
+            echo "Applying $migration"
+            psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$migration"
+          done
+          tables_ok="$(psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -Atqc "SELECT count(*) = 8 FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('users', 'patient_profiles', 'doctor_profiles', 'clinic_profiles', 'email_verification_codes', 'auth_rate_limits', 'auth_sessions', 'password_reset_codes')")"
+          test "$tables_ok" = "t"
+          index_ok="$(psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -Atqc "SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'users_email_lower_unique' AND indexdef ILIKE '%UNIQUE%')")"
+          test "$index_ok" = "t"
+          session_column_ok="$(psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -Atqc "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'auth_sessions' AND column_name = 'replaced_by_session_id')")"
+          test "$session_column_ok" = "t"
+          reset_column_ok="$(psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -Atqc "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'password_reset_codes' AND column_name = 'attempts')")"
+          test "$reset_column_ok" = "t"
+          echo "PostgreSQL migrations and required schema assertions passed."
