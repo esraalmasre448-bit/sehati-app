@@ -15,7 +15,8 @@ All responses include a request ID. Browser CORS responses are enabled only for 
 - Driver: Neon serverless PostgreSQL client.
 - Initial migration: `migrations/0001_identity_and_profiles.sql`.
 - Initial tables: users, patient profiles, doctor profiles, clinic profiles.
-- Password storage is represented only by `password_hash`; authentication endpoints are not implemented yet.
+- New accounts default to `PENDING_VERIFICATION`; the database rejects activation until `email_verified_at` is set.
+- Password storage is represented only by `password_hash`; authentication and email-verification endpoints are not implemented yet.
 - The migration is a reviewed SQL file and has not been applied to a live database.
 
 Set `DATABASE_URL` as a secret in the Worker environment. Never commit it or put it in Android.
