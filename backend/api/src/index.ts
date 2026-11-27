@@ -363,7 +363,7 @@ export default {
       const ready = await checkDatabase(env);
       return response({ status: ready ? "ready" : "not_ready", dependencies: { postgres: ready ? "connected" : "unavailable" } }, ready ? 200 : 503, requestId, cors);
     }
-    if (url.pathname === "/v1" && request.method === "GET") return response({ service: "sehati-backend-api", apiVersion: "v1", status: "email-verification-preview" }, 200, requestId, cors);
+    if (url.pathname === "/v1" && request.method === "GET") return response({ service: "sehati-backend-api", apiVersion: "v1", status: "auth-preview" }, 200, requestId, cors);
     try {
       if (request.method === "POST" && url.pathname === "/v1/auth/login") {
         const result = await login(request, env); return response(result.body, result.status, requestId, cors);
@@ -397,6 +397,7 @@ export default {
     ctx.waitUntil((async () => {
       const sql = neon(env.DATABASE_URL!);
       await sql.query("DELETE FROM auth_rate_limits WHERE window_started_at < now() - interval '2 days'");
+      await sql.query("DELETE FROM auth_sessions WHERE refresh_expires_at < now() OR (revoked_at IS NOT NULL AND revoked_at < now() - interval '30 days')");
     })());
   },
 };
