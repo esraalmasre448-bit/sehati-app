@@ -14,6 +14,7 @@ const TTL_MINUTES = 10;
 const RESEND_SECONDS = 60;
 const MAX_ATTEMPTS = 5;
 const PBKDF2_ITERATIONS = 310_000;
+type SqlClient = { query: (query: string, params?: any[]) => Promise<any> };
 
 function response(body: Record<string, unknown>, status: number, requestId: string, cors: HeadersInit = {}): Response {
   return new Response(JSON.stringify({ ...body, requestId }), {
@@ -66,10 +67,10 @@ async function sendEmail(env: Env, to: string, code: string): Promise<boolean> {
     return false;
   }
 }
-async function releaseResendCooldown(sql: ReturnType<typeof neon>, userId: string): Promise<void> {
+async function releaseResendCooldown(sql: SqlClient, userId: string): Promise<void> {
   await sql.query("UPDATE email_verification_codes SET resend_after = now(), expires_at = LEAST(expires_at, now()) WHERE user_id = $1::uuid AND consumed_at IS NULL", [userId]);
 }
-async function allowRateLimit(sql: ReturnType<typeof neon>, env: Env, key: string, limit: number, windowSeconds: number): Promise<boolean> {
+async function allowRateLimit(sql: SqlClient, env: Env, key: string, limit: number, windowSeconds: number): Promise<boolean> {
   const bucket = await digest(env.VERIFICATION_CODE_PEPPER + ":rate:" + key);
   const rows = await sql.query(
     "INSERT INTO auth_rate_limits (bucket_key, window_started_at, request_count) VALUES ($1, now(), 1) ON CONFLICT (bucket_key) DO UPDATE SET window_started_at = CASE WHEN auth_rate_limits.window_started_at <= now() - ($2 * interval '1 second') THEN now() ELSE auth_rate_limits.window_started_at END, request_count = CASE WHEN auth_rate_limits.window_started_at <= now() - ($2 * interval '1 second') THEN 1 ELSE auth_rate_limits.request_count + 1 END RETURNING request_count",
