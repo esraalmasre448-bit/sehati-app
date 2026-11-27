@@ -55,7 +55,8 @@ Resend's unverified test sender can only deliver to the address that owns the Re
 
 - Registration and email verification API routes are implemented in this branch but are not deployed.
 - No live email delivery has been tested; provider secrets and a verified sender domain are not configured.
-- Login, refresh-token sessions, password reset, scheduled cleanup of expired rate-limit buckets, and Android integration are not implemented yet.
+- Login, refresh-token sessions, password reset, and Android integration are not implemented yet.
+- Expired rate-limit buckets are removed daily by a Cloudflare Cron Trigger.
 - Firebase and the production Android app remain untouched. Do not cut over until migration, API, security, delivery, and rollback tests pass.
 
 ## Local checks
