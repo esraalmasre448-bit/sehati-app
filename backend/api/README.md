@@ -39,7 +39,7 @@ Set these in the Cloudflare Worker secret/variable settings; never commit them:
 
 - `DATABASE_URL`: Neon pooled PostgreSQL connection string.
 - `RESEND_API_KEY`: Resend sending API key.
-- `VERIFICATION_CODE_PEPPER`: long random secret used when hashing codes.
+- `VERIFICATION_CODE_PEPPER`: cryptographically random secret of at least 32 characters, used when hashing codes and rate-limit keys.
 - `EMAIL_FROM`: sender identity, for example `Sehaty <no-reply@your-verified-domain.example>` after a sending domain is verified.
 - `ALLOWED_ORIGINS`: exact app/web origins, as a normal variable.
 
