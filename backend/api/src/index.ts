@@ -275,7 +275,7 @@ async function confirmPasswordReset(request: Request, env: Env): Promise<{ body:
   );
   if (changed.length) return { body: { status: "password_reset", message: "تم تغيير كلمة المرور. سجّل الدخول من جديد." }, status: 200 };
   await sql.query(
-    "UPDATE password_reset_codes pr SET attempts = attempts + 1 FROM users u WHERE pr.user_id = u.id AND lower(u.email) = $1 AND u.account_status = 'ACTIVE' AND pr.code_hash <> $2 AND pr.expires_at > now() AND pr.consumed_at IS NULL AND pr.attempts < $3",
+    "UPDATE password_reset_codes pr SET attempts = attempts + 1 FROM users u WHERE pr.user_id = u.id AND lower(u.email) = $1 AND pr.code_hash <> $2 AND pr.expires_at > now() AND pr.consumed_at IS NULL AND pr.attempts < $3",
     [email, submitted, MAX_ATTEMPTS],
   );
   return { body: { error: "invalid_or_expired_reset_code" }, status: 400 };
@@ -323,8 +323,6 @@ async function register(request: Request, env: Env): Promise<{ body: Record<stri
   const hash = await passwordHash(password);
   const code = randomCode();
   const codeHash = await digest(env.VERIFICATION_CODE_PEPPER + ":" + email + ":" + code);
-  // Create the identity, role profile, and verification challenge in one SQL
-  // statement. A profile/code failure rolls back the pending user as well.
   let created: Record<string, unknown>[];
   if (role === "PATIENT") {
     created = await sql.query(
@@ -369,15 +367,11 @@ async function resend(request: Request, env: Env): Promise<{ body: Record<string
   }
   const code = randomCode();
   const codeHash = await digest(env.VERIFICATION_CODE_PEPPER + ":" + email + ":" + code);
-  // Conditional UPDATE obtains the row lock and enforces cooldown atomically;
-  // concurrent resend requests cannot both replace the active code.
   const claimed = await sql.query(
     "UPDATE email_verification_codes ev SET code_hash = $2, expires_at = now() + ($3 * interval '1 minute'), resend_after = now() + ($4 * interval '1 second'), attempts = 0, consumed_at = NULL, created_at = now() FROM users u WHERE ev.user_id = u.id AND lower(u.email) = $1 AND u.email_verified_at IS NULL AND u.account_status = 'PENDING_VERIFICATION' AND ev.resend_after <= now() AND ev.consumed_at IS NULL RETURNING ev.user_id",
     [email, codeHash, TTL_MINUTES, RESEND_SECONDS],
   );
   if (!claimed.length) {
-    // Keep the response identical for unknown accounts and active cooldowns
-    // to avoid disclosing whether an email has a pending account.
     return { body: { status: "if_pending_account_exists_code_sent" }, status: 202 };
   }
   const userId = String(claimed[0].user_id);
@@ -406,15 +400,11 @@ async function verify(request: Request, env: Env): Promise<{ body: Record<string
     return { body: { error: "too_many_requests" }, status: 429 };
   }
   const submitted = await digest(env.VERIFICATION_CODE_PEPPER + ":" + email + ":" + code);
-  // Consume the matching, unexpired code and activate the account in one
-  // atomic PostgreSQL statement. This prevents concurrent requests reusing it.
   const activated = await sql.query(
     "WITH consumed AS (UPDATE email_verification_codes ev SET consumed_at = now(), code_hash = 'consumed' FROM users u WHERE ev.user_id = u.id AND u.email = $1 AND u.email_verified_at IS NULL AND u.account_status = 'PENDING_VERIFICATION' AND ev.code_hash = $2 AND ev.expires_at > now() AND ev.consumed_at IS NULL AND ev.attempts < $3 RETURNING ev.user_id), activated AS (UPDATE users SET email_verified_at = now(), account_status = 'ACTIVE', updated_at = now() WHERE id IN (SELECT user_id FROM consumed) AND email_verified_at IS NULL AND account_status = 'PENDING_VERIFICATION' RETURNING id) SELECT id FROM activated",
     [email, submitted, MAX_ATTEMPTS],
   );
   if (activated.length) return { body: { status: "email_verified", message: "تم تأكيد البريد الإلكتروني بنجاح." }, status: 200 };
-
-  // A wrong code increments attempts atomically and can never exceed the limit.
   await sql.query(
     "UPDATE email_verification_codes ev SET attempts = attempts + 1 FROM users u WHERE ev.user_id = u.id AND u.email = $1 AND u.email_verified_at IS NULL AND u.account_status = 'PENDING_VERIFICATION' AND ev.code_hash <> $2 AND ev.expires_at > now() AND ev.consumed_at IS NULL AND ev.attempts < $3",
     [email, submitted, MAX_ATTEMPTS],
@@ -440,8 +430,12 @@ export default {
     const url = new URL(request.url);
     if (url.pathname === "/health" && request.method === "GET") return response({ status: "ok", service: "sehati-backend-api" }, 200, requestId, cors);
     if (url.pathname === "/ready" && request.method === "GET") {
-      const ready = await checkDatabase(env);
-      return response({ status: ready ? "ready" : "not_ready", dependencies: { postgres: ready ? "connected" : "unavailable" } }, ready ? 200 : 503, requestId, cors);
+      const database = await checkDatabase(env);
+      return response({
+        status: database.ok ? "ready" : "not_ready",
+        dependencies: { postgres: database.ok ? "connected" : "unavailable" },
+        ...(database.diagnostic ? { databaseDiagnostic: database.diagnostic } : {}),
+      }, database.ok ? 200 : 503, requestId, cors);
     }
     if (url.pathname === "/v1" && request.method === "GET") return response({ service: "sehati-backend-api", apiVersion: "v1", status: "auth-preview" }, 200, requestId, cors);
     try {
