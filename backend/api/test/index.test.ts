@@ -39,6 +39,28 @@ describe("Sehaty backend API", () => {
     expect(body.error).toBe("registration_not_configured");
   });
 
+  it("rejects oversized registration payloads before requiring service secrets", async () => {
+    const result = await worker.fetch(new Request("https://api.example.test/v1/auth/register", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "person@example.com", padding: "x".repeat(17_000) }),
+    }), env);
+    expect(result.status).toBe(413);
+    const body = await result.json() as { error: string };
+    expect(body.error).toBe("request_too_large");
+  });
+
+  it("rejects malformed verification JSON without touching the database", async () => {
+    const result = await worker.fetch(new Request("https://api.example.test/v1/auth/email/verify", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{not-json",
+    }), env);
+    expect(result.status).toBe(400);
+    const body = await result.json() as { error: string };
+    expect(body.error).toBe("invalid_json");
+  });
+
   it("rejects unsupported methods", async () => {
     const result = await worker.fetch(new Request("https://api.example.test/health", { method: "PATCH" }), env);
     expect(result.status).toBe(405);
