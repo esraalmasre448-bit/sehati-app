@@ -57,4 +57,45 @@ jobs:
             echo "Applying $migration"
             psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$migration"
           done
-          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "SELECT to_regclass('public.users'), to_regclass('public.patient_profiles'), to_regclass('public.doctor_profiles'), to_regclass('public.clinic_profiles'), to_regclass('public.email_verification_codes'), to_regclass('public.auth_rate_limits'), to_regclass('public.auth_sessions'), to_regclass('public.password_reset_codes');"
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          DO $
+          DECLARE
+            required_table TEXT;
+            required_tables TEXT[] := ARRAY[
+              'users', 'patient_profiles', 'doctor_profiles', 'clinic_profiles',
+              'email_verification_codes', 'auth_rate_limits', 'auth_sessions',
+              'password_reset_codes'
+            ];
+          BEGIN
+            FOREACH required_table IN ARRAY required_tables LOOP
+              IF to_regclass('public.' || required_table) IS NULL THEN
+                RAISE EXCEPTION 'Required migration table is missing: %', required_table;
+              END IF;
+            END LOOP;
+
+            IF NOT EXISTS (
+              SELECT 1 FROM pg_indexes
+              WHERE schemaname = 'public'
+                AND indexname = 'users_email_lower_unique'
+                AND indexdef ILIKE '%UNIQUE%'
+            ) THEN
+              RAISE EXCEPTION 'Case-insensitive unique email index is missing';
+            END IF;
+
+            IF NOT EXISTS (
+              SELECT 1 FROM information_schema.columns
+              WHERE table_schema = 'public' AND table_name = 'auth_sessions'
+                AND column_name = 'replaced_by_session_id'
+            ) THEN
+              RAISE EXCEPTION 'Refresh-session rotation column is missing';
+            END IF;
+
+            IF NOT EXISTS (
+              SELECT 1 FROM information_schema.columns
+              WHERE table_schema = 'public' AND table_name = 'password_reset_codes'
+                AND column_name = 'attempts'
+            ) THEN
+              RAISE EXCEPTION 'Password-reset attempt counter is missing';
+            END IF;
+          END $;
+          SQL
