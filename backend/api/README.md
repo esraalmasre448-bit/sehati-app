@@ -1,29 +1,62 @@
 # Sehaty Backend API
 
-This is a separate Cloudflare Worker API. It does not import Firebase SDKs and does not modify the Android app or legacy `cloudflare-push` Worker.
+Separate Cloudflare Worker API; it does not import Firebase SDKs and does not modify the Android app or legacy `cloudflare-push` Worker.
 
-## Current endpoints
+## Endpoints
 
-- `GET /health`: liveness only.
-- `GET /ready`: performs a PostgreSQL `SELECT 1` probe when `DATABASE_URL` is configured; otherwise returns `503 not_ready`. Connection failures are reported without exposing secrets.
-- `GET /v1`: versioned API metadata.
+- `GET /health`: liveness.
+- `GET /ready`: PostgreSQL readiness probe; returns 503 until `DATABASE_URL` works.
+- `GET /v1`: API metadata.
+- `POST /v1/auth/register`: creates a pending account and emails a six-digit verification code.
+- `POST /v1/auth/email/verify`: verifies the six-digit code and activates the account.
+- `POST /v1/auth/email/resend`: sends a replacement code, with a 60-second cooldown.
 
-All responses include a request ID. Browser CORS responses are enabled only for exact origins listed in the `ALLOWED_ORIGINS` Worker variable. No credentials belong in source control.
+Registration JSON:
+- Patient: `{ "email", "password", "displayName", "role": "PATIENT" }`
+- Doctor: same plus `"role": "DOCTOR", "specialtyName", "city"`
+- Clinic: same plus `"role": "CLINIC", "city"`
 
-## PostgreSQL
+Verification JSON: `{ "email": "user@example.com", "code": "123456" }`.
 
-- Driver: Neon serverless PostgreSQL client.
-- Initial migration: `migrations/0001_identity_and_profiles.sql`.
-- Initial tables: users, patient profiles, doctor profiles, clinic profiles.
-- New accounts default to `PENDING_VERIFICATION`; the database rejects activation until `email_verified_at` is set.
-- Password storage is represented only by `password_hash`; authentication and email-verification endpoints are not implemented yet.
-- The migration is a reviewed SQL file and has not been applied to a live database.
+## Security behavior
 
-Set `DATABASE_URL` as a secret in the Worker environment. Never commit it or put it in Android.
+- Passwords are PBKDF2-SHA-256 hashes (310,000 iterations); plaintext passwords are never stored.
+- Verification codes are six digits, expire after 10 minutes, are stored only as peppered SHA-256 hashes, and allow at most five attempts.
+- A new code can be requested once per 60 seconds.
+- Accounts remain `PENDING_VERIFICATION` until the database records `email_verified_at`.
+- Responses include request IDs and use `cache-control: no-store`.
+- Browser CORS is restricted to exact origins in `ALLOWED_ORIGINS`.
+- The API never returns the verification code in its response.
+
+## Required Worker secrets
+
+Set these in the Cloudflare Worker secret/variable settings; never commit them:
+
+- `DATABASE_URL`: Neon pooled PostgreSQL connection string.
+- `RESEND_API_KEY`: Resend sending API key.
+- `VERIFICATION_CODE_PEPPER`: long random secret used when hashing codes.
+- `EMAIL_FROM`: sender identity, for example `Sehaty <no-reply@your-verified-domain.example>` after a sending domain is verified.
+- `ALLOWED_ORIGINS`: exact app/web origins, as a normal variable.
+
+Resend's unverified test sender can only deliver to the address that owns the Resend account. Sending to arbitrary app users requires a verified sending domain. Do not treat a test send as production readiness.
+
+## Database
+
+- Driver: Neon serverless PostgreSQL.
+- Migration: `migrations/0001_identity_and_profiles.sql`.
+- The migration includes users, patient/doctor/clinic profiles, and hashed email verification state.
+- The migration has not been applied to the live Neon database yet.
+
+## Current limitations / deployment status
+
+- Registration and email verification API routes are implemented in this branch but are not deployed.
+- No live email delivery has been tested; provider secrets and a verified sender domain are not configured.
+- Login, refresh-token sessions, password reset, IP-level abuse controls, and Android integration are not implemented yet.
+- Firebase and the production Android app remain untouched. Do not cut over until migration, API, security, delivery, and rollback tests pass.
 
 ## Local checks
 
-Use Node.js 22 and pnpm 10.23.0, matching CI. From this directory:
+Use Node.js 22 and pnpm 10.23.0:
 
 ```sh
 corepack enable
@@ -32,11 +65,3 @@ pnpm install
 pnpm run typecheck
 pnpm test
 ```
-
-## Deployment status
-
-The Worker configuration is prepared, but this API is not deployed yet. A live PostgreSQL database has not been connected, and the migration has not been applied.
-
-## Next milestone
-
-Provision a managed PostgreSQL database, store its connection string as a Worker secret, apply the migration through a controlled migration process, and verify `/ready` against the real database. Then add registration, email verification, login, refresh-session rotation, and role authorization. Keep Firebase and the production Android app untouched until migration parity and rollback tests pass.
