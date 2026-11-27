@@ -163,10 +163,9 @@ async function resend(request: Request, env: Env): Promise<{ body: Record<string
     [email, codeHash, TTL_MINUTES, RESEND_SECONDS],
   );
   if (!claimed.length) {
-    const pending = await sql.query("SELECT 1 FROM users WHERE lower(email) = $1 AND email_verified_at IS NULL AND account_status = 'PENDING_VERIFICATION' LIMIT 1", [email]);
-    return pending.length
-      ? { body: { error: "resend_too_soon" }, status: 429 }
-      : { body: { status: "if_pending_account_exists_code_sent" }, status: 202 };
+    // Keep the response identical for unknown accounts and active cooldowns
+    // to avoid disclosing whether an email has a pending account.
+    return { body: { status: "if_pending_account_exists_code_sent" }, status: 202 };
   }
   const userId = String(claimed[0].user_id);
   if (!await sendEmail(env, email, code)) {
