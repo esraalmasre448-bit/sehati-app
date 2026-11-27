@@ -33,6 +33,11 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const requestId = crypto.randomUUID();
     const origin = allowedOrigin(request, env);
+
+    if (request.headers.has("Origin") && !origin) {
+      return response({ error: "origin_not_allowed" }, 403, requestId);
+    }
+
     const corsHeaders: Record<string, string> = {
       "vary": "Origin",
       ...(origin ? {
@@ -43,9 +48,6 @@ export default {
     };
 
     if (request.method === "OPTIONS") {
-      if (request.headers.has("Origin") && !origin) {
-        return response({ error: "origin_not_allowed" }, 403, requestId);
-      }
       return new Response(null, { status: 204, headers: corsHeaders });
     }
 
