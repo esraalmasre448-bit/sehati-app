@@ -152,7 +152,7 @@ async function resend(request: Request, env: Env): Promise<{ body: Record<string
   } catch { return { body: { error: "invalid_json" }, status: 400 }; }
   const email = normalizeEmail(input.email);
   if (!email) return { body: { error: "invalid_email" }, status: 400 };
-  if (!env.DATABASE_URL || !env.VERIFICATION_CODE_PEPPER || !env.RESEND_API_KEY || !env.EMAIL_FROM) return { body: { error: "email_verification_not_configured" }, status: 503 };
+  if (!env.DATABASE_URL || !env.VERIFICATION_CODE_PEPPER || env.VERIFICATION_CODE_PEPPER.length < 32 || !env.RESEND_API_KEY || !env.EMAIL_FROM) return { body: { error: "email_verification_not_configured" }, status: 503 };
   const sql = neon(env.DATABASE_URL);
   const ip = clientIp(request);
   if (!await allowRateLimit(sql, env, "resend:ip:" + ip, 10, 3600) ||
