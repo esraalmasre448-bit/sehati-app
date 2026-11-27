@@ -8,6 +8,10 @@ Separate Cloudflare Worker API; it does not import Firebase SDKs and does not mo
 - `GET /ready`: PostgreSQL readiness probe; returns 503 until `DATABASE_URL` works.
 - `GET /v1`: API metadata.
 - `POST /v1/auth/register`: creates a pending account and emails a six-digit verification code.
+- `POST /v1/auth/login`: verifies credentials and issues a 15-minute access token plus a 30-day refresh token.
+- `POST /v1/auth/refresh`: rotates a refresh token; the previous token is revoked atomically.
+- `POST /v1/auth/logout`: revokes the supplied refresh token.
+- `GET /v1/auth/me`: returns the authenticated account identity.
 - `POST /v1/auth/email/verify`: verifies the six-digit code and activates the account.
 - `POST /v1/auth/email/resend`: sends a replacement code, with a 60-second cooldown.
 
@@ -21,6 +25,9 @@ Verification JSON: `{ "email": "user@example.com", "code": "123456" }`.
 ## Security behavior
 
 - Passwords are PBKDF2-SHA-256 hashes (310,000 iterations); plaintext passwords are never stored.
+- Access and refresh tokens are cryptographically random opaque tokens; only SHA-256 hashes are stored in PostgreSQL.
+- Access tokens expire after 15 minutes; refresh tokens expire after 30 days and rotate on use. Reuse of a rotated refresh token fails.
+- Login errors do not disclose whether an email exists, and login attempts are rate-limited.
 - Verification codes are six digits, expire after 10 minutes, are stored only as peppered SHA-256 hashes, and allow at most five attempts.
 - Verification consumption and account activation happen in one atomic PostgreSQL statement.
 - Resend cooldown is claimed with a conditional database update, so concurrent requests cannot both replace the code.
@@ -48,15 +55,15 @@ Resend's unverified test sender can only deliver to the address that owns the Re
 ## Database
 
 - Driver: Neon serverless PostgreSQL.
-- Migrations: `migrations/0001_identity_and_profiles.sql` and `migrations/0002_auth_rate_limits.sql`.
-- They create users, patient/doctor/clinic profiles, hashed email verification state, and hashed rate-limit buckets.
+- Migrations: `migrations/0001_identity_and_profiles.sql`, `migrations/0002_auth_rate_limits.sql`, and `migrations/0003_auth_sessions.sql`.
+- They create users, patient/doctor/clinic profiles, hashed email verification state, and hashed rate-limit buckets, and hashed auth sessions.
 - The migration has not been applied to the live Neon database yet.
 
 ## Current limitations / deployment status
 
 - Registration and email verification API routes are implemented in this branch but are not deployed.
 - No live email delivery has been tested; provider secrets and a verified sender domain are not configured.
-- Login, refresh-token sessions, password reset, and Android integration are not implemented yet.
+- Password reset, account recovery, multi-device session management UI, and Android integration are not implemented yet.
 - Expired rate-limit buckets are removed daily by a Cloudflare Cron Trigger.
 - Firebase and the production Android app remain untouched. Do not cut over until migration, API, security, delivery, and rollback tests pass.
 
