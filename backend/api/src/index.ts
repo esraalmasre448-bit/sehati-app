@@ -484,6 +484,7 @@ export default {
       const sql = neon(env.DATABASE_URL!);
       await sql.query("DELETE FROM auth_rate_limits WHERE window_started_at < now() - interval '2 days'");
       await sql.query("DELETE FROM auth_sessions WHERE refresh_expires_at < now() OR (revoked_at IS NOT NULL AND revoked_at < now() - interval '30 days')");
+      await sql.query("DELETE FROM password_reset_codes WHERE expires_at < now() - interval '2 days' OR consumed_at < now() - interval '2 days'");
     })());
   },
 };
