@@ -19,6 +19,20 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: sehati_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d sehati_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     defaults:
       run:
         working-directory: backend/api
@@ -34,3 +48,13 @@ jobs:
       - run: pnpm install --no-frozen-lockfile
       - run: pnpm run typecheck
       - run: pnpm test
+      - name: Apply all PostgreSQL migrations
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/sehati_test
+          PGPASSWORD: postgres
+        run: |
+          for migration in migrations/*.sql; do
+            echo "Applying $migration"
+            psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$migration"
+          done
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "SELECT to_regclass('public.users'), to_regclass('public.patient_profiles'), to_regclass('public.doctor_profiles'), to_regclass('public.clinic_profiles'), to_regclass('public.email_verification_codes'), to_regclass('public.auth_rate_limits'), to_regclass('public.auth_sessions'), to_regclass('public.password_reset_codes');"
