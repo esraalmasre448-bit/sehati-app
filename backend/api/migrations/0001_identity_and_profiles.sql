@@ -8,10 +8,12 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash TEXT NOT NULL,
   role TEXT NOT NULL CHECK (role IN ('PATIENT', 'DOCTOR', 'CLINIC', 'ADMIN')),
   email_verified_at TIMESTAMPTZ,
-  account_status TEXT NOT NULL DEFAULT 'ACTIVE'
+  account_status TEXT NOT NULL DEFAULT 'PENDING_VERIFICATION'
     CHECK (account_status IN ('ACTIVE', 'SUSPENDED', 'PENDING_VERIFICATION')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT active_users_must_verify_email
+    CHECK (account_status <> 'ACTIVE' OR email_verified_at IS NOT NULL)
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS users_email_lower_unique
