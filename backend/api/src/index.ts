@@ -31,8 +31,10 @@ function normalizeEmail(value: unknown): string | null {
   return email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : null;
 }
 function randomCode(): string {
+  // Rejection sampling avoids modulo bias across the six-digit code space.
+  const limit = Math.floor(0x1_0000_0000 / 1_000_000) * 1_000_000;
   const value = new Uint32Array(1);
-  crypto.getRandomValues(value);
+  do { crypto.getRandomValues(value); } while (value[0] >= limit);
   return String(value[0] % 1_000_000).padStart(6, "0");
 }
 async function digest(value: string): Promise<string> {
@@ -123,16 +125,26 @@ async function verify(request: Request, env: Env): Promise<{ body: Record<string
   const code = typeof input.code === "string" ? input.code.trim() : "";
   if (!email || !/^\d{6}$/.test(code)) return { body: { error: "invalid_verification_data" }, status: 400 };
   const sql = neon(env.DATABASE_URL);
-  const rows = await sql.query("SELECT u.id, ev.code_hash, ev.expires_at, ev.attempts, ev.consumed_at FROM users u JOIN email_verification_codes ev ON ev.user_id = u.id WHERE lower(u.email) = $1 AND u.email_verified_at IS NULL AND u.account_status = 'PENDING_VERIFICATION' LIMIT 1", [email]);
-  if (!rows.length || rows[0].consumed_at || new Date(String(rows[0].expires_at)).getTime() <= Date.now()) return { body: { error: "code_invalid_or_expired" }, status: 400 };
-  if (Number(rows[0].attempts) >= MAX_ATTEMPTS) return { body: { error: "too_many_attempts" }, status: 429 };
   const submitted = await digest(env.VERIFICATION_CODE_PEPPER + ":" + email + ":" + code);
-  if (submitted !== String(rows[0].code_hash)) {
-    await sql.query("UPDATE email_verification_codes SET attempts = attempts + 1 WHERE user_id = $1::uuid", [String(rows[0].id)]);
-    return { body: { error: "code_invalid_or_expired" }, status: 400 };
-  }
-  await sql.query("UPDATE users SET email_verified_at = now(), account_status = 'ACTIVE', updated_at = now() WHERE id = $1::uuid AND email_verified_at IS NULL", [String(rows[0].id)]);
-  await sql.query("UPDATE email_verification_codes SET consumed_at = now(), code_hash = 'consumed' WHERE user_id = $1::uuid", [String(rows[0].id)]);
+  // Consume the matching, unexpired code and activate the account in one
+  // atomic PostgreSQL statement. This prevents concurrent requests reusing it.
+  const activated = await sql.query(
+    "WITH consumed AS (UPDATE email_verification_codes ev SET consumed_at = now(), code_hash = 'consumed' FROM users u WHERE ev.user_id = u.id AND u.email = $1 AND u.email_verified_at IS NULL AND u.account_status = 'PENDING_VERIFICATION' AND ev.code_hash = $2 AND ev.expires_at > now() AND ev.consumed_at IS NULL AND ev.attempts < $3 RETURNING ev.user_id), activated AS (UPDATE users SET email_verified_at = now(), account_status = 'ACTIVE', updated_at = now() WHERE id IN (SELECT user_id FROM consumed) AND email_verified_at IS NULL AND account_status = 'PENDING_VERIFICATION' RETURNING id) SELECT id FROM activated",
+    [email, submitted, MAX_ATTEMPTS],
+  );
+  if (activated.length) return { body: { status: "email_verified", message: "تم تأكيد البريد الإلكتروني بنجاح." }, status: 200 };
+
+  // A wrong code increments attempts atomically and can never exceed the limit.
+  await sql.query(
+    "UPDATE email_verification_codes ev SET attempts = attempts + 1 FROM users u WHERE ev.user_id = u.id AND u.email = $1 AND u.email_verified_at IS NULL AND u.account_status = 'PENDING_VERIFICATION' AND ev.code_hash <> $2 AND ev.expires_at > now() AND ev.consumed_at IS NULL AND ev.attempts < $3",
+    [email, submitted, MAX_ATTEMPTS],
+  );
+  const state = await sql.query(
+    "SELECT ev.attempts, ev.expires_at, ev.consumed_at FROM email_verification_codes ev JOIN users u ON u.id = ev.user_id WHERE u.email = $1 AND u.email_verified_at IS NULL AND u.account_status = 'PENDING_VERIFICATION' LIMIT 1",
+    [email],
+  );
+  if (state.length && Number(state[0].attempts) >= MAX_ATTEMPTS) return { body: { error: "too_many_attempts" }, status: 429 };
+  return { body: { error: "code_invalid_or_expired" }, status: 400 };
   return { body: { status: "email_verified", message: "تم تأكيد البريد الإلكتروني بنجاح." }, status: 200 };
 }
 
