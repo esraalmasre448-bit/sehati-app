@@ -78,6 +78,35 @@ describe("Sehaty backend API", () => {
     expect(body.error).toBe("registration_not_configured");
   });
 
+  it("rejects malformed login requests before accessing the database", async () => {
+    const result = await worker.fetch(new Request("https://api.example.test/v1/auth/login", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{broken",
+    }), env);
+    expect(result.status).toBe(400);
+    const body = await result.json() as { error: string };
+    expect(body.error).toBe("invalid_json");
+  });
+
+  it("rejects refresh requests with malformed tokens", async () => {
+    const result = await worker.fetch(new Request("https://api.example.test/v1/auth/refresh", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ refreshToken: "bad" }),
+    }), env);
+    expect(result.status).toBe(400);
+    const body = await result.json() as { error: string };
+    expect(body.error).toBe("invalid_refresh_token");
+  });
+
+  it("requires a bearer token for the current-user endpoint", async () => {
+    const result = await worker.fetch(new Request("https://api.example.test/v1/auth/me"), env);
+    expect(result.status).toBe(401);
+    const body = await result.json() as { error: string };
+    expect(body.error).toBe("unauthorized");
+  });
+
   it("rejects unsupported methods", async () => {
     const result = await worker.fetch(new Request("https://api.example.test/health", { method: "PATCH" }), env);
     expect(result.status).toBe(405);
