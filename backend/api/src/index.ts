@@ -122,7 +122,12 @@ async function register(request: Request, env: Env): Promise<{ body: Record<stri
 async function resend(request: Request, env: Env): Promise<{ body: Record<string, unknown>; status: number }> {
   if (!env.DATABASE_URL || !env.VERIFICATION_CODE_PEPPER || !env.RESEND_API_KEY || !env.EMAIL_FROM) return { body: { error: "email_verification_not_configured" }, status: 503 };
   let input: Record<string, unknown>;
-  try { input = await request.json() as Record<string, unknown>; } catch { return { body: { error: "invalid_json" }, status: 400 }; }
+  try {
+    const raw = await request.text();
+    if (raw.length > 16_384) return { body: { error: "request_too_large" }, status: 413 };
+    input = JSON.parse(raw) as Record<string, unknown>;
+    if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error("invalid_object");
+  } catch { return { body: { error: "invalid_json" }, status: 400 }; }
   const email = normalizeEmail(input.email);
   if (!email) return { body: { error: "invalid_email" }, status: 400 };
   const sql = neon(env.DATABASE_URL);
@@ -139,7 +144,12 @@ async function resend(request: Request, env: Env): Promise<{ body: Record<string
 async function verify(request: Request, env: Env): Promise<{ body: Record<string, unknown>; status: number }> {
   if (!env.DATABASE_URL || !env.VERIFICATION_CODE_PEPPER) return { body: { error: "email_verification_not_configured" }, status: 503 };
   let input: Record<string, unknown>;
-  try { input = await request.json() as Record<string, unknown>; } catch { return { body: { error: "invalid_json" }, status: 400 }; }
+  try {
+    const raw = await request.text();
+    if (raw.length > 16_384) return { body: { error: "request_too_large" }, status: 413 };
+    input = JSON.parse(raw) as Record<string, unknown>;
+    if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error("invalid_object");
+  } catch { return { body: { error: "invalid_json" }, status: 400 }; }
   const email = normalizeEmail(input.email);
   const code = typeof input.code === "string" ? input.code.trim() : "";
   if (!email || !/^\d{6}$/.test(code)) return { body: { error: "invalid_verification_data" }, status: 400 };
