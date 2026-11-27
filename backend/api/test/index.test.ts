@@ -28,11 +28,30 @@ describe("Sehaty backend API scaffold", () => {
     expect(body.apiVersion).toBe("v1");
   });
 
-  it("rejects unapproved browser origins", async () => {
+  it("allows only an explicitly configured browser origin", async () => {
+    const result = await worker.fetch(new Request("https://api.example.test/health", {
+      headers: { Origin: "https://app.example.test" },
+    }), env);
+    expect(result.status).toBe(200);
+    expect(result.headers.get("access-control-allow-origin")).toBe("https://app.example.test");
+  });
+
+  it("rejects an unapproved browser origin before routing", async () => {
     const result = await worker.fetch(new Request("https://api.example.test/health", {
       headers: { Origin: "https://attacker.example" },
     }), env);
-    expect(result.headers.get("access-control-allow-origin")).toBeNull();
+    expect(result.status).toBe(403);
+    const body = await result.json() as { error: string };
+    expect(body.error).toBe("origin_not_allowed");
+  });
+
+  it("answers preflight for an approved origin", async () => {
+    const result = await worker.fetch(new Request("https://api.example.test/health", {
+      method: "OPTIONS",
+      headers: { Origin: "https://app.example.test" },
+    }), env);
+    expect(result.status).toBe(204);
+    expect(result.headers.get("access-control-allow-origin")).toBe("https://app.example.test");
   });
 
   it("rejects non-GET methods", async () => {
