@@ -61,6 +61,23 @@ describe("Sehaty backend API", () => {
     expect(body.error).toBe("invalid_json");
   });
 
+  it("rejects weak verification pepper configuration", async () => {
+    const result = await worker.fetch(new Request("https://api.example.test/v1/auth/register", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "person@example.com", password: "long-enough-password", displayName: "Test" }),
+    }), {
+      ...env,
+      DATABASE_URL: "postgres://placeholder",
+      VERIFICATION_CODE_PEPPER: "too-short",
+      RESEND_API_KEY: "placeholder",
+      EMAIL_FROM: "Sehaty <no-reply@example.test>",
+    });
+    expect(result.status).toBe(503);
+    const body = await result.json() as { error: string };
+    expect(body.error).toBe("registration_not_configured");
+  });
+
   it("rejects unsupported methods", async () => {
     const result = await worker.fetch(new Request("https://api.example.test/health", { method: "PATCH" }), env);
     expect(result.status).toBe(405);
