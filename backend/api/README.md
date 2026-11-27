@@ -22,17 +22,19 @@ Set `DATABASE_URL` as a secret in the Worker environment. Never commit it or put
 
 ## Local checks
 
-From this directory:
+Use Node.js 22 and pnpm 10.23.0, matching CI. From this directory:
 
 ```sh
-npm install
-npm run typecheck
-npm test
+corepack enable
+corepack prepare pnpm@10.23.0 --activate
+pnpm install
+pnpm run typecheck
+pnpm test
 ```
 
 ## Deployment status
 
-The Worker configuration is prepared, but this API is not deployed yet. A live PostgreSQL database has not been provisioned or connected, and the migration has not been applied.
+The Worker configuration is prepared, but this API is not deployed yet. A live PostgreSQL database has not been connected, and the migration has not been applied.
 
 ## Next milestone
 
