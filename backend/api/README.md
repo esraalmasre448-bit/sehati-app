@@ -57,13 +57,13 @@ Resend's unverified test sender can only deliver to the address that owns the Re
 ## Database
 
 - Driver: Neon serverless PostgreSQL.
-- Migrations: `migrations/0001_identity_and_profiles.sql`, `migrations/0002_auth_rate_limits.sql`, and `migrations/0003_auth_sessions.sql`, and `migrations/0004_password_reset.sql`.
+- Migrations: `migrations/0001_identity_and_profiles.sql`, `migrations/0002_auth_rate_limits.sql`, `migrations/0003_auth_sessions.sql`, and `migrations/0004_password_reset.sql`.
 - They create users, patient/doctor/clinic profiles, hashed email verification state, and hashed rate-limit buckets, hashed auth sessions, and one-time password reset codes.
 - The migration has not been applied to the live Neon database yet.
 
 ## Current limitations / deployment status
 
-- Registration and email verification API routes are implemented in this branch but are not deployed.
+- Registration, email verification, login, rotating sessions, logout, current-user, and password recovery API routes are implemented in this branch but are not deployed.
 - No live email delivery has been tested; provider secrets and a verified sender domain are not configured.
 - Account recovery is implemented through one-time email codes; multi-device session management UI and Android integration are not implemented yet.
 - Expired rate-limit buckets, sessions, and password reset codes are cleaned daily by a Cloudflare Cron Trigger.
