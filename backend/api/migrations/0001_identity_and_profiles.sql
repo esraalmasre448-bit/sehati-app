@@ -1,6 +1,6 @@
 -- Initial backend-owned identity/profile schema.
 -- Apply through a migration runner after provisioning PostgreSQL.
--- Password hashes only; never store plaintext passwords or verification codes.
+-- Passwords are PBKDF2 hashes; verification codes are peppered SHA-256 hashes.
 
 CREATE TABLE IF NOT EXISTS users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -12,46 +12,33 @@ CREATE TABLE IF NOT EXISTS users (
     CHECK (account_status IN ('ACTIVE', 'SUSPENDED', 'PENDING_VERIFICATION')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  CONSTRAINT active_users_must_verify_email
-    CHECK (account_status <> 'ACTIVE' OR email_verified_at IS NOT NULL)
+  CONSTRAINT active_users_must_verify_email CHECK (account_status <> 'ACTIVE' OR email_verified_at IS NOT NULL)
 );
-
-CREATE UNIQUE INDEX IF NOT EXISTS users_email_lower_unique
-  ON users (lower(email));
+CREATE UNIQUE INDEX IF NOT EXISTS users_email_lower_unique ON users (lower(email));
 
 CREATE TABLE IF NOT EXISTS patient_profiles (
   user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE RESTRICT,
-  display_name TEXT NOT NULL,
-  phone_e164 TEXT,
-  city TEXT,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  display_name TEXT NOT NULL, phone_e164 TEXT, city TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-
 CREATE TABLE IF NOT EXISTS doctor_profiles (
   user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE RESTRICT,
-  display_name TEXT NOT NULL,
-  specialty_name TEXT NOT NULL,
-  city TEXT NOT NULL,
-  clinic_address TEXT,
+  display_name TEXT NOT NULL, specialty_name TEXT NOT NULL, city TEXT NOT NULL, clinic_address TEXT,
   consultation_fee_minor BIGINT CHECK (consultation_fee_minor IS NULL OR consultation_fee_minor >= 0),
-  approval_status TEXT NOT NULL DEFAULT 'PENDING'
-    CHECK (approval_status IN ('PENDING', 'APPROVED', 'REJECTED', 'SUSPENDED')),
+  approval_status TEXT NOT NULL DEFAULT 'PENDING' CHECK (approval_status IN ('PENDING', 'APPROVED', 'REJECTED', 'SUSPENDED')),
   is_available BOOLEAN NOT NULL DEFAULT false,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-
 CREATE TABLE IF NOT EXISTS clinic_profiles (
   user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE RESTRICT,
-  clinic_name TEXT NOT NULL,
-  city TEXT NOT NULL,
-  address TEXT,
-  approval_status TEXT NOT NULL DEFAULT 'PENDING'
-    CHECK (approval_status IN ('PENDING', 'APPROVED', 'REJECTED', 'SUSPENDED')),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  clinic_name TEXT NOT NULL, city TEXT NOT NULL, address TEXT,
+  approval_status TEXT NOT NULL DEFAULT 'PENDING' CHECK (approval_status IN ('PENDING', 'APPROVED', 'REJECTED', 'SUSPENDED')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-
-CREATE INDEX IF NOT EXISTS doctor_profiles_search_idx
-  ON doctor_profiles (city, specialty_name, approval_status, is_available);
+CREATE TABLE IF NOT EXISTS email_verification_codes (
+  user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  code_hash TEXT NOT NULL, expires_at TIMESTAMPTZ NOT NULL, resend_after TIMESTAMPTZ NOT NULL,
+  attempts INTEGER NOT NULL DEFAULT 0 CHECK (attempts >= 0), consumed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS doctor_profiles_search_idx ON doctor_profiles (city, specialty_name, approval_status, is_available);
