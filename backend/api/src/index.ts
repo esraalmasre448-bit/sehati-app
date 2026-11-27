@@ -82,7 +82,6 @@ function clientIp(request: Request): string {
   return request.headers.get("CF-Connecting-IP")?.slice(0, 64) || "unknown";
 }
 async function register(request: Request, env: Env): Promise<{ body: Record<string, unknown>; status: number }> {
-  if (!env.DATABASE_URL || !env.VERIFICATION_CODE_PEPPER || !env.RESEND_API_KEY || !env.EMAIL_FROM) return { body: { error: "registration_not_configured" }, status: 503 };
   let input: Record<string, unknown>;
   try {
     const raw = await request.text();
@@ -101,6 +100,7 @@ async function register(request: Request, env: Env): Promise<{ body: Record<stri
   }
   if (role === "DOCTOR" && (!specialty || specialty.length > 100 || !city || city.length > 100)) return { body: { error: "doctor_profile_required" }, status: 400 };
   if (role === "CLINIC" && (!city || city.length > 100)) return { body: { error: "clinic_profile_required" }, status: 400 };
+  if (!env.DATABASE_URL || !env.VERIFICATION_CODE_PEPPER || !env.RESEND_API_KEY || !env.EMAIL_FROM) return { body: { error: "registration_not_configured" }, status: 503 };
   const sql = neon(env.DATABASE_URL);
   const ip = clientIp(request);
   if (!await allowRateLimit(sql, env, "register:ip:" + ip, 8, 900) ||
@@ -138,7 +138,6 @@ async function register(request: Request, env: Env): Promise<{ body: Record<stri
   return { body: { status: "verification_required", message: "تم إنشاء الحساب وإرسال رمز التحقق إلى بريدك الإلكتروني." }, status: 202 };
 }
 async function resend(request: Request, env: Env): Promise<{ body: Record<string, unknown>; status: number }> {
-  if (!env.DATABASE_URL || !env.VERIFICATION_CODE_PEPPER || !env.RESEND_API_KEY || !env.EMAIL_FROM) return { body: { error: "email_verification_not_configured" }, status: 503 };
   let input: Record<string, unknown>;
   try {
     const raw = await request.text();
@@ -148,6 +147,7 @@ async function resend(request: Request, env: Env): Promise<{ body: Record<string
   } catch { return { body: { error: "invalid_json" }, status: 400 }; }
   const email = normalizeEmail(input.email);
   if (!email) return { body: { error: "invalid_email" }, status: 400 };
+  if (!env.DATABASE_URL || !env.VERIFICATION_CODE_PEPPER || !env.RESEND_API_KEY || !env.EMAIL_FROM) return { body: { error: "email_verification_not_configured" }, status: 503 };
   const sql = neon(env.DATABASE_URL);
   const ip = clientIp(request);
   if (!await allowRateLimit(sql, env, "resend:ip:" + ip, 10, 3600) ||
@@ -176,7 +176,6 @@ async function resend(request: Request, env: Env): Promise<{ body: Record<string
   return { body: { status: "verification_code_sent" }, status: 202 };
 }
 async function verify(request: Request, env: Env): Promise<{ body: Record<string, unknown>; status: number }> {
-  if (!env.DATABASE_URL || !env.VERIFICATION_CODE_PEPPER) return { body: { error: "email_verification_not_configured" }, status: 503 };
   let input: Record<string, unknown>;
   try {
     const raw = await request.text();
@@ -187,6 +186,7 @@ async function verify(request: Request, env: Env): Promise<{ body: Record<string
   const email = normalizeEmail(input.email);
   const code = typeof input.code === "string" ? input.code.trim() : "";
   if (!email || !/^\d{6}$/.test(code)) return { body: { error: "invalid_verification_data" }, status: 400 };
+  if (!env.DATABASE_URL || !env.VERIFICATION_CODE_PEPPER) return { body: { error: "email_verification_not_configured" }, status: 503 };
   const sql = neon(env.DATABASE_URL);
   const ip = clientIp(request);
   if (!await allowRateLimit(sql, env, "verify:ip:" + ip, 30, 900) ||
