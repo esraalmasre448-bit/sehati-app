@@ -248,4 +248,11 @@ export default {
     if (request.method !== "GET" && request.method !== "POST") return response({ error: "method_not_allowed" }, 405, requestId, cors);
     return response({ error: "not_found" }, 404, requestId, cors);
   },
+  async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    if (!env.DATABASE_URL) return;
+    ctx.waitUntil((async () => {
+      const sql = neon(env.DATABASE_URL!);
+      await sql.query("DELETE FROM auth_rate_limits WHERE window_started_at < now() - interval '2 days'");
+    })());
+  },
 };
