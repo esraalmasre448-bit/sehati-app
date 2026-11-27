@@ -62,8 +62,13 @@ async function sendEmail(env: Env, to: string, code: string): Promise<boolean> {
         html: "<div dir=\"rtl\" style=\"font-family:Arial,sans-serif\"><h2>الطريق الصحي</h2><p>رمز التحقق الخاص بك:</p><div style=\"font-size:32px;font-weight:bold;letter-spacing:8px\">" + code + "</div><p>صلاحية الرمز 10 دقائق. لا تشاركه مع أي شخص.</p></div>",
       }),
     });
-    return result.ok;
+    if (!result.ok) {
+      console.error("Resend rejected verification email", result.status);
+      return false;
+    }
+    return true;
   } catch {
+    console.error("Resend request failed");
     return false;
   }
 }
@@ -100,7 +105,7 @@ async function register(request: Request, env: Env): Promise<{ body: Record<stri
   }
   if (role === "DOCTOR" && (!specialty || specialty.length > 100 || !city || city.length > 100)) return { body: { error: "doctor_profile_required" }, status: 400 };
   if (role === "CLINIC" && (!city || city.length > 100)) return { body: { error: "clinic_profile_required" }, status: 400 };
-  if (!env.DATABASE_URL || !env.VERIFICATION_CODE_PEPPER || !env.RESEND_API_KEY || !env.EMAIL_FROM) return { body: { error: "registration_not_configured" }, status: 503 };
+  if (!env.DATABASE_URL || (!env.VERIFICATION_CODE_PEPPER || env.VERIFICATION_CODE_PEPPER.length < 32) || !env.RESEND_API_KEY || !env.EMAIL_FROM) return { body: { error: "registration_not_configured" }, status: 503 };
   const sql = neon(env.DATABASE_URL);
   const ip = clientIp(request);
   if (!await allowRateLimit(sql, env, "register:ip:" + ip, 8, 900) ||
@@ -185,7 +190,7 @@ async function verify(request: Request, env: Env): Promise<{ body: Record<string
   const email = normalizeEmail(input.email);
   const code = typeof input.code === "string" ? input.code.trim() : "";
   if (!email || !/^\d{6}$/.test(code)) return { body: { error: "invalid_verification_data" }, status: 400 };
-  if (!env.DATABASE_URL || !env.VERIFICATION_CODE_PEPPER) return { body: { error: "email_verification_not_configured" }, status: 503 };
+  if (!env.DATABASE_URL || !env.VERIFICATION_CODE_PEPPER || env.VERIFICATION_CODE_PEPPER.length < 32) return { body: { error: "email_verification_not_configured" }, status: 503 };
   const sql = neon(env.DATABASE_URL);
   const ip = clientIp(request);
   if (!await allowRateLimit(sql, env, "verify:ip:" + ip, 30, 900) ||
