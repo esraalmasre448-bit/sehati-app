@@ -57,7 +57,7 @@ async function sendEmail(env: Env, to: string, code: string): Promise<boolean> {
       signal: AbortSignal.timeout(8_000),
       body: JSON.stringify({
         from: env.EMAIL_FROM, to: [to], subject: "رمز التحقق - الطريق الصحي",
-        text: "رمز التحقق الخاص بك: " + code + "\\nصلاحية الرمز 10 دقائق. لا تشاركه مع أي شخص.",
+        text: "رمز التحقق الخاص بك: " + code + "\nصلاحية الرمز 10 دقائق. لا تشاركه مع أي شخص.",
         html: "<div dir=\"rtl\" style=\"font-family:Arial,sans-serif\"><h2>الطريق الصحي</h2><p>رمز التحقق الخاص بك:</p><div style=\"font-size:32px;font-weight:bold;letter-spacing:8px\">" + code + "</div><p>صلاحية الرمز 10 دقائق. لا تشاركه مع أي شخص.</p></div>",
       }),
     });
@@ -68,6 +68,17 @@ async function sendEmail(env: Env, to: string, code: string): Promise<boolean> {
 }
 async function releaseResendCooldown(sql: ReturnType<typeof neon>, userId: string): Promise<void> {
   await sql.query("UPDATE email_verification_codes SET resend_after = now(), expires_at = LEAST(expires_at, now()) WHERE user_id = $1::uuid AND consumed_at IS NULL", [userId]);
+}
+async function allowRateLimit(sql: ReturnType<typeof neon>, env: Env, key: string, limit: number, windowSeconds: number): Promise<boolean> {
+  const bucket = await digest(env.VERIFICATION_CODE_PEPPER + ":rate:" + key);
+  const rows = await sql.query(
+    "INSERT INTO auth_rate_limits (bucket_key, window_started_at, request_count) VALUES ($1, now(), 1) ON CONFLICT (bucket_key) DO UPDATE SET window_started_at = CASE WHEN auth_rate_limits.window_started_at <= now() - ($2 * interval '1 second') THEN now() ELSE auth_rate_limits.window_started_at END, request_count = CASE WHEN auth_rate_limits.window_started_at <= now() - ($2 * interval '1 second') THEN 1 ELSE auth_rate_limits.request_count + 1 END RETURNING request_count",
+    [bucket, windowSeconds],
+  );
+  return Number(rows[0]?.request_count ?? limit + 1) <= limit;
+}
+function clientIp(request: Request): string {
+  return request.headers.get("CF-Connecting-IP")?.slice(0, 64) || "unknown";
 }
 async function storeCode(sql: ReturnType<typeof neon>, userId: string, email: string, env: Env): Promise<string> {
   const code = randomCode();
@@ -99,6 +110,11 @@ async function register(request: Request, env: Env): Promise<{ body: Record<stri
   if (role === "DOCTOR" && (!specialty || specialty.length > 100 || !city || city.length > 100)) return { body: { error: "doctor_profile_required" }, status: 400 };
   if (role === "CLINIC" && (!city || city.length > 100)) return { body: { error: "clinic_profile_required" }, status: 400 };
   const sql = neon(env.DATABASE_URL);
+  const ip = clientIp(request);
+  if (!await allowRateLimit(sql, env, "register:ip:" + ip, 8, 900) ||
+      !await allowRateLimit(sql, env, "register:email:" + email, 3, 3600)) {
+    return { body: { error: "too_many_requests" }, status: 429 };
+  }
   const hash = await passwordHash(password);
   // The unique index is the source of truth; this also closes the concurrent
   // check-then-insert race that could otherwise surface as an uncaught 500.
@@ -131,12 +147,28 @@ async function resend(request: Request, env: Env): Promise<{ body: Record<string
   const email = normalizeEmail(input.email);
   if (!email) return { body: { error: "invalid_email" }, status: 400 };
   const sql = neon(env.DATABASE_URL);
-  const rows = await sql.query("SELECT u.id, ev.resend_after FROM users u LEFT JOIN email_verification_codes ev ON ev.user_id = u.id WHERE lower(u.email) = $1 AND u.email_verified_at IS NULL AND u.account_status = 'PENDING_VERIFICATION' LIMIT 1", [email]);
-  if (!rows.length) return { body: { status: "if_pending_account_exists_code_sent" }, status: 202 };
-  if (rows[0].resend_after && new Date(String(rows[0].resend_after)).getTime() > Date.now()) return { body: { error: "resend_too_soon" }, status: 429 };
-  const code = await storeCode(sql, String(rows[0].id), email, env);
+  const ip = clientIp(request);
+  if (!await allowRateLimit(sql, env, "resend:ip:" + ip, 10, 3600) ||
+      !await allowRateLimit(sql, env, "resend:email:" + email, 5, 3600)) {
+    return { body: { error: "too_many_requests" }, status: 429 };
+  }
+  const code = randomCode();
+  const codeHash = await digest(env.VERIFICATION_CODE_PEPPER + ":" + email + ":" + code);
+  // Conditional UPDATE obtains the row lock and enforces cooldown atomically;
+  // concurrent resend requests cannot both replace the active code.
+  const claimed = await sql.query(
+    "UPDATE email_verification_codes ev SET code_hash = $2, expires_at = now() + ($3 * interval '1 minute'), resend_after = now() + ($4 * interval '1 second'), attempts = 0, consumed_at = NULL, created_at = now() FROM users u WHERE ev.user_id = u.id AND lower(u.email) = $1 AND u.email_verified_at IS NULL AND u.account_status = 'PENDING_VERIFICATION' AND ev.resend_after <= now() AND ev.consumed_at IS NULL RETURNING ev.user_id",
+    [email, codeHash, TTL_MINUTES, RESEND_SECONDS],
+  );
+  if (!claimed.length) {
+    const pending = await sql.query("SELECT 1 FROM users WHERE lower(email) = $1 AND email_verified_at IS NULL AND account_status = 'PENDING_VERIFICATION' LIMIT 1", [email]);
+    return pending.length
+      ? { body: { error: "resend_too_soon" }, status: 429 }
+      : { body: { status: "if_pending_account_exists_code_sent" }, status: 202 };
+  }
+  const userId = String(claimed[0].user_id);
   if (!await sendEmail(env, email, code)) {
-    await releaseResendCooldown(sql, String(rows[0].id));
+    await releaseResendCooldown(sql, userId);
     return { body: { error: "email_delivery_failed" }, status: 502 };
   }
   return { body: { status: "verification_code_sent" }, status: 202 };
@@ -154,6 +186,11 @@ async function verify(request: Request, env: Env): Promise<{ body: Record<string
   const code = typeof input.code === "string" ? input.code.trim() : "";
   if (!email || !/^\d{6}$/.test(code)) return { body: { error: "invalid_verification_data" }, status: 400 };
   const sql = neon(env.DATABASE_URL);
+  const ip = clientIp(request);
+  if (!await allowRateLimit(sql, env, "verify:ip:" + ip, 30, 900) ||
+      !await allowRateLimit(sql, env, "verify:email:" + email, 10, 900)) {
+    return { body: { error: "too_many_requests" }, status: 429 };
+  }
   const submitted = await digest(env.VERIFICATION_CODE_PEPPER + ":" + email + ":" + code);
   // Consume the matching, unexpired code and activate the account in one
   // atomic PostgreSQL statement. This prevents concurrent requests reusing it.
