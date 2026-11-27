@@ -49,6 +49,45 @@ async function passwordHash(password: string): Promise<string> {
   const hex = (x: Uint8Array) => [...x].map(b => b.toString(16).padStart(2, "0")).join("");
   return "pbkdf2_sha256$" + PBKDF2_ITERATIONS + "$" + hex(salt) + "$" + hex(new Uint8Array(bits));
 }
+function toHex(bytes: Uint8Array): string {
+  return [...bytes].map(b => b.toString(16).padStart(2, "0")).join("");
+}
+function fromHex(value: string): Uint8Array {
+  const bytes = new Uint8Array(value.length / 2);
+  for (let i = 0; i < bytes.length; i++) bytes[i] = Number.parseInt(value.slice(i * 2, i * 2 + 2), 16);
+  return bytes;
+}
+function constantTimeEqual(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
+  return diff === 0;
+}
+async function verifyPassword(password: string, encoded: string): Promise<boolean> {
+  const parts = encoded.split("$");
+  if (parts.length !== 4 || parts[0] !== "pbkdf2_sha256") return false;
+  const iterations = Number(parts[1]);
+  if (!Number.isInteger(iterations) || iterations < 100_000 || iterations > 1_000_000) return false;
+  try {
+    const salt = fromHex(parts[2]);
+    const expected = fromHex(parts[3]);
+    if (salt.length !== 16 || expected.length !== 32) return false;
+    const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveBits"]);
+    const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt, iterations }, key, 256);
+    return constantTimeEqual(new Uint8Array(bits), expected);
+  } catch { return false; }
+}
+function randomToken(bytes = 32): string {
+  const raw = crypto.getRandomValues(new Uint8Array(bytes));
+  let binary = "";
+  for (const value of raw) binary += String.fromCharCode(value);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+function bearerToken(request: Request): string | null {
+  const header = request.headers.get("Authorization") ?? "";
+  const match = /^Bearer ([A-Za-z0-9_-]{32,128})$/.exec(header);
+  return match?.[1] ?? null;
+}
 async function sendEmail(env: Env, to: string, code: string): Promise<boolean> {
   if (!env.RESEND_API_KEY || !env.EMAIL_FROM) return false;
   try {
@@ -86,6 +125,95 @@ async function allowRateLimit(sql: SqlClient, env: Env, key: string, limit: numb
 function clientIp(request: Request): string {
   return request.headers.get("CF-Connecting-IP")?.slice(0, 64) || "unknown";
 }
+async function login(request: Request, env: Env): Promise<{ body: Record<string, unknown>; status: number }> {
+  let input: Record<string, unknown>;
+  try {
+    const raw = await request.text();
+    if (raw.length > 16_384) return { body: { error: "request_too_large" }, status: 413 };
+    input = JSON.parse(raw) as Record<string, unknown>;
+    if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error("invalid_object");
+  } catch { return { body: { error: "invalid_json" }, status: 400 }; }
+  const email = normalizeEmail(input.email);
+  const password = input.password;
+  if (!email || typeof password !== "string" || password.length < 1 || password.length > 128) {
+    return { body: { error: "invalid_credentials" }, status: 400 };
+  }
+  if (!env.DATABASE_URL || !env.VERIFICATION_CODE_PEPPER || env.VERIFICATION_CODE_PEPPER.length < 32) {
+    return { body: { error: "authentication_not_configured" }, status: 503 };
+  }
+  const sql = neon(env.DATABASE_URL);
+  const ip = clientIp(request);
+  if (!await allowRateLimit(sql, env, "login:ip:" + ip, 20, 900) ||
+      !await allowRateLimit(sql, env, "login:email:" + email, 10, 900)) {
+    return { body: { error: "too_many_requests" }, status: 429 };
+  }
+  const rows = await sql.query(
+    "SELECT id, password_hash, role FROM users WHERE lower(email) = $1 AND account_status = 'ACTIVE' AND email_verified_at IS NOT NULL LIMIT 1",
+    [email],
+  );
+  if (!rows.length || !await verifyPassword(password, String(rows[0].password_hash))) {
+    return { body: { error: "invalid_credentials" }, status: 401 };
+  }
+  const accessToken = randomToken(32);
+  const refreshToken = randomToken(48);
+  const sessionId = crypto.randomUUID();
+  await sql.query(
+    "INSERT INTO auth_sessions (id, user_id, access_token_hash, refresh_token_hash, access_expires_at, refresh_expires_at) VALUES ($1::uuid, $2::uuid, $3, $4, now() + interval '15 minutes', now() + interval '30 days')",
+    [sessionId, String(rows[0].id), await digest(accessToken), await digest(refreshToken)],
+  );
+  return { body: { accessToken, refreshToken, tokenType: "Bearer", expiresIn: 900, refreshExpiresIn: 2592000, user: { id: String(rows[0].id), role: String(rows[0].role), email } }, status: 200 };
+}
+async function refreshSession(request: Request, env: Env): Promise<{ body: Record<string, unknown>; status: number }> {
+  let input: Record<string, unknown>;
+  try {
+    const raw = await request.text();
+    if (raw.length > 16_384) return { body: { error: "request_too_large" }, status: 413 };
+    input = JSON.parse(raw) as Record<string, unknown>;
+    if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error("invalid_object");
+  } catch { return { body: { error: "invalid_json" }, status: 400 }; }
+  const refreshToken = typeof input.refreshToken === "string" ? input.refreshToken : "";
+  if (!/^[A-Za-z0-9_-]{60,100}$/.test(refreshToken)) return { body: { error: "invalid_refresh_token" }, status: 400 };
+  if (!env.DATABASE_URL || !env.VERIFICATION_CODE_PEPPER || env.VERIFICATION_CODE_PEPPER.length < 32) return { body: { error: "authentication_not_configured" }, status: 503 };
+  const sql = neon(env.DATABASE_URL);
+  if (!await allowRateLimit(sql, env, "refresh:ip:" + clientIp(request), 30, 900)) return { body: { error: "too_many_requests" }, status: 429 };
+  const accessToken = randomToken(32);
+  const nextRefreshToken = randomToken(48);
+  const sessionId = crypto.randomUUID();
+  const rotated = await sql.query(
+    "WITH old_session AS (UPDATE auth_sessions SET revoked_at = now(), replaced_by_session_id = $2::uuid WHERE refresh_token_hash = $1 AND revoked_at IS NULL AND refresh_expires_at > now() RETURNING user_id), active_user AS (SELECT u.id FROM users u JOIN old_session s ON s.user_id = u.id WHERE u.account_status = 'ACTIVE' AND u.email_verified_at IS NOT NULL), new_session AS (INSERT INTO auth_sessions (id, user_id, access_token_hash, refresh_token_hash, access_expires_at, refresh_expires_at) SELECT $2::uuid, id, $3, $4, now() + interval '15 minutes', now() + interval '30 days' FROM active_user RETURNING user_id) SELECT user_id FROM new_session",
+    [await digest(refreshToken), sessionId, await digest(accessToken), await digest(nextRefreshToken)],
+  );
+  if (!rotated.length) return { body: { error: "invalid_refresh_token" }, status: 401 };
+  return { body: { accessToken, refreshToken: nextRefreshToken, tokenType: "Bearer", expiresIn: 900, refreshExpiresIn: 2592000 }, status: 200 };
+}
+async function logout(request: Request, env: Env): Promise<{ body: Record<string, unknown>; status: number }> {
+  let input: Record<string, unknown>;
+  try {
+    const raw = await request.text();
+    if (raw.length > 16_384) return { body: { error: "request_too_large" }, status: 413 };
+    input = JSON.parse(raw) as Record<string, unknown>;
+    if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error("invalid_object");
+  } catch { return { body: { error: "invalid_json" }, status: 400 }; }
+  const refreshToken = typeof input.refreshToken === "string" ? input.refreshToken : "";
+  if (!/^[A-Za-z0-9_-]{60,100}$/.test(refreshToken)) return { body: { error: "invalid_refresh_token" }, status: 400 };
+  if (!env.DATABASE_URL) return { body: { error: "authentication_not_configured" }, status: 503 };
+  const sql = neon(env.DATABASE_URL);
+  await sql.query("UPDATE auth_sessions SET revoked_at = now() WHERE refresh_token_hash = $1 AND revoked_at IS NULL", [await digest(refreshToken)]);
+  return { body: { status: "logged_out" }, status: 200 };
+}
+async function currentUser(request: Request, env: Env): Promise<{ body: Record<string, unknown>; status: number }> {
+  const token = bearerToken(request);
+  if (!token) return { body: { error: "unauthorized" }, status: 401 };
+  if (!env.DATABASE_URL) return { body: { error: "authentication_not_configured" }, status: 503 };
+  const sql = neon(env.DATABASE_URL);
+  const rows = await sql.query(
+    "SELECT u.id, u.email, u.role FROM auth_sessions s JOIN users u ON u.id = s.user_id WHERE s.access_token_hash = $1 AND s.revoked_at IS NULL AND s.access_expires_at > now() AND u.account_status = 'ACTIVE' AND u.email_verified_at IS NOT NULL LIMIT 1",
+    [await digest(token)],
+  );
+  if (!rows.length) return { body: { error: "unauthorized" }, status: 401 };
+  return { body: { user: { id: String(rows[0].id), email: String(rows[0].email), role: String(rows[0].role) } }, status: 200 };
+}
+
 async function register(request: Request, env: Env): Promise<{ body: Record<string, unknown>; status: number }> {
   let input: Record<string, unknown>;
   try {
@@ -237,6 +365,18 @@ export default {
     }
     if (url.pathname === "/v1" && request.method === "GET") return response({ service: "sehati-backend-api", apiVersion: "v1", status: "email-verification-preview" }, 200, requestId, cors);
     try {
+      if (request.method === "POST" && url.pathname === "/v1/auth/login") {
+        const result = await login(request, env); return response(result.body, result.status, requestId, cors);
+      }
+      if (request.method === "POST" && url.pathname === "/v1/auth/refresh") {
+        const result = await refreshSession(request, env); return response(result.body, result.status, requestId, cors);
+      }
+      if (request.method === "POST" && url.pathname === "/v1/auth/logout") {
+        const result = await logout(request, env); return response(result.body, result.status, requestId, cors);
+      }
+      if (request.method === "GET" && url.pathname === "/v1/auth/me") {
+        const result = await currentUser(request, env); return response(result.body, result.status, requestId, cors);
+      }
       if (request.method === "POST" && url.pathname === "/v1/auth/register") {
         const result = await register(request, env); return response(result.body, result.status, requestId, cors);
       }
