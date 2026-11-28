@@ -155,7 +155,7 @@ exports.verifyEmailVerificationCode = onCall({
 });
 
 // Firebase-native authenticated booking and notification API.
-require("./healthApi");
+Object.assign(exports, require("./healthApi"));
 
 // Authenticated NOETRAX integration bridge (status-only until data scopes are approved).
 require("./noetraxBridge");
