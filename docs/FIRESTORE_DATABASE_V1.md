@@ -123,17 +123,19 @@ The app currently queries:
 
 Single-field queries use Firestore's automatic single-field indexes. Composite indexes required by the app are kept in `firestore.indexes.json`. Deploy indexes before shipping code that depends on a new compound query.
 
-## 6. Important current integration gap
+## 6. Current integration and rollout status
 
-The Android queue booking screen calls `PushSender.bookAppointment`, which still targets the Cloudflare push Worker. The Worker verifies Firebase ID tokens and uses trusted Firestore/FCM access to create appointments and allocate queue numbers. PR #91 adds the equivalent authenticated Firebase HTTPS API (`sehatiApi`) using the Admin SDK, including booking, queue, chat, appointment and prescription notifications; its export is now wired through `functions/index.js` and the export check passes. However, the function has not been deployed or integration-tested against the live Firebase project, and Android still targets the Worker. The old `Booking.kt` direct-write path is not a valid replacement because current Firestore rules deny client appointment/queue creation and disable legacy slot creation.
+The Android queue booking screen calls `PushSender.bookAppointment`. In PR #91, `PushSender` has been changed to target the Firebase HTTPS Function URL for the existing Firebase project (`europe-west1-{projectId}.cloudfunctions.net/sehatiApi`). The API uses Firebase Admin SDK for authenticated booking, transactional queue allocation, and chat, appointment, prescription and queue push notifications. The app and API use the same token fields (`fcmTokens.uid/token`), appointment ID format, visit types, and subscription status/expiry fields as the existing Worker contract.
 
-Therefore, Firebase remains the database/auth provider, but the project is not yet Firebase-only. Keep the existing Worker available until `sehatiApi` passes Emulator Suite and staging/live smoke tests, is deployed to the existing Firebase project, and the Android endpoint is deliberately switched.
+The Functions API and Android endpoint change are code-complete in the PR branch, but the Functions and composite indexes have not yet been deployed to production, and no live integration/smoke test has been run. The existing Worker must remain available for already-installed APK versions until the Firebase API is deployed and the new APK is installed and verified. The old `Booking.kt` direct-write path is not a valid replacement because current Firestore rules deny client appointment/queue creation and disable legacy slot creation.
+
+A guarded manual GitHub Actions workflow, `Deploy Firebase Functions`, has been added. It deploys Functions and Firestore indexes to the project identified by the existing `GOOGLE_SERVICES_JSON` secret. It requires a repository Actions secret named `FIREBASE_SERVICE_ACCOUNT_JSON` containing a service-account JSON for that exact Firebase project. Never paste this credential into chat or commit it to the repository. Cloud Functions deployment may require the Firebase project to use the Blaze billing plan.
 
 ## 7. Safe rollout
 
 1. Keep the current Firebase project and all existing documents.
-2. Deploy only the additive composite index in this change.
-3. Build and test Cloud Functions against the Firestore Emulator; do not weaken rules to make a failing client write pass.
-4. Run emulator tests for patient/doctor/admin access, expired grants, cross-user reads, appointment transitions, duplicate booking races, and prescription immutability.
-5. Verify current live records and take a backup/export before any data migration.
-6. Only then deploy reviewed rules/functions and update Android. No live rules or production data are changed by this schema document.
+2. Run the guarded deployment workflow only after the matching service-account secret is configured.
+3. Verify Functions and indexes deploy successfully, then run authenticated smoke tests for booking, approval, queue advancement, chat, prescriptions and notifications.
+4. Keep current Firestore rules unchanged; the existing rules emulator suite must pass before any rules change.
+5. Confirm the new APK builds successfully and targets the deployed `sehatiApi` endpoint before distributing it.
+6. Keep the Worker available until the new APK and Firebase Functions path are verified in production.
