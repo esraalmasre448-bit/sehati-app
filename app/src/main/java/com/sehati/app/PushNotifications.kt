@@ -9,6 +9,7 @@ import android.os.Handler
 import android.os.Looper
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
@@ -85,8 +86,14 @@ object PushTokenManager {
 
 /** Sends authenticated event references; the Worker verifies the caller and reads the source data. */
 object PushSender {
+    private fun endpoint(): String {
+        val projectId = FirebaseApp.getInstance().options.projectId.orEmpty().trim()
+        return if (projectId.isBlank()) "" else
+            "https://europe-west1-$projectId.cloudfunctions.net/sehatiApi"
+    }
+
     private fun post(path: String, payload: org.json.JSONObject) {
-        val endpoint = BuildConfig.PUSH_WORKER_URL.trim().trimEnd('/')
+        val endpoint = endpoint().trimEnd('/')
         if (endpoint.isBlank()) {
             Log.w("SehatiPush", "PUSH_WORKER_URL is not configured; push delivery is disabled")
             return
@@ -123,7 +130,7 @@ object PushSender {
     }
 
     fun bookAppointment(payload: org.json.JSONObject, onResult: (org.json.JSONObject?, String?) -> Unit) {
-        val endpoint = BuildConfig.PUSH_WORKER_URL.trim().trimEnd('/')
+        val endpoint = endpoint().trimEnd('/')
         val main = Handler(Looper.getMainLooper())
         if (endpoint.isBlank()) {
             main.post { onResult(null, "خدمة الحجز الآمن غير مهيأة حالياً. حاول لاحقاً.") }
