@@ -195,7 +195,10 @@ async function notifyAppointment(uid, input) {
   const patientName = text(a.patientName, 100) || "المريض";
   const doctorName = text(a.doctorName, 100) || "الطبيب";
   let receiver, title, body;
-  if (event === "booking_approved" && uid === doctorId && a.status === "CONFIRMED") {
+  if (event === "booking_requested" && uid === patientId && a.status === "PENDING") {
+    receiver = doctorId; title = "طلب حجز جديد";
+    body = patientName + " طلب موعداً بتاريخ " + a.date + " الساعة " + a.time + " — رقم " + a.number;
+  } else if (event === "booking_approved" && uid === doctorId && a.status === "CONFIRMED") {
     receiver = patientId; title = "تم تأكيد حجزك";
     body = doctorName + " وافق على موعدك بتاريخ " + a.date + " الساعة " + a.time;
   } else if (event === "appointment_cancelled" && a.status === "CANCELLED" &&
@@ -243,6 +246,7 @@ async function handle(req, res) {
       ]);
       if (!conv.exists || !msg.exists || msg.get("convId") !== convId || msg.get("senderId") !== uid)
         return reply(res, 403, { error: "forbidden" });
+      if (!text(msg.get("text"), 1000)) return reply(res, 400, { error: "empty_message" });
       const c = conv.data();
       const receiver = uid === c.patientId ? c.doctorId : uid === c.doctorId ? c.patientId : "";
       if (!receiver) return reply(res, 403, { error: "forbidden" });
@@ -257,7 +261,7 @@ async function handle(req, res) {
       const p = snap.data();
       return reply(res, 200, await notify(text(p.patientId, 128),
         p.kind === "lab" ? "طلب تحاليل جديد" : "وصفة طبية جديدة",
-        "أرسل طبيبك مستنداً طبياً جديداً.",
+        "أرسل " + (text(p.doctorName, 100) || "طبيبك") + " مستنداً طبياً جديداً. افتح وصفاتك الطبية للاطلاع عليه.",
         { type: "prescription", prescriptionId: id }));
     }
     if (path.endsWith("/notify-queue")) {
