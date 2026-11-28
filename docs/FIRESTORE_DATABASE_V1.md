@@ -125,9 +125,9 @@ Single-field queries use Firestore's automatic single-field indexes. Composite i
 
 ## 6. Important current integration gap
 
-The Android queue booking screen calls `PushSender.bookAppointment`, which currently targets the Cloudflare push Worker. That Worker verifies Firebase ID tokens and uses trusted Firestore/FCM access to create appointments and allocate queue numbers. The old `Booking.kt` direct-write path is not a valid replacement: current Firestore rules deny client appointment/queue creation and disable legacy slot creation.
+The Android queue booking screen calls `PushSender.bookAppointment`, which still targets the Cloudflare push Worker. The Worker verifies Firebase ID tokens and uses trusted Firestore/FCM access to create appointments and allocate queue numbers. PR #91 adds the equivalent authenticated Firebase HTTPS API (`sehatiApi`) using the Admin SDK, including booking, queue, chat, appointment and prescription notifications; its export is now wired through `functions/index.js` and the export check passes. However, the function has not been deployed or integration-tested against the live Firebase project, and Android still targets the Worker. The old `Booking.kt` direct-write path is not a valid replacement because current Firestore rules deny client appointment/queue creation and disable legacy slot creation.
 
-Therefore, Firebase remains the database/auth provider, but the project is not yet a Firebase-only backend. Before removing Cloudflare, port the booking transaction and authenticated notification endpoints to Firebase Cloud Functions (Admin SDK), test them in the Emulator Suite, then switch the Android endpoint. Keep the existing Worker available until the replacement passes those tests.
+Therefore, Firebase remains the database/auth provider, but the project is not yet Firebase-only. Keep the existing Worker available until `sehatiApi` passes Emulator Suite and staging/live smoke tests, is deployed to the existing Firebase project, and the Android endpoint is deliberately switched.
 
 ## 7. Safe rollout
 
