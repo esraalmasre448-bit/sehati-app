@@ -47,7 +47,7 @@ jobs:
       - name: Deploy Functions
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
-        run: firebase deploy --only functions --project "$FIREBASE_PROJECT_ID" --non-interactive
+        run: firebase deploy --only functions,firestore:indexes --project "$FIREBASE_PROJECT_ID" --non-interactive
       - name: Remove credentials
         if: always()
         run: rm -f "$RUNNER_TEMP/firebase-service-account.json"
