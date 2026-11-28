@@ -36,7 +36,10 @@ async function authenticate(req) {
 async function notify(uid, title, body, data = {}) {
   if (!uid) return { sent: 0, failed: 0 };
   const snapshot = await db.collection("fcmTokens").where("uid", "==", uid).limit(500).get();
-  const tokens = snapshot.docs.map(doc => text(doc.get("token"), 4096)).filter(Boolean);
+  const tokenDocs = snapshot.docs
+    .map(doc => ({ ref: doc.ref, token: text(doc.get("token"), 4096) }))
+    .filter(item => item.token);
+  const tokens = tokenDocs.map(item => item.token);
   if (!tokens.length) return { sent: 0, failed: 0 };
   const response = await getMessaging().sendEachForMulticast({
     tokens,
@@ -49,7 +52,7 @@ async function notify(uid, title, body, data = {}) {
     if (!item.success && [
       "messaging/invalid-registration-token",
       "messaging/registration-token-not-registered"
-    ].includes(item.error && item.error.code)) invalid.push(snapshot.docs[index].ref);
+    ].includes(item.error && item.error.code)) invalid.push(tokenDocs[index].ref);
   });
   if (invalid.length) {
     const batch = db.batch();
