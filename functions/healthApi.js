@@ -179,7 +179,7 @@ async function bookAppointment(uid, input) {
     delete result.appointmentId;
     delete result.patientName;
   }
-  const http = result.http || (["INVALID", "FORBIDDEN"].includes(result.status) ? 400 : 200);
+  const http = result.http || (result.status === "FORBIDDEN" ? 403 : result.status === "INVALID" ? 400 : 200);
   delete result.http;
   return { http, body: result };
 }
