@@ -8,7 +8,7 @@
   "scripts": {
     "serve": "firebase emulators:start --only functions",
     "deploy": "firebase deploy --only functions",
-    "check": "node --check index.js && node --check healthApi.js && node --check noetraxBridge.js"
+    "check": "node --check index.js && node --check healthApi.js && node --check noetraxBridge.js && node -e \"const f=require(\u0027./index\u0027); if (typeof f.sehatiApi !== \u0027function\u0027) throw new Error(\u0027sehatiApi was not exported\u0027); console.log(\u0027sehatiApi export OK\u0027)\""
   },
   "dependencies": {
     "firebase-admin": "^13.0.2",
