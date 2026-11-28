@@ -47,9 +47,9 @@ These features do not require a separate collection today:
 
 ## 4. Server-only data and trusted operations
 
-Cloud Functions currently present in `functions/index.js` implement email OTP request/verification and load the separate NOETRAX bridge. They do **not** yet implement the appointment booking transaction or push-delivery endpoints.
+The existing Cloud Functions retain email OTP request/verification and the separate NOETRAX bridge. PR #91 adds `sehatiApi`, an authenticated Admin SDK HTTPS API for appointment booking/queue allocation and chat, appointment, prescription and queue push delivery. The API export is wired into `functions/index.js`; CI now installs dependencies and verifies that `sehatiApi` is actually discoverable for deployment.
 
-The current Android booking screen calls `PushSender.bookAppointment` at the configured Cloudflare Worker. That trusted Worker verifies the Firebase ID token, validates patient/provider/subscription state, and atomically creates the appointment and increments the queue. Other push events also use that relay. Do not remove or disable it until equivalent Firebase Functions are implemented, emulator-tested, deployed and the Android endpoint is migrated.
+The Android booking screen still calls `PushSender.bookAppointment` at the configured Cloudflare Worker. That Worker remains the active trusted booking/push service. The new Firebase API has not yet been deployed or integration-tested against the existing Firebase project. Do not remove or disable the Worker or change the Android endpoint until the new API passes Emulator Suite and smoke tests, is deployed, and the app is deliberately migrated.
 
 Private server collections:
 - `_emailVerificationCodes/{uid}`: hashed OTP, expiry and attempts.
