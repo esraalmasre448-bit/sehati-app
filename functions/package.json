@@ -7,7 +7,8 @@
   "main": "index.js",
   "scripts": {
     "serve": "firebase emulators:start --only functions",
-    "deploy": "firebase deploy --only functions"
+    "deploy": "firebase deploy --only functions",
+    "check": "node --check index.js && node --check healthApi.js && node --check noetraxBridge.js"
   },
   "dependencies": {
     "firebase-admin": "^13.0.2",
