@@ -49,7 +49,7 @@ These features do not require a separate collection today:
 
 The existing Cloud Functions retain email OTP request/verification and the separate NOETRAX bridge. PR #91 adds `sehatiApi`, an authenticated Admin SDK HTTPS API for appointment booking/queue allocation and chat, appointment, prescription and queue push delivery. The API export is wired into `functions/index.js`; CI now installs dependencies and verifies that `sehatiApi` is actually discoverable for deployment.
 
-The Android booking screen still calls `PushSender.bookAppointment` at the configured Cloudflare Worker. That Worker remains the active trusted booking/push service. The new Firebase API has not yet been deployed or integration-tested against the existing Firebase project. Do not remove or disable the Worker or change the Android endpoint until the new API passes Emulator Suite and smoke tests, is deployed, and the app is deliberately migrated.
+In PR #91, the Android `PushSender` endpoint has been switched in code to the existing project's Firebase HTTPS Function URL (`sehatiApi`). The API and Android changes are not live yet: Functions and indexes still require deployment, followed by authenticated production smoke tests. The guarded manual `Deploy Firebase Functions` workflow requires the repository Actions secret `FIREBASE_SERVICE_ACCOUNT_JSON` for the same project as `GOOGLE_SERVICES_JSON`. Keep the Cloudflare Worker available for already-installed APK versions until the new APK and Firebase Functions path are verified.
 
 Private server collections:
 - `_emailVerificationCodes/{uid}`: hashed OTP, expiry and attempts.
