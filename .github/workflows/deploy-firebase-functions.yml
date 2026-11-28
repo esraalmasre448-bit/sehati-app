@@ -37,7 +37,7 @@ jobs:
               print("::error::Service account project does not match GOOGLE_SERVICES_JSON")
               sys.exit(1)
           with open(os.environ["GITHUB_ENV"], "a") as f:
-              f.write("FIREBASE_PROJECT_ID=" + project + "\\n")
+              f.write("FIREBASE_PROJECT_ID=" + project + "\n")
           with open(os.environ["RUNNER_TEMP"] + "/firebase-service-account.json", "w") as f:
               json.dump(service, f)
           print("Firebase project and service account validated")
